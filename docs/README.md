@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> A modern, enterprise-grade personal finance management and analytics platform.
+> 一个现代化、企业级的个人金融管理与分析平台。
 
 ![Version](https://img.shields.io/badge/version-v1.0-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
@@ -12,126 +12,126 @@
 
 ---
 
-# 📖 Overview
+# 📖 概览
 
-**Personal Finance OS** is an enterprise-grade personal finance management system designed to help individuals manage their financial life in one place.
+**Personal Finance OS** 是一套面向个人用户的企业级个人金融管理系统，目标是把资产、记账、投资与分析统一放在一个地方管理。
 
-Unlike traditional bookkeeping applications, Personal Finance OS focuses on **financial management, investment tracking, wealth analytics, and long-term maintainability**.
+它不同于传统记账软件，更关注 **财务管理、投资跟踪、财富分析和长期可维护性**。
 
-This project is built as a **real-world software engineering project**, following enterprise development standards rather than serving as a simple demonstration application.
-
----
-
-# 🎯 Vision
-
-Our goal is not to build another bookkeeping application.
-
-Our goal is to build a modern **Personal Financial Operating System**.
-
-The system provides:
-
-- Personal bookkeeping
-- Multi-account management
-- Portfolio management
-- Net worth tracking
-- Financial analytics
-- AI-assisted financial insights
-- Long-term scalability
+这个项目不是演示品，而是按照真实软件工程项目标准来建设的长期工程。
 
 ---
 
-# ✨ Core Features
+# 🎯 愿景
 
-## 💰 Ledger
+我们的目标不是再做一个普通记账应用。
 
-- Income
-- Expense
-- Transfer
-- Refund
-- Balance Adjustment
+我们的目标是打造一个现代化的 **个人金融操作系统**。
 
----
+系统提供：
 
-## 🏦 Account Management
-
-Support multiple account types:
-
-- Cash
-- Bank Accounts
-- Credit Cards
-- Payment Platforms
-- Brokerage Accounts
-- Crypto Wallets
+- 个人记账
+- 多账户管理
+- 投资组合管理
+- 净资产跟踪
+- 财务分析
+- AI 辅助洞察
+- 长期可扩展性
 
 ---
 
-## 📈 Investment Portfolio
+# ✨ 核心功能
 
-Support:
+## 💰 账本
 
-- Stocks
-- ETFs
-- Mutual Funds
-- Bonds
-- Gold
-- Cryptocurrency
-- Cash
-
-Track:
-
-- Holdings
-- Average Cost
-- Market Value
-- Profit & Loss
-- Return Rate
+- 收入
+- 支出
+- 转账
+- 退款
+- 余额调整
 
 ---
 
-## 📊 Dashboard
+## 🏦 账户管理
 
-Visual overview of:
+支持多种账户类型：
 
-- Total Assets
-- Net Worth
-- Monthly Cash Flow
-- Asset Allocation
-- Spending Analysis
-- Investment Performance
-
----
-
-## 🤖 AI Assistant (Planned)
-
-Future versions will include AI-powered:
-
-- Financial Reports
-- Spending Analysis
-- Investment Insights
-- Budget Suggestions
-- Portfolio Analysis
-
-AI will **never** replace the core business logic.
+- 现金账户
+- 银行账户
+- 信用卡
+- 支付平台
+- 券商账户
+- 加密钱包
 
 ---
 
-# 🚫 Out of Scope
+## 📈 投资组合
 
-Personal Finance OS is **NOT**:
+支持：
 
-- A banking system
-- A stock trading platform
-- A payment gateway
-- A quantitative trading system
-- A broker platform
-- A high-frequency trading platform
+- 股票
+- ETF
+- 基金
+- 债券
+- 黄金
+- 加密货币
+- 现金
 
-The project focuses exclusively on **personal financial management**.
+跟踪：
+
+- 持仓
+- 平均成本
+- 市值
+- 盈亏
+- 收益率
 
 ---
 
-# 🛠 Tech Stack
+## 📊 仪表盘
 
-## Backend
+可视化展示：
+
+- 总资产
+- 净资产
+- 月度现金流
+- 资产分布
+- 消费分析
+- 投资表现
+
+---
+
+## 🤖 AI 助手（规划中）
+
+后续版本将提供 AI 能力：
+
+- 财务报告
+- 消费分析
+- 投资洞察
+- 预算建议
+- 投资组合分析
+
+AI 永远不会替代核心业务逻辑。
+
+---
+
+# 🚫 不在范围内
+
+Personal Finance OS 不是：
+
+- 银行系统
+- 股票交易平台
+- 支付网关
+- 量化交易系统
+- 券商平台
+- 高频交易平台
+
+项目只聚焦于 **个人金融管理**。
+
+---
+
+# 🛠 技术栈
+
+## 后端
 
 - Java 21
 - Spring Boot 3
@@ -140,28 +140,28 @@ The project focuses exclusively on **personal financial management**.
 - MyBatis-Plus
 - Maven
 
-## Database
+## 数据库
 
 - PostgreSQL
 
-## Cache
+## 缓存
 
-- Redis (Planned)
+- Redis（规划中）
 
-## Frontend
+## 前端
 
 - React
 - TypeScript
 - Vite
 - ECharts
 
-## Deployment
+## 部署
 
 - Docker
 
 ---
 
-# 📂 Project Structure
+# 📂 项目结构
 
 ```text
 personal-finance-os/
@@ -174,102 +174,102 @@ personal-finance-os/
 └── scripts/
 ```
 
-For detailed documentation, please refer to the **docs** directory.
+更详细的文档请查看 `docs` 目录。
 
 ---
 
-# 📚 Documentation
+# 📚 文档
 
-Project documentation is organized under the `docs` folder.
+项目文档统一放在 `docs` 目录中。
 
-Current documents include:
+当前包含：
 
-- Project Vision
-- Development Guide
-- Software Requirements Specification (SRS)
-- Architecture Design
-- Database Design
-- API Specification
-- AI Development Rules
-- Roadmap
-- Architecture Decision Records (ADR)
-
----
-
-# 🚀 Development Philosophy
-
-This project follows several core principles:
-
-- Documentation First
-- Architecture First
-- Code Quality First
-- Long-term Maintainability
-- Modular Monolith Architecture
-- Clean Code
-- SOLID Principles
-- High Cohesion
-- Low Coupling
-
-Every feature should improve the system without compromising its architecture.
+- 项目愿景
+- 开发指南
+- 软件需求规格说明（SRS）
+- 架构设计
+- 数据库设计
+- API 规范
+- AI 开发规则
+- 路线图
+- 架构决策记录（ADR）
 
 ---
 
-# 🗺 Roadmap
+# 🚀 开发理念
 
-## Version 1.0
+项目遵循这些核心原则：
 
-- User Authentication
-- Account Management
-- Ledger
-- Categories
-- Portfolio
-- Dashboard
-- Analytics
+- 文档优先
+- 架构优先
+- 代码质量优先
+- 长期可维护
+- 模块化单体架构
+- 简洁代码
+- SOLID 原则
+- 高内聚
+- 低耦合
 
----
-
-## Version 2.0
-
-- Market Data API
-- Multi-Currency
-- Exchange Rates
-- CSV Import / Export
-- AI Financial Reports
-- Redis Cache
+每个功能都应让系统变得更好，而不是破坏已有架构。
 
 ---
 
-## Version 3.0
+# 🗺 路线图
 
-- Budget Planning
-- Financial Goals
-- Notifications
-- Backup & Restore
-- Mobile Optimization
+## V1.0
 
----
-
-## Version 4.0
-
-- Plugin System
-- Open API
-- Multi-device Synchronization
-- Internationalization
-- Advanced AI Assistant
+- 用户认证
+- 账户管理
+- 账本
+- 分类
+- 投资组合
+- 仪表盘
+- 分析
 
 ---
 
-# 🤝 Development Workflow
+## V2.0
 
-Requirement
+- 行情数据 API
+- 多币种
+- 汇率
+- CSV 导入 / 导出
+- AI 财务报告
+- Redis 缓存
+
+---
+
+## V3.0
+
+- 预算规划
+- 财务目标
+- 通知
+- 备份与恢复
+- 移动端优化
+
+---
+
+## V4.0
+
+- 插件系统
+- 开放 API
+- 多设备同步
+- 国际化
+- 高级 AI 助手
+
+---
+
+# 🤝 开发流程
+
+需求
 
 ↓
 
-Architecture
+架构
 
 ↓
 
-Database
+数据库
 
 ↓
 
@@ -277,34 +277,34 @@ API
 
 ↓
 
-Implementation
+实现
 
 ↓
 
-Code Review
+代码审查
 
 ↓
 
-Testing
+测试
 
 ↓
 
-Merge
+合并
 
 ---
 
-# 📜 License
+# 📜 许可
 
-This project is planned to be released under the MIT License.
+本项目计划采用 MIT License 发布。
 
 ---
 
-# ❤️ Why This Project
+# ❤️ 为什么做这个项目
 
-Personal Finance OS is intended to be more than a portfolio project.
+Personal Finance OS 不只是一个作品集项目。
 
-It is designed as a long-term engineering project that continuously evolves through multiple versions while following professional software engineering practices.
+它被设计为一个长期工程，会在多个版本中持续演进，同时遵循专业的软件工程实践。
 
-Every architectural decision, feature implementation, and code review aims to improve maintainability, scalability, and software quality.
+每一次架构决策、功能实现和代码审查，目标都是提升可维护性、可扩展性和软件质量。
 
-This repository represents a commitment to building software the way professional teams do—through clear documentation, thoughtful architecture, disciplined development, and continuous improvement.
+这个仓库代表的是一种持续建设软件的方式，通过清晰的文档、谨慎的架构、纪律化的开发和持续改进，做出真正能长期维护的系统。
