@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> A modern, enterprise-grade personal finance management and analytics platform.
+> 現代的でエンタープライズグレードの個人金融管理・分析プラットフォーム。
 
 ![Version](https://img.shields.io/badge/version-v1.0-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
@@ -12,126 +12,126 @@
 
 ---
 
-# 📖 Overview
+# 📖 概要
 
-**Personal Finance OS** is an enterprise-grade personal finance management system designed to help individuals manage their financial life in one place.
+**Personal Finance OS** は、個人の資産、記帳、投資、分析を一か所で管理できるように設計された、エンタープライズグレードの個人金融管理システムです。
 
-Unlike traditional bookkeeping applications, Personal Finance OS focuses on **financial management, investment tracking, wealth analytics, and long-term maintainability**.
+従来の家計簿アプリとは異なり、Personal Finance OS は **金融管理、投資追跡、資産分析、長期的な保守性** を重視しています。
 
-This project is built as a **real-world software engineering project**, following enterprise development standards rather than serving as a simple demonstration application.
-
----
-
-# 🎯 Vision
-
-Our goal is not to build another bookkeeping application.
-
-Our goal is to build a modern **Personal Financial Operating System**.
-
-The system provides:
-
-- Personal bookkeeping
-- Multi-account management
-- Portfolio management
-- Net worth tracking
-- Financial analytics
-- AI-assisted financial insights
-- Long-term scalability
+このプロジェクトは単なるデモではなく、実際のソフトウェア工学プロジェクトとして、エンタープライズ開発の基準に沿って構築されています。
 
 ---
 
-# ✨ Core Features
+# 🎯 ビジョン
 
-## 💰 Ledger
+私たちの目的は、単なる家計簿アプリを作ることではありません。
 
-- Income
-- Expense
-- Transfer
-- Refund
-- Balance Adjustment
+目指しているのは、現代的な **Personal Financial Operating System** を作ることです。
 
----
+このシステムは次の機能を提供します。
 
-## 🏦 Account Management
-
-Support multiple account types:
-
-- Cash
-- Bank Accounts
-- Credit Cards
-- Payment Platforms
-- Brokerage Accounts
-- Crypto Wallets
+- 個人記帳
+- 複数口座管理
+- ポートフォリオ管理
+- 純資産管理
+- 財務分析
+- AI による金融インサイト
+- 長期的な拡張性
 
 ---
 
-## 📈 Investment Portfolio
+# ✨ 主な機能
 
-Support:
+## 💰 取引台帳
 
-- Stocks
-- ETFs
-- Mutual Funds
-- Bonds
-- Gold
-- Cryptocurrency
-- Cash
-
-Track:
-
-- Holdings
-- Average Cost
-- Market Value
-- Profit & Loss
-- Return Rate
+- 収入
+- 支出
+- 振替
+- 返金
+- 残高調整
 
 ---
 
-## 📊 Dashboard
+## 🏦 口座管理
 
-Visual overview of:
+複数の口座タイプをサポートします。
 
-- Total Assets
-- Net Worth
-- Monthly Cash Flow
-- Asset Allocation
-- Spending Analysis
-- Investment Performance
-
----
-
-## 🤖 AI Assistant (Planned)
-
-Future versions will include AI-powered:
-
-- Financial Reports
-- Spending Analysis
-- Investment Insights
-- Budget Suggestions
-- Portfolio Analysis
-
-AI will **never** replace the core business logic.
+- 現金
+- 銀行口座
+- クレジットカード
+- 決済サービス
+- 証券口座
+- 暗号資産ウォレット
 
 ---
 
-# 🚫 Out of Scope
+## 📈 投資ポートフォリオ
 
-Personal Finance OS is **NOT**:
+以下をサポートします。
 
-- A banking system
-- A stock trading platform
-- A payment gateway
-- A quantitative trading system
-- A broker platform
-- A high-frequency trading platform
+- 株式
+- ETF
+- 投資信託
+- 債券
+- 金
+- 暗号資産
+- 現金
 
-The project focuses exclusively on **personal financial management**.
+追跡項目：
+
+- 保有数量
+- 平均取得単価
+- 時価
+- 損益
+- リターン率
 
 ---
 
-# 🛠 Tech Stack
+## 📊 ダッシュボード
 
-## Backend
+以下を視覚的に表示します。
+
+- 総資産
+- 純資産
+- 月次キャッシュフロー
+- 資産配分
+- 支出分析
+- 投資パフォーマンス
+
+---
+
+## 🤖 AI アシスタント（予定）
+
+将来のバージョンでは、次の AI 機能を提供します。
+
+- 財務レポート
+- 支出分析
+- 投資インサイト
+- 予算提案
+- ポートフォリオ分析
+
+AI はコアの業務ロジックを置き換えません。
+
+---
+
+# 🚫 対象外
+
+Personal Finance OS は、以下のシステムではありません。
+
+- 銀行システム
+- 株式取引プラットフォーム
+- 決済ゲートウェイ
+- 定量取引システム
+- 証券会社向けプラットフォーム
+- 高頻度取引プラットフォーム
+
+このプロジェクトは **個人金融管理** にのみ焦点を当てています。
+
+---
+
+# 🛠 技術スタック
+
+## バックエンド
 
 - Java 21
 - Spring Boot 3
@@ -140,28 +140,28 @@ The project focuses exclusively on **personal financial management**.
 - MyBatis-Plus
 - Maven
 
-## Database
+## データベース
 
 - PostgreSQL
 
-## Cache
+## キャッシュ
 
-- Redis (Planned)
+- Redis（予定）
 
-## Frontend
+## フロントエンド
 
 - React
 - TypeScript
 - Vite
 - ECharts
 
-## Deployment
+## デプロイ
 
 - Docker
 
 ---
 
-# 📂 Project Structure
+# 📂 プロジェクト構成
 
 ```text
 personal-finance-os/
@@ -174,15 +174,15 @@ personal-finance-os/
 └── scripts/
 ```
 
-For detailed documentation, please refer to the **docs** directory.
+詳細は `docs` ディレクトリを参照してください。
 
 ---
 
-# 📚 Documentation
+# 📚 ドキュメント
 
-Project documentation is organized under the `docs` folder.
+プロジェクトのドキュメントは `docs` 配下に整理されています。
 
-Current documents include:
+現在の文書には以下が含まれます。
 
 - Project Vision
 - Development Guide
@@ -196,9 +196,9 @@ Current documents include:
 
 ---
 
-# 🚀 Development Philosophy
+# 🚀 開発方針
 
-This project follows several core principles:
+このプロジェクトは次の原則に従います。
 
 - Documentation First
 - Architecture First
@@ -210,11 +210,11 @@ This project follows several core principles:
 - High Cohesion
 - Low Coupling
 
-Every feature should improve the system without compromising its architecture.
+すべての機能は、既存のアーキテクチャを損なうことなく、システムをより良くするものであるべきです。
 
 ---
 
-# 🗺 Roadmap
+# 🗺 ロードマップ
 
 ## Version 1.0
 
@@ -259,7 +259,7 @@ Every feature should improve the system without compromising its architecture.
 
 ---
 
-# 🤝 Development Workflow
+# 🤝 開発ワークフロー
 
 Requirement
 
@@ -293,18 +293,18 @@ Merge
 
 ---
 
-# 📜 License
+# 📜 ライセンス
 
-This project is planned to be released under the MIT License.
+このプロジェクトは MIT License で公開予定です。
 
 ---
 
-# ❤️ Why This Project
+# ❤️ このプロジェクトについて
 
-Personal Finance OS is intended to be more than a portfolio project.
+Personal Finance OS は、単なるポートフォリオではありません。
 
-It is designed as a long-term engineering project that continuously evolves through multiple versions while following professional software engineering practices.
+複数のバージョンを通して継続的に進化し、プロフェッショナルなソフトウェア工学の実践に沿って長期的に育てていくことを目的としたプロジェクトです。
 
-Every architectural decision, feature implementation, and code review aims to improve maintainability, scalability, and software quality.
+各アーキテクチャ決定、機能実装、コードレビューは、保守性、拡張性、ソフトウェア品質の向上を目的としています。
 
-This repository represents a commitment to building software the way professional teams do—through clear documentation, thoughtful architecture, disciplined development, and continuous improvement.
+このリポジトリは、明確なドキュメント、慎重なアーキテクチャ、規律ある開発、継続的改善を通して、チームらしくソフトウェアを作る姿勢そのものを表しています。
