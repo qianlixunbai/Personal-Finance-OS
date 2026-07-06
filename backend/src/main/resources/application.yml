@@ -3,8 +3,8 @@ spring:
     name: finance-os
   datasource:
     url: jdbc:postgresql://localhost:5432/finance_os
-    username: postgres
-    password: 123456
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   sql:
     init:
@@ -14,7 +14,7 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
   global-config:
     db-config:
       id-type: auto
@@ -23,7 +23,7 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 jwt:
-  secret: finance-os-jwt-secret-key-must-be-at-least-256-bits-long-for-hs256
+  secret: ${JWT_SECRET}
   expiration: 86400000
 
 server:
