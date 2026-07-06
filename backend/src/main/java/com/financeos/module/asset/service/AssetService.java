@@ -53,6 +53,9 @@ public class AssetService {
 
     @Transactional
     public AssetResponse updatePrice(Long userId, Long id, BigDecimal currentPrice) {
+        if (currentPrice == null || currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(400, "资产价格必须大于 0");
+        }
         Asset asset = assetMapper.selectById(id);
         if (asset == null || !asset.getUserId().equals(userId)) {
             throw new BusinessException(404, "资产不存在");

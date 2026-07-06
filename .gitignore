@@ -1,6 +1,12 @@
 backend/target/
 backend/.mvn/
 backend/mvnw*
+!backend/.mvn/
+!backend/.mvn/wrapper/
+!backend/.mvn/wrapper/maven-wrapper.jar
+!backend/.mvn/wrapper/maven-wrapper.properties
+!backend/mvnw
+!backend/mvnw.cmd
 frontend/node_modules/
 frontend/dist/
 .idea/

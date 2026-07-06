@@ -5,13 +5,16 @@ import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.service.AssetService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
+@Validated
 @RequestMapping("/api/v1/assets")
 public class AssetController {
 
@@ -38,7 +41,7 @@ public class AssetController {
 
     @PutMapping("/{id}/price")
     public ApiResponse<AssetResponse> updatePrice(@PathVariable Long id,
-                                                   @RequestParam BigDecimal price,
+                                                   @RequestParam @Positive BigDecimal price,
                                                    Authentication auth) {
         return ApiResponse.ok(assetService.updatePrice((Long) auth.getPrincipal(), id, price));
     }

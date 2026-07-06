@@ -6,8 +6,6 @@ import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.entity.Account;
 import com.financeos.module.account.mapper.AccountMapper;
-import com.financeos.module.ledger.mapper.TransactionMapper;
-import com.financeos.module.ledger.entity.Transaction;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,11 +16,9 @@ import java.util.List;
 public class AccountService {
 
     private final AccountMapper accountMapper;
-    private final TransactionMapper transactionMapper;
 
-    public AccountService(AccountMapper accountMapper, TransactionMapper transactionMapper) {
+    public AccountService(AccountMapper accountMapper) {
         this.accountMapper = accountMapper;
-        this.transactionMapper = transactionMapper;
     }
 
     public List<AccountResponse> listByUser(Long userId) {
@@ -69,11 +65,6 @@ public class AccountService {
         Account account = accountMapper.selectById(accountId);
         if (account == null || !account.getUserId().equals(userId)) {
             throw new BusinessException(404, "账户不存在");
-        }
-        Long txnCount = transactionMapper.selectCount(
-                new LambdaQueryWrapper<Transaction>().eq(Transaction::getAccountId, accountId));
-        if (txnCount > 0) {
-            throw new BusinessException(400, "该账户存在历史流水，禁止删除，请使用停用功能");
         }
         account.setStatus("INACTIVE");
         accountMapper.updateById(account);

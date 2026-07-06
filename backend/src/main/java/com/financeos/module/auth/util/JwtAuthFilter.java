@@ -40,13 +40,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Claims claims = jwtUtil.parseToken(token);
             Long userId = Long.valueOf(claims.getSubject());
             User user = userMapper.selectById(userId);
-            if (user != null) {
+            if (user != null && "ACTIVE".equals(user.getStatus())) {
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         } catch (Exception e) {
             // Token invalid, continue without authentication
+            SecurityContextHolder.clearContext();
         }
         filterChain.doFilter(request, response);
     }

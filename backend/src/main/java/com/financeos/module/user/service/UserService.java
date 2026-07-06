@@ -43,6 +43,9 @@ public class UserService {
         if (user == null || !passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             throw new BusinessException(401, "用户名或密码错误");
         }
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException(403, "账号已禁用");
+        }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername());
         return new LoginResponse(token, user.getId(), user.getUsername());
     }
