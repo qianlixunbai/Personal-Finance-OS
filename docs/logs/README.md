@@ -13,3 +13,4 @@
 
 - [2026-07-06-environment.md](2026-07-06-environment.md)
 - [2026-07-06-p1-fix.md](2026-07-06-p1-fix.md)
+- [2026-07-06-register-validation.md](2026-07-06-register-validation.md)
