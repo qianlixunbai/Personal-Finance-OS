@@ -3,6 +3,7 @@ package com.financeos.module.category.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.financeos.common.BusinessException;
 import com.financeos.module.category.dto.CategoryRequest;
+import com.financeos.module.category.dto.CategoryResponse;
 import com.financeos.module.category.entity.Category;
 import com.financeos.module.category.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
@@ -20,18 +21,18 @@ public class CategoryService {
         this.categoryMapper = categoryMapper;
     }
 
-    public List<Category> listByUser(Long userId, String type) {
+    public List<CategoryResponse> listByUser(Long userId, String type) {
         var query = new LambdaQueryWrapper<Category>()
                 .and(w -> w.eq(Category::getUserId, userId).or().eq(Category::getIsSystem, true))
                 .orderByAsc(Category::getSortOrder);
         if (type != null) {
             query.eq(Category::getType, type);
         }
-        return categoryMapper.selectList(query);
+        return categoryMapper.selectList(query).stream().map(this::toResponse).toList();
     }
 
     @Transactional
-    public Category create(Long userId, CategoryRequest req) {
+    public CategoryResponse create(Long userId, CategoryRequest req) {
         Category category = new Category();
         category.setUserId(userId);
         category.setName(req.name());
@@ -40,7 +41,7 @@ public class CategoryService {
         category.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
         category.setIsSystem(false);
         categoryMapper.insert(category);
-        return category;
+        return toResponse(category);
     }
 
     @Transactional
@@ -71,5 +72,19 @@ public class CategoryService {
                 categoryMapper.insert(cat);
             }
         }
+    }
+
+    private CategoryResponse toResponse(Category category) {
+        return new CategoryResponse(
+                category.getId(),
+                category.getUserId(),
+                category.getName(),
+                category.getType(),
+                category.getParentId(),
+                category.getIsSystem(),
+                category.getSortOrder(),
+                category.getCreatedAt(),
+                category.getUpdatedAt()
+        );
     }
 }
