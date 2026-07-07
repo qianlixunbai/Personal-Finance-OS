@@ -1,7 +1,9 @@
 package com.financeos.module.account.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.financeos.common.BusinessException;
+import com.financeos.common.PageResult;
 import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.entity.Account;
@@ -25,6 +27,19 @@ public class AccountService {
         return accountMapper.selectList(
                 new LambdaQueryWrapper<Account>().eq(Account::getUserId, userId)
         ).stream().map(this::toResponse).toList();
+    }
+
+    public PageResult<AccountResponse> pageByUser(Long userId, int page, int size) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<Account> result = accountMapper.selectPage(
+                Page.of(safePage, safeSize),
+                new LambdaQueryWrapper<Account>()
+                        .eq(Account::getUserId, userId)
+                        .orderByDesc(Account::getCreatedAt)
+        );
+        List<AccountResponse> records = result.getRecords().stream().map(this::toResponse).toList();
+        return new PageResult<>(records, result.getTotal(), safePage, safeSize);
     }
 
     public AccountResponse getById(Long userId, Long accountId) {

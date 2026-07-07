@@ -1,6 +1,7 @@
 package com.financeos.module.account.controller;
 
 import com.financeos.common.ApiResponse;
+import com.financeos.common.PageResult;
 import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.service.AccountService;
@@ -27,6 +28,13 @@ public class AccountController {
     @GetMapping
     public ApiResponse<List<AccountResponse>> list(Authentication auth) {
         return ApiResponse.ok(accountService.listByUser(userId(auth)));
+    }
+
+    @GetMapping("/page")
+    public ApiResponse<PageResult<AccountResponse>> page(@RequestParam(defaultValue = "1") int page,
+                                                          @RequestParam(defaultValue = "20") int size,
+                                                          Authentication auth) {
+        return ApiResponse.ok(accountService.pageByUser(userId(auth), page, size));
     }
 
     @GetMapping("/{id}")

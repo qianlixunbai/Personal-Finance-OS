@@ -55,11 +55,11 @@ BUILD SUCCESS
 
 ## P2-02 部分列表接口缺少分页
 
-Status: In Progress
+Status: Fixed
 
 Problem:
 
-部分可能持续增长的列表接口缺少分页能力。资产列表属于用户资产数据，随着使用时间增长可能出现记录数量增加的问题。
+部分可能持续增长的列表接口缺少分页能力。资产列表和账户列表属于用户业务数据，随着使用时间增长可能出现记录数量增加的问题。
 
 Phase 1 Resolution:
 
@@ -73,11 +73,25 @@ Phase 1 Resolution:
 
 - `ApiResponse<PageResult<AssetResponse>>`
 
+Phase 2 Resolution:
+
+新增账户分页查询接口，同时保留原账户列表接口不变。
+
+新增接口：
+
+- `GET /api/v1/accounts/page?page=1&size=20`
+
+返回结构：
+
+- `ApiResponse<PageResult<AccountResponse>>`
+
 Compatibility:
 
 - `GET /api/v1/assets` 保持不变，仍返回 `ApiResponse<List<AssetResponse>>`。
+- `GET /api/v1/accounts` 保持不变，仍返回 `ApiResponse<List<AccountResponse>>`。
 - 前端现有调用不需要修改。
 - `AssetResponse` 字段结构未修改。
+- `AccountResponse` 字段结构未修改。
 - 接口路径未破坏。
 
 Implementation:
@@ -90,10 +104,13 @@ Implementation:
 - `size` 最小值为 `1`，最大值为 `100`。
 - 查询条件保持 `userId` 隔离。
 - 资产分页按 `createdAt` 倒序。
+- `AccountService.pageByUser` 使用 MyBatis-Plus `selectPage`。
+- 账户分页按 `createdAt` 倒序。
 
 Impact:
 
-- `AccountController` 未修改。
+- `AssetController` 新增分页接口，原列表接口未修改。
+- `AccountController` 新增分页接口，原列表接口未修改。
 - `CategoryController` 未修改。
 - `DashboardController` 未修改。
 - 前端未修改。
@@ -103,7 +120,6 @@ Impact:
 
 Remaining:
 
-- 账户分页接口尚未处理。
 - 分类列表暂不分页，原因是分类属于小规模字典类数据，当前阶段保持简单。
 
 Verification:
@@ -116,7 +132,7 @@ cd backend
 Result:
 
 ```text
-Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
