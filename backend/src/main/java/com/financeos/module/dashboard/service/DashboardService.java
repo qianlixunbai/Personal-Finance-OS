@@ -1,13 +1,10 @@
 package com.financeos.module.dashboard.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.financeos.module.account.entity.Account;
-import com.financeos.module.account.mapper.AccountMapper;
+import com.financeos.module.account.service.AccountQueryService;
 import com.financeos.module.asset.entity.Asset;
-import com.financeos.module.asset.mapper.AssetMapper;
+import com.financeos.module.asset.service.AssetQueryService;
 import com.financeos.module.dashboard.dto.DashboardDto;
-import com.financeos.module.ledger.entity.Transaction;
-import com.financeos.module.ledger.mapper.TransactionMapper;
+import com.financeos.module.ledger.service.TransactionQueryService;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,14 +15,16 @@ import java.util.List;
 @Service
 public class DashboardService {
 
-    private final AccountMapper accountMapper;
-    private final AssetMapper assetMapper;
-    private final TransactionMapper transactionMapper;
+    private final AccountQueryService accountQueryService;
+    private final AssetQueryService assetQueryService;
+    private final TransactionQueryService transactionQueryService;
 
-    public DashboardService(AccountMapper accountMapper, AssetMapper assetMapper, TransactionMapper transactionMapper) {
-        this.accountMapper = accountMapper;
-        this.assetMapper = assetMapper;
-        this.transactionMapper = transactionMapper;
+    public DashboardService(AccountQueryService accountQueryService,
+                            AssetQueryService assetQueryService,
+                            TransactionQueryService transactionQueryService) {
+        this.accountQueryService = accountQueryService;
+        this.assetQueryService = assetQueryService;
+        this.transactionQueryService = transactionQueryService;
     }
 
     public DashboardDto getDashboard(Long userId) {
@@ -34,12 +33,8 @@ public class DashboardService {
         var monthEnd = now;
 
         // Total assets: account balances + asset market value
-        BigDecimal accountTotal = accountMapper.selectList(
-                new LambdaQueryWrapper<Account>().eq(Account::getUserId, userId)
-        ).stream().map(Account::getBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        List<Asset> assets = assetMapper.selectList(
-                new LambdaQueryWrapper<Asset>().eq(Asset::getUserId, userId));
+        BigDecimal accountTotal = accountQueryService.sumBalanceByUser(userId);
+        List<Asset> assets = assetQueryService.listByUser(userId);
 
         BigDecimal assetTotal = assets.stream()
                 .map(a -> {
@@ -64,19 +59,13 @@ public class DashboardService {
                 }).toList();
 
         // Monthly income/expense
-        BigDecimal monthIncome = transactionMapper.sumByTypeAndDate(userId, "INCOME", monthStart, monthEnd);
-        BigDecimal monthExpense = transactionMapper.sumByTypeAndDate(userId, "EXPENSE", monthStart, monthEnd);
-        if (monthIncome == null) monthIncome = BigDecimal.ZERO;
-        if (monthExpense == null) monthExpense = BigDecimal.ZERO;
+        BigDecimal monthIncome = transactionQueryService.sumByTypeAndDate(userId, "INCOME", monthStart, monthEnd);
+        BigDecimal monthExpense = transactionQueryService.sumByTypeAndDate(userId, "EXPENSE", monthStart, monthEnd);
         BigDecimal netWorth = totalAssets; // V1: no liabilities tracking
 
         // Recent transactions
-        List<DashboardDto.RecentTransaction> recent = transactionMapper.selectList(
-                new LambdaQueryWrapper<Transaction>()
-                        .eq(Transaction::getUserId, userId)
-                        .orderByDesc(Transaction::getTransactedAt)
-                        .last("LIMIT 5")
-        ).stream().map(tx -> new DashboardDto.RecentTransaction(
+        List<DashboardDto.RecentTransaction> recent = transactionQueryService.listRecentByUser(userId, 5)
+                .stream().map(tx -> new DashboardDto.RecentTransaction(
                 tx.getId(), tx.getType(), tx.getAmount(),
                 "", "", tx.getTransactedAt().toString()
         )).toList();
