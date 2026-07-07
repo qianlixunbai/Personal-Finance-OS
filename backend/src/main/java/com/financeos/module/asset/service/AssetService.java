@@ -1,7 +1,9 @@
 package com.financeos.module.asset.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.financeos.common.BusinessException;
+import com.financeos.common.PageResult;
 import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.entity.Asset;
@@ -26,6 +28,19 @@ public class AssetService {
         return assetMapper.selectList(
                 new LambdaQueryWrapper<Asset>().eq(Asset::getUserId, userId)
         ).stream().map(this::toResponse).toList();
+    }
+
+    public PageResult<AssetResponse> pageByUser(Long userId, int page, int size) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<Asset> result = assetMapper.selectPage(
+                Page.of(safePage, safeSize),
+                new LambdaQueryWrapper<Asset>()
+                        .eq(Asset::getUserId, userId)
+                        .orderByDesc(Asset::getCreatedAt)
+        );
+        List<AssetResponse> records = result.getRecords().stream().map(this::toResponse).toList();
+        return new PageResult<>(records, result.getTotal(), safePage, safeSize);
     }
 
     public AssetResponse getById(Long userId, Long id) {

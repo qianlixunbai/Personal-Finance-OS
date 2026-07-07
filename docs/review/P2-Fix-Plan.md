@@ -53,6 +53,73 @@ Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
+## P2-02 部分列表接口缺少分页
+
+Status: In Progress
+
+Problem:
+
+部分可能持续增长的列表接口缺少分页能力。资产列表属于用户资产数据，随着使用时间增长可能出现记录数量增加的问题。
+
+Phase 1 Resolution:
+
+新增资产分页查询接口，同时保留原资产列表接口不变。
+
+新增接口：
+
+- `GET /api/v1/assets/page?page=1&size=20`
+
+返回结构：
+
+- `ApiResponse<PageResult<AssetResponse>>`
+
+Compatibility:
+
+- `GET /api/v1/assets` 保持不变，仍返回 `ApiResponse<List<AssetResponse>>`。
+- 前端现有调用不需要修改。
+- `AssetResponse` 字段结构未修改。
+- 接口路径未破坏。
+
+Implementation:
+
+- 新增最小 MyBatis-Plus 分页配置。
+- 使用 `MybatisPlusInterceptor` 和 `PaginationInnerInterceptor`。
+- 使用 PostgreSQL 对应的 `DbType.POSTGRE_SQL`。
+- `AssetService.pageByUser` 使用 MyBatis-Plus `selectPage`。
+- `page` 最小值为 `1`。
+- `size` 最小值为 `1`，最大值为 `100`。
+- 查询条件保持 `userId` 隔离。
+- 资产分页按 `createdAt` 倒序。
+
+Impact:
+
+- `AccountController` 未修改。
+- `CategoryController` 未修改。
+- `DashboardController` 未修改。
+- 前端未修改。
+- `Architecture.md` 未修改。
+- `Database.md` 未修改。
+- `API.md` 未修改。
+
+Remaining:
+
+- 账户分页接口尚未处理。
+- 分类列表暂不分页，原因是分类属于小规模字典类数据，当前阶段保持简单。
+
+Verification:
+
+```powershell
+cd backend
+.\mvnw.cmd clean test
+```
+
+Result:
+
+```text
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
 ## P2-03 CategoryController 直接返回 Entity
 
 Status: Fixed

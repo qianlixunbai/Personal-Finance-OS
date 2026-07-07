@@ -1,6 +1,7 @@
 package com.financeos.module.asset.controller;
 
 import com.financeos.common.ApiResponse;
+import com.financeos.common.PageResult;
 import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.service.AssetService;
@@ -27,6 +28,13 @@ public class AssetController {
     @GetMapping
     public ApiResponse<List<AssetResponse>> list(Authentication auth) {
         return ApiResponse.ok(assetService.listByUser((Long) auth.getPrincipal()));
+    }
+
+    @GetMapping("/page")
+    public ApiResponse<PageResult<AssetResponse>> page(@RequestParam(defaultValue = "1") int page,
+                                                        @RequestParam(defaultValue = "20") int size,
+                                                        Authentication auth) {
+        return ApiResponse.ok(assetService.pageByUser((Long) auth.getPrincipal(), page, size));
     }
 
     @GetMapping("/{id}")
