@@ -12,3 +12,7 @@ frontend/dist/
 .idea/
 *.iml
 *.log
+backend/.env.local
+.env.local
+application-local.yml
+backend/src/main/resources/application-local.yml

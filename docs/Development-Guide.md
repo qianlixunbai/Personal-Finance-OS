@@ -295,3 +295,40 @@ Review
 Merge
 
 任何阶段不得跳过 Review。
+
+---
+
+# 14. Local Backend Run
+
+后端本地启动依赖以下环境变量：
+
+- `JWT_SECRET`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+
+`JWT_SECRET` 用于创建 JWT 签名密钥，长度必须至少 32 字符。`DB_USERNAME` 和 `DB_PASSWORD` 用于连接本地 PostgreSQL。
+
+第一次使用：
+
+1. 复制 `backend/.env.example` 为 `backend/.env.local`
+2. 在 `backend/.env.local` 中填写本地 PostgreSQL 用户名和密码
+3. 确保 `JWT_SECRET` 至少 32 字符
+4. 在项目根目录运行：
+
+```powershell
+.\scripts\dev-start-backend.ps1
+```
+
+后续启动后端时，直接在项目根目录运行：
+
+```powershell
+.\scripts\dev-start-backend.ps1
+```
+
+注意：
+
+- `backend/.env.local` 只保存本地真实配置，不要提交到 Git
+- `backend/.env.example` 只保存模板值，可以提交
+- 启动脚本只把变量设置到当前 PowerShell 进程，不会打印真实 secret
+- 如果前端出现 Vite proxy `ECONNREFUSED`，先确认后端是否启动成功
+- 后端启动成功时，应看到 Tomcat started on port 8080
