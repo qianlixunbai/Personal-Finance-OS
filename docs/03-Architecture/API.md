@@ -14,17 +14,9 @@
 
 # 1. Purpose
 
-本文档用于记录 Personal Finance OS 当前后端 API 实现基线、统一响应格式、认证规则、分页规则、错误处理方式、前端调用现状、Known Gaps、v1.0 Target Design 以及 Future Evolution。
+本文档用于记录 Personal Finance OS 当前后端 API 实现基线、统一响应规范、认证规则、分页规则、错误处理、前端调用现状、Known Gaps、v1.0 Target Design 以及 Future Evolution。
 
-本文档不是 OpenAPI / Swagger 文档，不替代接口自动化契约，也不要求立即补齐未实现能力。本文档的核心目标是：
-
-- 记录当前已经实现的 API；
-- 明确当前 API 的认证、响应、分页和错误处理规则；
-- 区分 Current Implementation、Target Design 和 Future Evolution；
-- 为后续 Controller、DTO、Service、前端调用和 Review 提供基线；
-- 保证 API 设计与 `Architecture.md`、`Database.md`、`Business Rules.md`、`Financial Rules.md` 保持一致。
-
-本文档不得把未实现能力描述为已实现能力。
+本文档不是 OpenAPI / Swagger 文档，也不要求立即补实现。未实现能力不得写成已实现能力。
 
 ------
 
@@ -32,51 +24,36 @@
 
 ## 2.1 In Scope
 
-本文档覆盖：
-
-- 当前后端 Controller 暴露的 API；
-- 当前 Request DTO / Response DTO；
-- `ApiResponse<T>` 统一响应格式；
-- `PageResult<T>` 分页响应格式；
-- `BusinessException` 与 `GlobalExceptionHandler`；
-- 当前 Spring Security / JWT 认证规则；
-- 当前前端 `frontend/src/api` 和页面中的实际 API 调用；
-- 当前 API 与数据库设计、业务规则和金融规则的一致性；
-- 当前 Known Gaps；
-- v1.0 Target API Design；
-- Future Evolution；
-- Review Checklist。
+- 当前后端 Controller 已暴露的 API
+- 当前 Request DTO / Response DTO
+- `ApiResponse<T>` 统一响应格式
+- `PageResult<T>` 分页响应格式
+- `BusinessException` 与 `GlobalExceptionHandler`
+- Spring Security / JWT 认证规则
+- 当前前端 `frontend/src/api` 和页面中的实际 API 调用
+- API 与 `Architecture.md`、`Database.md`、`Business Rules.md`、`Financial Rules.md` 的一致性
+- Current Implementation、Target v1.0 API Design、Known Gaps、Future Evolution
 
 ## 2.2 Out of Scope
 
-本文档不包含：
-
-- Java 代码修改；
-- Controller / DTO / Service 实现修改；
-- 前端代码修改；
-- `schema.sql` 修改；
-- `Architecture.md` 或 `Database.md` 修改；
-- OpenAPI / Swagger 配置；
-- 接口自动生成文档；
-- 新接口实现；
-- 数据库 migration；
-- 具体前端页面交互设计。
+- Java / Controller / DTO / Service 实现修改
+- 前端代码修改
+- `schema.sql`、`Architecture.md`、`Database.md` 修改
+- OpenAPI / Swagger 配置
+- 新接口实现
 
 ------
 
 # 3. API Design Principles
 
-当前 API 设计遵循以下原则：
-
-1. API 必须服务于模块化单体架构，不引入微服务边界。
+1. API 服务于模块化单体架构，不引入微服务边界。
 2. Controller 只负责请求入口、参数接收、参数校验和统一返回，不承载业务规则。
 3. 业务规则和金融计算必须位于后端 Service 层，前端不得执行最终金融计算。
 4. 对外返回使用 DTO，不直接返回 Entity。
 5. 普通业务数据必须围绕当前登录用户进行隔离。
 6. Dashboard 数据必须来源于真实业务数据，不人工维护统计结果。
 7. AI 不得修改金融数据、账户余额、资产持仓或流水数据。
-8. 当前实现与目标设计必须明确区分，未实现能力不得写入 Current Implementation。
-9. Future Evolution 只记录未来扩展方向，不代表当前 v1.0 已实现或必须立即实现。
+8. Current Implementation、Target Design、Future Evolution 必须明确区分。
 
 ------
 
@@ -97,9 +74,8 @@
 当前版本策略：
 
 - `v1` 表示当前 v1.0 API 基线；
-- 目前没有多版本并行机制；
-- 如后续出现不兼容 API 变更，应优先通过新版本路径或兼容字段演进处理；
-- 不应在未评审的情况下破坏当前前端已使用接口。
+- 当前没有多版本并行机制；
+- 如后续出现不兼容 API 变更，应优先通过新版本路径或兼容字段演进处理。
 
 ------
 
@@ -135,8 +111,7 @@ Authorization: Bearer <token>
 - 当前无角色模型；
 - 当前无管理员权限；
 - 当前无细粒度权限模型；
-- 当前普通用户只能通过 Service 层的 `userId` 限制访问自己的数据；
-- 当前不支持多用户协作、家庭账本或企业账本。
+- 普通用户只能通过 Service 层的 `userId` 限制访问自己的数据。
 
 ------
 
@@ -168,16 +143,8 @@ Authorization: Bearer <token>
 - `ApiResponse.ok()` 返回 `code = 200`、`message = "success"` 和 `data = null`；
 - `ApiResponse.error(code, message)` 返回错误响应；
 - `ApiResponse` 使用 `@JsonInclude(JsonInclude.Include.NON_NULL)`；
-- 当 `data == null` 时，响应 JSON 中可能不输出 `data` 字段。
-
-错误响应示例：
-
-```json
-{
-  "code": 404,
-  "message": "resource not found"
-}
-```
+- 当 `data == null` 时，响应 JSON 中可能不输出 `data` 字段；
+- `BusinessException` 的 `code` 与 HTTP status 已做基本映射。
 
 ------
 
@@ -205,20 +172,14 @@ Authorization: Bearer <token>
 | `page` | `int` | 当前页码。 |
 | `size` | `int` | 当前页大小。 |
 
-当前分页实现：
+当前分页规则：
 
-- `Account` 已提供分页接口；
-- `Asset` 已提供分页接口；
-- `page < 1` 时修正为 `1`；
-- `size < 1` 时修正为 `1`；
-- `size > 100` 时修正为 `100`；
+- `page < 1` 修正为 `1`；
+- `size < 1` 修正为 `1`；
+- `size > 100` 修正为 `100`；
+- `Account`、`Asset`、`Transaction / Ledger` 已提供分页接口；
 - 原列表接口仍保留，用于兼容当前前端；
 - 当前前端尚未接入分页接口。
-
-当前分页接口：
-
-- `GET /api/v1/accounts/page?page=1&size=20`
-- `GET /api/v1/assets/page?page=1&size=20`
 
 ------
 
@@ -233,8 +194,6 @@ Authorization: Bearer <token>
 | `code` | `int` | 业务错误码。 |
 | `message` | `String` | 错误消息。 |
 
-当前统一异常处理位于 `GlobalExceptionHandler`。
-
 当前 `BusinessException` 到 HTTP Status 的映射：
 
 | `BusinessException.code` | HTTP Status |
@@ -244,11 +203,6 @@ Authorization: Bearer <token>
 | `403` | `403 Forbidden` |
 | `404` | `404 Not Found` |
 | 其他 | `400 Bad Request` |
-
-未知异常：
-
-- 未捕获 `Exception` 返回 HTTP `500`；
-- 响应体使用 `ApiResponse.error(500, message)`。
 
 当前已知限制：
 
@@ -273,12 +227,6 @@ Authorization: Bearer <token>
 | `POST` | `/api/v1/register` | 否 | Body: `RegisterRequest(username, email, password)` | `ApiResponse<Void>` | 注册用户。`username` 和 `email` 需要唯一，密码使用 BCrypt 加密保存。 |
 | `POST` | `/api/v1/login` | 否 | Body: `LoginRequest(username, password)` | `ApiResponse<LoginResponse>` | 登录成功后返回 `token`、`userId`、`username`。仅 `ACTIVE` 用户可登录。 |
 
-相关 DTO：
-
-- `RegisterRequest`
-- `LoginRequest`
-- `LoginResponse`
-
 ## 9.2 Account APIs
 
 | Method | Path | 认证 | 请求参数 / 请求体 | 响应类型 | 当前说明 |
@@ -290,17 +238,11 @@ Authorization: Bearer <token>
 | `PUT` | `/api/v1/accounts/{id}` | 是 | Path: `id`; Body: `AccountRequest` | `ApiResponse<AccountResponse>` | 更新账户基础信息。 |
 | `POST` | `/api/v1/accounts/{id}/deactivate` | 是 | Path: `id` | `ApiResponse<Void>` | 停用账户，将 `status` 更新为 `INACTIVE`。 |
 
-相关 DTO：
-
-- `AccountRequest`
-- `AccountResponse`
-
 当前说明：
 
-- 当前账户 API 使用 `Authentication principal` 获取当前 `userId`；
+- 账户 API 使用 `Authentication principal` 获取当前 `userId`；
 - 查询、详情、更新和停用均校验账户归属；
 - 当前未提供账户删除 API；
-- 当前停用账户符合业务规则中“保留历史数据”的方向；
 - 当前创建账户时不允许客户端直接设置 `balance`。
 
 ## 9.3 Category APIs
@@ -311,18 +253,12 @@ Authorization: Bearer <token>
 | `POST` | `/api/v1/categories` | 是 | Body: `CategoryRequest(name, type, parentId, sortOrder)` | `ApiResponse<CategoryResponse>` | 创建当前用户自定义分类。 |
 | `POST` | `/api/v1/categories/init` | 是 | 无 | `ApiResponse<Void>` | 初始化系统分类。当前作为接口暴露，但不适合作为长期普通业务 API。 |
 
-相关 DTO：
-
-- `CategoryRequest`
-- `CategoryResponse`
-
 当前说明：
 
 - 分类查询包括当前用户分类和 `isSystem = true` 的系统分类；
 - `type` 当前支持 `INCOME`、`EXPENSE`；
 - 当前没有分类更新 API；
 - 当前没有分类删除 API；
-- 系统分类初始化接口当前由登录用户可调用，后续应重新评估边界。
 - `/categories/init` 更适合作为开发/初始化接口，后续应考虑迁移为启动初始化逻辑、管理端能力或 migration / data seed 机制。
 
 ## 9.4 Asset APIs
@@ -336,14 +272,9 @@ Authorization: Bearer <token>
 | `PUT` | `/api/v1/assets/{id}/price` | 是 | Path: `id`; Query: `price` | `ApiResponse<AssetResponse>` | 更新当前价格，并计算 `marketValue`。 |
 | `DELETE` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<Void>` | 删除资产。当前有持仓数量时拒绝删除。 |
 
-相关 DTO：
-
-- `AssetRequest`
-- `AssetResponse`
-
 当前说明：
 
-- 当前资产 API 使用 `Authentication principal` 获取当前 `userId`；
+- 资产 API 使用 `Authentication principal` 获取当前 `userId`；
 - 查询、详情、更新价格和删除均校验资产归属；
 - `quantity` 和 `avgCost` 使用 `BigDecimal`；
 - `updatePrice` 要求 `price > 0`；
@@ -358,12 +289,6 @@ Authorization: Bearer <token>
 |---|---|---|---|---|---|
 | `GET` | `/api/v1/dashboard` | 是 | 无 | `ApiResponse<DashboardDto>` | 获取当前用户 Dashboard 聚合数据。 |
 
-相关 DTO：
-
-- `DashboardDto`
-- `DashboardDto.AssetAllocation`
-- `DashboardDto.RecentTransaction`
-
 当前说明：
 
 - Dashboard 当前聚合账户余额、资产市值、月收入、月支出、最近流水；
@@ -371,6 +296,48 @@ Authorization: Bearer <token>
 - Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`TransactionQueryService` 读取真实业务数据；
 - 当前 `netWorth = totalAssets`，v1 暂无负债模型；
 - 最近流水当前只展示基础字段，`category` 和 `account` 当前为空字符串。
+
+## 9.6 Transaction / Ledger APIs
+
+| Method | Path | 认证 | 请求参数 / 请求体 | 响应类型 | 当前说明 |
+|---|---|---|---|---|---|
+| `GET` | `/api/v1/transactions/page` | 是 | Query: `page`, `size`, `accountId?`, `categoryId?`, `type?`, `start?`, `end?` | `ApiResponse<PageResult<TransactionResponse>>` | 分页查询当前用户流水，默认按 `transactedAt DESC, id DESC` 排序。 |
+| `GET` | `/api/v1/transactions/{id}` | 是 | Path: `id` | `ApiResponse<TransactionResponse>` | 查询当前用户指定流水。不存在或不属于当前用户返回 `404`。 |
+| `POST` | `/api/v1/transactions` | 是 | Body: `TransactionRequest(accountId, categoryId, type, amount, currency, description, transactedAt)` | `ApiResponse<TransactionResponse>` | 创建流水，并联动账户余额。 |
+| `PUT` | `/api/v1/transactions/{id}` | 是 | Path: `id`; Body: `TransactionRequest` | `ApiResponse<TransactionResponse>` | 更新流水，先回滚旧流水余额影响，再应用新流水余额影响。 |
+| `DELETE` | `/api/v1/transactions/{id}` | 是 | Path: `id` | `ApiResponse<Void>` | 删除流水，并回滚旧流水对账户余额的影响。当前 V1 为物理删除。 |
+
+当前支持的流水类型：
+
+- `INCOME`
+- `EXPENSE`
+- `ADJUSTMENT`
+
+当前暂不支持的流水类型：
+
+- `TRANSFER`
+- `REFUND`
+
+当请求或历史数据中的流水类型为 `TRANSFER` / `REFUND` 时，当前 Transaction API 返回 `BusinessException(400, "当前版本暂不支持该流水类型")`，不允许查询详情、更新、删除或按该类型分页查询。
+
+账户余额联动规则：
+
+- `INCOME`: `balance += amount`，`amount > 0`；
+- `EXPENSE`: `balance -= amount`，`amount > 0`；
+- `ADJUSTMENT`: `balance += amount`，`amount != 0`，且 `description` 必填；
+- `update` 会先回滚旧流水影响，再应用新流水影响；
+- `delete` 会回滚旧流水影响；
+- `create`、`update`、`delete` 写操作使用 `@Transactional`，保证流水与账户余额在同一事务中提交或回滚。
+
+当前校验规则：
+
+- 账户必须存在且属于当前用户；
+- 账户 `status` 必须为 `ACTIVE`；
+- 分类必须存在，且属于当前用户或为系统分类；
+- `INCOME` 只能使用 `INCOME` 分类；
+- `EXPENSE` 只能使用 `EXPENSE` 分类；
+- `ADJUSTMENT` 当前不强制匹配分类 `type`，但必须填写 `description`；
+- `currency` 为空时默认 `CNY`。
 
 ------
 
@@ -403,7 +370,7 @@ frontend/src/api/index.ts
 | `POST /assets` | `POST /api/v1/assets` | `Assets.tsx` |
 | `PUT /assets/{id}/price?price=...` | `PUT /api/v1/assets/{id}/price?price=...` | `Assets.tsx` |
 
-当前后端已实现但前端尚未调用的接口：
+当前后端已实现但前端尚未调用的接口包括：
 
 - `GET /api/v1/accounts/page`
 - `GET /api/v1/accounts/{id}`
@@ -414,13 +381,18 @@ frontend/src/api/index.ts
 - `GET /api/v1/assets/page`
 - `GET /api/v1/assets/{id}`
 - `DELETE /api/v1/assets/{id}`
+- `GET /api/v1/transactions/page`
+- `GET /api/v1/transactions/{id}`
+- `POST /api/v1/transactions`
+- `PUT /api/v1/transactions/{id}`
+- `DELETE /api/v1/transactions/{id}`
 
 说明：
 
 - 分页接口当前后端已实现，但前端尚未接入；
 - 当前前端仍使用非分页列表接口；
-- 当前前端未接入分类管理页面；
-- 当前前端未接入资产详情和删除能力。
+- 当前前端尚未接入分类管理页面；
+- 当前前端尚未接入 Transaction / Ledger API。
 
 ------
 
@@ -435,26 +407,27 @@ frontend/src/api/index.ts
 - Controller 返回 DTO 和统一响应；
 - Controller 没有直接返回 Entity；
 - 业务逻辑主要位于 Service 层；
-- Dashboard 作为聚合展示接口，不反向影响核心业务模块。
+- Dashboard 作为只读聚合接口，不反向影响核心业务模块。
 
 需要注意：
 
-- `CategoryController` 的 `/categories/init` 更像开发初始化能力，不适合作为长期普通业务 API；
+- `/categories/init` 更像开发初始化能力，不适合作为长期普通业务 API；
+- Transaction / Ledger 写操作已落在 Service 事务中；
 - Dashboard 当前依赖多个 Query Service，后续需要继续保持只读聚合边界。
 
 ## 11.2 与 Database.md 的一致性
 
 一致点：
 
-- 当前 API 覆盖 `users`、`accounts`、`categories`、`assets` 的主要访问能力；
-- 当前 API 对账户、分类、资产均围绕 `userId` 做用户隔离；
+- 当前 API 覆盖 `users`、`accounts`、`categories`、`assets`、`transactions` 的主要访问能力；
+- 当前 API 对账户、分类、资产、流水均围绕 `userId` 做用户隔离；
 - 当前 API 使用 `BigDecimal` 表达金额、价格、数量；
-- 当前 Dashboard 不维护人工统计表；
+- Transaction / Ledger API 已按 `transactions` 表设计落地基础 CRUD；
 - 当前资产 API 与 Database.md 共同记录了 `assets.account_id` 缺失这一 Known Gap。
 
 不完整点：
 
-- 当前没有 Transaction / Ledger Controller；
+- 完整 `TRANSFER` / `REFUND` 模型暂未实现；
 - 当前没有 AssetPrice API；
 - 当前没有 `AssetPrice` Entity / Mapper；
 - 当前 Asset API 缺少 `accountId`；
@@ -466,32 +439,35 @@ frontend/src/api/index.ts
 
 - 注册检查用户名和邮箱唯一；
 - 登录后才能访问个人业务数据；
-- 普通用户只能访问自己的账户和资产；
+- 普通用户只能访问自己的账户、资产和流水；
 - 账户不提供删除接口，提供停用接口；
+- 停用账户不允许新增流水；
 - Dashboard 数据来源于真实业务数据；
 - AI 相关接口当前未实现，因此不存在 AI 修改金融数据的问题。
 
 不完整点：
 
-- 流水规则尚无对应 CRUD API；
 - 分类规则中的更新、删除尚未实现；
 - 资产规则中的完整更新尚未实现；
-- 资产必须属于投资账户的规则当前因缺少 `accountId` 尚未完整落地。
+- 资产必须属于投资账户的规则当前因缺少 `accountId` 尚未完整落地；
+- 完整转账和退款业务规则尚未实现。
 
 ## 11.4 与 Financial Rules.md 的一致性
 
 一致点：
 
 - 金额、价格、数量使用 `BigDecimal`；
+- Transaction / Ledger API 已落地基础流水金额方向规则；
+- `INCOME`、`EXPENSE`、`ADJUSTMENT` 的余额联动在后端执行；
 - 资产浮动盈亏和收益率由后端计算；
 - Dashboard 统计由后端计算；
-- 前端不执行最终金融计算；
-- 当前未实现复杂投资交易、汇率、IRR / XIRR 等未来能力。
+- 前端不执行最终金融计算。
 
 不完整点：
 
-- 当前流水金额方向规则尚无 API 落地；
 - 当前资产只表达持仓快照，未表达投资交易流水；
+- 当前未实现复杂投资交易、汇率、IRR / XIRR 等未来能力；
+- 并发下账户余额更新仍需后续评估行锁、乐观锁或原子 SQL；
 - 当前 `marketValue` 同时存在持久化字段和响应实时计算，需要后续继续收敛一致性策略。
 
 ------
@@ -502,41 +478,27 @@ frontend/src/api/index.ts
 
 Target v1.0 API Design 表示目标方向，不代表当前 Sprint 必须一次性全部实现。
 
-## 12.1 Transaction / Ledger APIs
+## 12.1 Transaction / Ledger Remaining Design
 
-v1.0 目标上应补齐日常财务流水 API。
-
-目标能力：
+Transaction 基础 CRUD 已完成，当前已支持：
 
 - 创建流水；
 - 查询流水详情；
 - 分页查询流水列表；
 - 更新流水；
 - 删除流水；
-- 按账户筛选；
-- 按分类筛选；
-- 按类型筛选；
-- 按时间范围筛选。
+- 按账户、分类、类型、时间范围进行基础筛选；
+- `INCOME`、`EXPENSE`、`ADJUSTMENT` 余额联动。
 
-目标接口方向：
+v1.0 剩余目标：
 
-| Method | Path | 目标说明 |
-|---|---|---|
-| `GET` | `/api/v1/transactions/page` | 分页查询当前用户流水，支持账户、分类、类型、时间筛选。 |
-| `GET` | `/api/v1/transactions/{id}` | 查询当前用户指定流水。 |
-| `POST` | `/api/v1/transactions` | 创建流水。 |
-| `PUT` | `/api/v1/transactions/{id}` | 更新流水。 |
-| `DELETE` | `/api/v1/transactions/{id}` | 删除流水。 |
-
-设计要求：
-
-- 每条流水必须归属当前用户；
-- 每条流水必须关联合法账户；
-- 每条流水必须关联合法分类；
-- 账户和分类必须属于当前用户，或分类为系统分类；
-- 停用账户不允许新增流水；
-- 金额方向规则必须符合 `Financial Rules.md`；
-- 修改或删除流水时必须保证账户余额和统计结果一致。
+- 更完整的 `TRANSFER` 模型，包括转出账户、转入账户、双边流水或统一转账记录；
+- 更完整的 `REFUND` 模型，包括关联原流水与退款方向规则；
+- 筛选能力增强，例如金额范围、关键词、排序字段、排序方向；
+- 与 Dashboard 最近流水展示字段进一步对齐；
+- Controller 层测试补齐；
+- 参数校验和错误响应进一步收敛；
+- 并发余额更新策略评估。
 
 ## 12.2 Category API Completion
 
@@ -572,8 +534,7 @@ v1.0 目标上应补齐资产完整更新能力，并与账户关联规则对齐
 - `assets.account_id` 补齐后，创建和更新资产必须校验账户归属；
 - 资产账户应属于当前用户；
 - 资产账户类型应符合投资账户语义；
-- `quantity`、`avgCost`、`currentPrice` 必须使用 `BigDecimal`；
-- `marketValue` 的持久化或实时计算策略需要统一。
+- `quantity`、`avgCost`、`currentPrice` 必须使用 `BigDecimal`。
 
 ## 12.4 Validation and Error Response
 
@@ -584,16 +545,8 @@ v1.0 目标上应统一参数校验和错误响应。
 - `@Valid` 校验异常统一返回 `ApiResponse`；
 - `@RequestParam` 校验异常统一返回 `ApiResponse`；
 - JSON 解析错误统一返回 `ApiResponse`；
-- Spring Security `401` 统一返回 `ApiResponse`；
-- Spring Security `403` 统一返回 `ApiResponse`；
+- Spring Security `401` / `403` 统一返回 `ApiResponse`；
 - 业务错误码形成稳定规范。
-
-目标错误码方向：
-
-- 建立 `ErrorCode` 枚举或等价规范；
-- 区分认证错误、权限错误、参数错误、资源不存在、业务规则冲突、系统错误；
-- 避免不同业务场景随意复用模糊错误码；
-- 保持 HTTP Status 与业务 `code` 的映射清晰。
 
 ------
 
@@ -601,30 +554,30 @@ v1.0 目标上应统一参数校验和错误响应。
 
 当前 API Known Gaps：
 
-1. 缺少 Transaction / Ledger CRUD API。
-2. 缺少完整 Category 更新、删除 API。
-3. 缺少完整 Asset 更新 API。
-4. Asset API 缺少 `accountId`，与 `Database.md` 中 `assets.account_id` Known Gap 一致。
-5. 无 AssetPrice API，且后端无 `AssetPrice` Entity / Mapper。
-6. 参数校验异常未统一包装为 `ApiResponse`。
-   当前包括但不限于 `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException`。
-7. Spring Security `401` 未统一包装为 `ApiResponse`。
-8. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
-9. `/categories/init` 不适合作为长期普通业务 API 暴露。
-10. 前端尚未使用分页接口。
-11. 无 OpenAPI / Swagger / API contract。
-12. 无统一排序、过滤、搜索规范。
-13. 无审计日志、幂等、请求追踪 ID。
-14. Dashboard 最近流水中的 `category` 和 `account` 当前为空字符串。
-15. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
+1. 缺少完整 Category 更新、删除 API。
+2. 缺少完整 Asset 更新 API。
+3. Asset API 缺少 `accountId`，与 `Database.md` 中 `assets.account_id` Known Gap 一致。
+4. 无 AssetPrice API，且后端无 `AssetPrice` Entity / Mapper。
+5. 完整 `TRANSFER` / `REFUND` 模型暂未实现。
+6. 投资交易流水暂未实现。
+7. 并发下账户余额更新仍需后续评估行锁、乐观锁或原子 SQL。
+8. 参数校验异常未统一包装为 `ApiResponse`，包括但不限于 `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException`。
+9. Spring Security `401` 未统一包装为 `ApiResponse`。
+10. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
+11. `/categories/init` 不适合作为长期普通业务 API 暴露。
+12. 前端尚未使用分页接口。
+13. 前端尚未接入 Transaction / Ledger API。
+14. 无 OpenAPI / Swagger / API contract。
+15. 无统一排序、过滤、搜索规范。
+16. 无审计日志、幂等、请求追踪 ID。
+17. Dashboard 最近流水中的 `category` 和 `account` 当前为空字符串。
+18. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
 
 ------
 
 # 14. Future Evolution
 
 以下能力属于未来演进方向，不代表当前已经实现，也不应写入 Current Implementation。
-
-未来可评估能力：
 
 - AI 分析 / 报告接口；
 - 汇率接口；
@@ -633,13 +586,9 @@ v1.0 目标上应统一参数校验和错误响应。
 - CSV / Excel 导入导出；
 - 审计日志查询；
 - 软删除恢复；
-- 投资交易流水；
-- 股息、拆股、手续费、税费；
-- 多成本计算方式；
-- IRR / XIRR；
-- 多用户协作；
-- 家庭账本；
-- 管理员接口；
+- 投资交易流水、股息、拆股、手续费、税费；
+- 多成本计算方式、IRR / XIRR；
+- 多用户协作、家庭账本、管理员接口；
 - OpenAPI / Swagger contract；
 - 插件系统 / 开放 API。
 
@@ -654,8 +603,6 @@ v1.0 目标上应统一参数校验和错误响应。
 ------
 
 # 15. Review Checklist
-
-后续 Review `API.md` 时应检查以下事项：
 
 ## 15.1 Current / Target / Future 边界
 
@@ -694,7 +641,7 @@ v1.0 目标上应统一参数校验和错误响应。
 - 是否与 `Database.md` Known Gaps 一致；
 - 是否记录 `assets.account_id` 缺失；
 - 是否记录无 `AssetPrice` Entity / Mapper / API；
-- 是否记录 Transaction / Ledger API 缺失；
+- 是否记录 `TRANSFER` / `REFUND` 未完整实现；
 - 是否符合用户数据隔离规则；
 - 是否符合 Dashboard 只读聚合规则；
 - 是否符合 `Financial Rules.md` 中的 `BigDecimal` 和后端计算要求。
@@ -703,7 +650,7 @@ v1.0 目标上应统一参数校验和错误响应。
 
 # 16. Review Conclusion
 
-当前 `API.md` 第一版草稿记录了 Personal Finance OS 当前 API 实现基线，并明确区分了：
+当前 `API.md` 记录了 Personal Finance OS 当前 API 实现基线，并明确区分：
 
 - Current Implementation；
 - Frontend Usage Baseline；
@@ -711,6 +658,6 @@ v1.0 目标上应统一参数校验和错误响应。
 - Known Gaps；
 - Future Evolution。
 
-当前后端已经具备认证、账户、分类、资产和 Dashboard 的基础 API，但仍缺少完整 Ledger / Transaction API、分类更新删除、资产完整更新、统一参数校验错误响应和更稳定的错误码体系。
+当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-本文档可作为后续 API Review、Controller 补齐、DTO 演进、前端接入分页、错误处理收敛和 v1.0 API 设计完善的基线。后续修改 API 实现时，应同步更新本文档，并保持与 `Architecture.md`、`Database.md`、`Business Rules.md`、`Financial Rules.md` 的一致性。
+后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、统一参数校验错误响应、Spring Security 错误响应、并发余额更新策略和前端接入。
