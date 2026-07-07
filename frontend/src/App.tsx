@@ -4,6 +4,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
 import Assets from './pages/Assets';
+import Transactions from './pages/Transactions';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,7 @@ export default function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="accounts" element={<Accounts />} />
                 <Route path="assets" element={<Assets />} />
+                <Route path="transactions" element={<Transactions />} />
             </Route>
         </Routes>
     );

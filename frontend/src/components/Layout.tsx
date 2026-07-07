@@ -15,6 +15,7 @@ export default function Layout() {
                     <Link to="/" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>仪表盘</Link>
                     <Link to="/accounts" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>账户</Link>
                     <Link to="/assets" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>资产</Link>
+                    <Link to="/transactions" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>交易流水</Link>
                     <button onClick={logout} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', padding: '8px 14px', fontSize: 14 }}>退出</button>
                 </div>
             </nav>

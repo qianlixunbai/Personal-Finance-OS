@@ -34,6 +34,7 @@ export default function Dashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px,1fr))', gap: 12, marginBottom: 28 }}>
                 <Link to="/accounts" style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, textDecoration: 'none', color: '#2d3436', fontWeight: 600 }}>账户管理</Link>
                 <Link to="/assets" style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, textDecoration: 'none', color: '#2d3436', fontWeight: 600 }}>投资资产</Link>
+                <Link to="/transactions" style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, textDecoration: 'none', color: '#2d3436', fontWeight: 600 }}>交易流水</Link>
             </div>
 
             <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
