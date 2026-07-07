@@ -369,6 +369,12 @@ frontend/src/api/index.ts
 | `GET /assets` | `GET /api/v1/assets` | `Assets.tsx` |
 | `POST /assets` | `POST /api/v1/assets` | `Assets.tsx` |
 | `PUT /assets/{id}/price?price=...` | `PUT /api/v1/assets/{id}/price?price=...` | `Assets.tsx` |
+| `GET /transactions/page?page=...&size=...` | `GET /api/v1/transactions/page?page=...&size=...` | `Transactions.tsx` |
+| `POST /transactions` | `POST /api/v1/transactions` | `Transactions.tsx` |
+| `PUT /transactions/{id}` | `PUT /api/v1/transactions/{id}` | `Transactions.tsx` |
+| `DELETE /transactions/{id}` | `DELETE /api/v1/transactions/{id}` | `Transactions.tsx` |
+| `GET /accounts` | `GET /api/v1/accounts` | `Transactions.tsx` |
+| `GET /categories` | `GET /api/v1/categories` | `Transactions.tsx` |
 
 当前后端已实现但前端尚未调用的接口包括：
 
@@ -381,18 +387,12 @@ frontend/src/api/index.ts
 - `GET /api/v1/assets/page`
 - `GET /api/v1/assets/{id}`
 - `DELETE /api/v1/assets/{id}`
-- `GET /api/v1/transactions/page`
-- `GET /api/v1/transactions/{id}`
-- `POST /api/v1/transactions`
-- `PUT /api/v1/transactions/{id}`
-- `DELETE /api/v1/transactions/{id}`
 
 说明：
 
-- 分页接口当前后端已实现，但前端尚未接入；
-- 当前前端仍使用非分页列表接口；
-- 当前前端尚未接入分类管理页面；
-- 当前前端尚未接入 Transaction / Ledger API。
+- `Transactions.tsx` 已接入 Transaction / Ledger API，使用 `/transactions/page` 分页查询，并支持创建、编辑、删除。
+- 当前 Account / Asset 分页接口后端已实现，但前端账户和资产页面仍使用非分页列表接口。
+- 当前前端尚未接入分类管理页面。
 
 ------
 
@@ -565,13 +565,12 @@ v1.0 目标上应统一参数校验和错误响应。
 9. Spring Security `401` 未统一包装为 `ApiResponse`。
 10. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
 11. `/categories/init` 不适合作为长期普通业务 API 暴露。
-12. 前端尚未使用分页接口。
-13. 前端尚未接入 Transaction / Ledger API。
-14. 无 OpenAPI / Swagger / API contract。
-15. 无统一排序、过滤、搜索规范。
-16. 无审计日志、幂等、请求追踪 ID。
-17. Dashboard 最近流水中的 `category` 和 `account` 当前为空字符串。
-18. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
+12. Account / Asset 分页接口前端尚未接入。
+13. 无 OpenAPI / Swagger / API contract。
+14. 无统一排序、过滤、搜索规范。
+15. 无审计日志、幂等、请求追踪 ID。
+16. Dashboard 最近流水中的 `category` 和 `account` 当前为空字符串。
+17. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
 
 ------
 
@@ -660,4 +659,4 @@ v1.0 目标上应统一参数校验和错误响应。
 
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、统一参数校验错误响应、Spring Security 错误响应、并发余额更新策略和前端接入。
+后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、统一参数校验错误响应、Spring Security 错误响应、并发余额更新策略，以及 Account / Asset 分页前端接入。
