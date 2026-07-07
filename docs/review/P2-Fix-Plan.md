@@ -100,3 +100,48 @@ Result:
 Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
+
+## P2-04 BusinessException HTTP 状态不一致
+
+Status: Fixed
+
+Problem:
+
+`GlobalExceptionHandler` 处理 `BusinessException` 时总是返回 HTTP 400，即使业务错误码是 401、403 或 404。
+
+Resolution:
+
+更新 `GlobalExceptionHandler`，根据 `BusinessException.code` 映射对应的 HTTP status。
+
+Mapping:
+
+- `400` -> HTTP 400 Bad Request
+- `401` -> HTTP 401 Unauthorized
+- `403` -> HTTP 403 Forbidden
+- `404` -> HTTP 404 Not Found
+- unknown code -> HTTP 400 Bad Request
+
+Impact:
+
+- `BusinessException(400, "...")` 返回 HTTP 400 + body.code 400。
+- `BusinessException(401, "...")` 返回 HTTP 401 + body.code 401。
+- `BusinessException(403, "...")` 返回 HTTP 403 + body.code 403。
+- `BusinessException(404, "...")` 返回 HTTP 404 + body.code 404。
+- `BusinessException.java` 未修改。
+- `ApiResponse.java` 未修改。
+- Controller / Service 未修改。
+- `Architecture.md` 未修改。
+
+Verification:
+
+```powershell
+cd backend
+.\mvnw.cmd clean test
+```
+
+Result:
+
+```text
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
