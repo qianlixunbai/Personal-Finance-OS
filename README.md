@@ -40,12 +40,18 @@
 - JWT 鉴权
 - 账户管理
 - 分类基础能力
-- 资产管理
+- 资产持仓快照管理
 - Transaction / Ledger 基础 CRUD
 - 流水创建、编辑、删除时联动账户余额
 - Dashboard 聚合账户、资产、流水数据
 - 前端页面：`Login`、`Register`、`Dashboard`、`Accounts`、`Assets`、`Transactions`
 - 后端分页接口
+- 登录 / 注册展示后端错误信息
+- Transactions 类型中文化
+- Transactions / Dashboard 金额格式统一
+- Accounts 接入编辑入口
+- Assets 接入详情、删除、清仓入口
+- 前端统一空状态和反馈提示
 - 后端测试已通过：`.\mvnw.cmd clean test`
 - 前端构建已通过：`npm run build`
 
@@ -140,21 +146,27 @@ npm run build
 
 ## 当前状态
 
+- `v1.0 Foundation` 已完成阶段验收
+- 当前处于 `v1.1 Showcase Enhancement` 收尾阶段
 - `Architecture.md` 已完成 Review 并冻结
-- `Database.md` 已完成 Draft + Review
-- `API.md` 已完成 Draft + Review，并已同步 Transaction / Ledger 与前端接入状态
-- P2 已关闭
-- Ledger / Transaction API 已完成第一版最小闭环
-- `Transactions` 前端页面已完成第一版接入
-- 项目仍处于 v1.0 迭代中
+- `Database.md`、`API.md` 已同步当前实现状态
+- Accounts 已接入账户编辑入口
+- Assets 已接入详情、删除和清仓入口
+- Transactions 已完成类型中文化和金额格式统一
+- 登录 / 注册已展示后端错误信息
+- 前端空状态和反馈提示已统一
+- 资产清仓只是持仓快照归零，不等于完整卖出交易模型
 
 ## 后续计划
 
-- 优化 GitHub 作品集展示
-- 增强 Dashboard 可视化
-- 完善参数校验与异常响应收敛
-- 接入更完整的资产 / 投资交易模型
-- 后续考虑部署方案、截图和演示内容展示
+- Dashboard 可视化增强
+- 前端组件抽取和工程化整理
+- Controller 层测试补齐
+- OpenAPI / Swagger 文档
+- GitHub Actions / CI
+- Flyway / Liquibase 数据库迁移
+- 行情数据、资产历史价格、多币种汇率、AI 财务分析、部署增强等仍属于后续版本
+- 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本
 
 ## 项目定位
 
