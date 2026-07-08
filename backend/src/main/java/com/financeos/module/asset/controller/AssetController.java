@@ -54,6 +54,11 @@ public class AssetController {
         return ApiResponse.ok(assetService.updatePrice((Long) auth.getPrincipal(), id, price));
     }
 
+    @PutMapping("/{id}/close")
+    public ApiResponse<AssetResponse> close(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.ok(assetService.close((Long) auth.getPrincipal(), id));
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         assetService.delete((Long) auth.getPrincipal(), id);

@@ -103,6 +103,23 @@ export default function Assets() {
         }
     };
 
+    const closeAsset = async (asset: Asset) => {
+        if (!confirm('确认将该资产标记为已清仓？此操作不会计算卖出收益。')) return;
+
+        setError('');
+        setSuccess('');
+        try {
+            const res = await api.put(`/assets/${asset.id}/close`);
+            setSuccess('资产已清仓');
+            await fetch(page);
+            if (selectedAsset?.id === asset.id) {
+                setSelectedAsset(res.data.data);
+            }
+        } catch (err) {
+            setError(getErrorMessage(err, '资产清仓失败'));
+        }
+    };
+
     const remove = async (asset: Asset) => {
         if (!confirm(`确定删除资产「${asset.name}」吗？`)) return;
 
@@ -121,6 +138,7 @@ export default function Assets() {
         }
     };
 
+    const hasPosition = (asset: Asset) => Number(asset.quantity) > 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const hasNextPage = page < totalPages && assets.length >= pageSize;
 
@@ -162,7 +180,10 @@ export default function Assets() {
                 <section style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginBottom: 16 }}>
                         <h3 style={{ margin: 0 }}>资产详情</h3>
-                        <button onClick={() => setSelectedAsset(null)} style={{ padding: '6px 12px', background: '#636e72', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>关闭</button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            {hasPosition(selectedAsset) && <button onClick={() => closeAsset(selectedAsset)} style={{ padding: '6px 12px', background: '#00b894', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>清仓</button>}
+                            <button onClick={() => setSelectedAsset(null)} style={{ padding: '6px 12px', background: '#636e72', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>关闭</button>
+                        </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
                         <DetailItem label="名称" value={selectedAsset.name} />
@@ -203,6 +224,7 @@ export default function Assets() {
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={() => showDetail(a.id)} style={{ padding: '6px 12px', background: '#0984e3', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>详情</button>
                                     <button onClick={() => updatePrice(a.id)} style={{ padding: '6px 12px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>更新价格</button>
+                                    {hasPosition(a) && <button onClick={() => closeAsset(a)} style={{ padding: '6px 12px', background: '#00b894', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>清仓</button>}
                                     <button onClick={() => remove(a)} style={{ padding: '6px 12px', background: '#e17055', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>删除</button>
                                 </div>
                             </td>

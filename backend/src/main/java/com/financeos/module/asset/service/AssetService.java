@@ -82,6 +82,20 @@ public class AssetService {
     }
 
     @Transactional
+    public AssetResponse close(Long userId, Long id) {
+        Asset asset = assetMapper.selectById(id);
+        if (asset == null || !asset.getUserId().equals(userId)) {
+            throw new BusinessException(404, "资产不存在");
+        }
+        if (asset.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
+            asset.setQuantity(BigDecimal.ZERO);
+            asset.setMarketValue(BigDecimal.ZERO);
+            assetMapper.updateById(asset);
+        }
+        return toResponse(asset);
+    }
+
+    @Transactional
     public void delete(Long userId, Long id) {
         Asset asset = assetMapper.selectById(id);
         if (asset == null || !asset.getUserId().equals(userId)) {

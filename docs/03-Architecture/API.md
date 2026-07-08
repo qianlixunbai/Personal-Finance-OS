@@ -277,14 +277,16 @@ Authorization: Bearer <token>
 | `GET` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 查询当前用户指定资产。非当前用户资产返回 `404`。 |
 | `POST` | `/api/v1/assets` | 是 | Body: `AssetRequest(name, symbol, type, market, currency, quantity, avgCost)` | `ApiResponse<AssetResponse>` | 创建资产持仓记录。 |
 | `PUT` | `/api/v1/assets/{id}/price` | 是 | Path: `id`; Query: `price` | `ApiResponse<AssetResponse>` | 更新当前价格，并计算 `marketValue`。 |
+| `PUT` | `/api/v1/assets/{id}/close` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 将当前用户资产持仓快照清仓，`quantity` 归零。 |
 | `DELETE` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<Void>` | 删除资产。当前有持仓数量时拒绝删除。 |
 
 当前说明：
 
 - 资产 API 使用 `Authentication principal` 获取当前 `userId`；
-- 查询、详情、更新价格和删除均校验资产归属；
+- 查询、详情、更新价格、清仓和删除均校验资产归属；
 - `quantity` 和 `avgCost` 使用 `BigDecimal`；
 - `updatePrice` 要求 `price > 0`；
+- `close` 只将资产快照中的 `quantity` 归零，不修改现金账户余额，不生成流水，不计算实现盈亏；
 - `profitLoss` 和 `profitLossRate` 在后端计算；
 - 当前 `AssetRequest` 不包含 `accountId`；
 - 当前没有完整资产更新 API；
@@ -375,7 +377,10 @@ frontend/src/api/index.ts
 | `POST /accounts/{id}/deactivate` | `POST /api/v1/accounts/{id}/deactivate` | `Accounts.tsx` |
 | `GET /assets/page?page=...&size=...` | `GET /api/v1/assets/page?page=...&size=...` | `Assets.tsx` |
 | `POST /assets` | `POST /api/v1/assets` | `Assets.tsx` |
+| `GET /assets/{id}` | `GET /api/v1/assets/{id}` | `Assets.tsx` |
 | `PUT /assets/{id}/price?price=...` | `PUT /api/v1/assets/{id}/price?price=...` | `Assets.tsx` |
+| `PUT /assets/{id}/close` | `PUT /api/v1/assets/{id}/close` | `Assets.tsx` |
+| `DELETE /assets/{id}` | `DELETE /api/v1/assets/{id}` | `Assets.tsx` |
 | `GET /transactions/page?page=...&size=...` | `GET /api/v1/transactions/page?page=...&size=...` | `Transactions.tsx` |
 | `POST /transactions` | `POST /api/v1/transactions` | `Transactions.tsx` |
 | `PUT /transactions/{id}` | `PUT /api/v1/transactions/{id}` | `Transactions.tsx` |
@@ -390,13 +395,12 @@ frontend/src/api/index.ts
 - `GET /api/v1/categories`
 - `POST /api/v1/categories`
 - `POST /api/v1/categories/init`
-- `GET /api/v1/assets/{id}`
-- `DELETE /api/v1/assets/{id}`
 
 说明：
 
 - `Transactions.tsx` 已接入 Transaction / Ledger API，使用 `/transactions/page` 分页查询，并支持创建、编辑、删除。
-- `Accounts.tsx`、`Assets.tsx` 已接入 Account / Asset 分页接口，保留上一页 / 下一页基础分页操作。
+- `Accounts.tsx` 已接入账户分页、创建、编辑和停用操作。
+- `Assets.tsx` 已接入资产分页、创建、详情、更新价格、清仓和删除操作；其中清仓只是持仓快照归零，不等于完整卖出交易模型。
 - 当前前端尚未接入分类管理页面。
 
 ------
