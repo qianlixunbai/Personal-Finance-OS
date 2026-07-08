@@ -362,6 +362,8 @@ mybatis-plus:
 - `REFUND`；
 - `ADJUSTMENT`。
 
+数据库枚举范围包含 `TRANSFER` / `REFUND`，但当前后端 Transaction API 仅支持 `INCOME`、`EXPENSE`、`ADJUSTMENT`。完整转账 / 退款业务模型属于后续规划，不能视为当前已实现能力。
+
 当前索引：
 
 - `idx_transactions_user_id(user_id)`；
@@ -479,7 +481,7 @@ mybatis-plus:
 
 目标设计说明：
 
-- 若 `asset_prices` 进入正式 V1 能力，应补齐 Java Entity 和 Mapper；
+- 若 `asset_prices` 进入正式行情能力，应补齐 Java Entity 和 Mapper；
 - 价格数据应具备可追溯性；
 - 后续可评估是否以 `asset_id`、`symbol + market + currency` 或其他组合建立价格归属关系。
 
@@ -936,9 +938,9 @@ V1 当前保留简化模型。
 
 ## 16.9 AI 分析结果表
 
-AI 分析结果表暂不进入 V1。
+AI 分析结果表属于 v4.0 AI Finance Assistant 后续规划，当前不进入 v1.0 / v1.1。
 
-AI 模块在 V1 中不应修改金融数据，不应替代系统进行最终金额计算，也不应成为真实业务数据来源。
+未来 AI 财务助手不应修改金融数据，不应替代系统进行最终金额计算，也不应成为真实业务数据来源。
 
 如后续引入 AI 分析结果持久化，应明确：
 

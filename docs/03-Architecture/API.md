@@ -499,7 +499,7 @@ Transaction 基础 CRUD 已完成，当前已支持：
 - 按账户、分类、类型、时间范围进行基础筛选；
 - `INCOME`、`EXPENSE`、`ADJUSTMENT` 余额联动。
 
-v1.0 剩余目标：
+后续规划：
 
 - 更完整的 `TRANSFER` 模型，包括转出账户、转入账户、双边流水或统一转账记录；
 - 更完整的 `REFUND` 模型，包括关联原流水与退款方向规则；
@@ -577,7 +577,7 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 8. 参数校验、请求参数缺失、参数类型错误、请求体格式错误、Spring Security `401` / `403`、未知异常均已统一返回 `ApiResponse`。
 9. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
 10. `/categories/init` 不适合作为长期普通业务 API 暴露。
-11. Account / Asset 主列表分页已接入前端，后续可继续补齐账户编辑、资产删除等页面操作。
+11. Account / Asset 主列表分页、账户编辑、资产详情、资产删除和资产清仓已接入前端；后续仍可补齐分类管理页面和更完整的资产编辑能力。
 12. 无 OpenAPI / Swagger / API contract。
 13. 无统一排序、过滤、搜索规范。
 14. 无审计日志、幂等、请求追踪 ID。
@@ -671,4 +671,4 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略，以及账户 / 资产页面的更多管理操作。
+后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略、分类管理页面，以及 OpenAPI / Swagger 等工程化能力。

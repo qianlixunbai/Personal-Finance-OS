@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**版本：** v1.0
+**版本：** v1.0 Foundation / v1.1 Showcase Enhancement 对齐版
 
 ------
 
@@ -28,7 +28,7 @@ Personal Finance OS 是一套面向个人用户的现代化金融管理系统。
 - 日常记账
 - 投资资产管理
 - 财务统计分析
-- AI 辅助分析
+- AI 辅助分析（v4.0 后续规划，当前未实现）
 
 本项目不提供金融交易能力，仅负责记录、管理、分析个人财务数据。
 
@@ -55,7 +55,7 @@ Personal Finance OS 是一套面向个人用户的现代化金融管理系统。
 - 提供准确可靠的财务数据；
 - 支持长期数据积累；
 - 提供可视化分析能力；
-- 提供 AI 辅助分析；
+- 为后续 AI 辅助分析保留可靠数据基础；
 - 保持良好的扩展能力。
 
 ------
@@ -91,9 +91,9 @@ V1.0 包含以下核心模块：
 
 - 收入
 - 支出
-- 转账
-- 退款
 - 余额调整
+
+当前已支持 `INCOME`、`EXPENSE`、`ADJUSTMENT`。完整 `TRANSFER` / `REFUND` 模型属于后续规划，当前不作为已实现能力。
 
 所有财务数据均来源于记账流水。
 
@@ -235,8 +235,10 @@ V1.0 包含以下核心模块：
 
 # 十、版本范围
 
-当前 SRS 对应版本：
+当前 SRS 对应版本口径：
 
-**Personal Finance OS v1.0**
+**Personal Finance OS v1.0 Foundation / v1.1 Showcase Enhancement**
+
+v1.0 Foundation 已完成阶段验收。v1.1 Showcase Enhancement 已完成或处于最终收尾。v1.2 Visualization Polish、v1.3 Engineering Polish、v2.0 Market Data Foundation、v3.0 Investment Transaction Model、v4.0 AI Finance Assistant 均属于后续规划。
 
 未来版本新增需求将在对应版本中扩展，不直接修改已发布版本的功能定义。

@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**版本：** v1.0
+**版本：** v1.0 / v1.1 对齐版
 
 ------
 
@@ -11,6 +11,8 @@
 Definition of Done（以下简称 DoD）用于定义一个功能、模块或版本在什么情况下才可以被认为"真正完成"。
 
 DoD 是项目统一的完成标准。
+
+当前 v1.1 Showcase Enhancement 不要求 Docker、CI/CD、OpenAPI / Swagger、Flyway / Liquibase 必须完成；这些能力属于后续工程化阶段或未来版本规划。DoD 应按当前任务所属版本和变更范围执行。
 
 只有满足 DoD 的所有要求，功能才能：
 
@@ -91,7 +93,7 @@ DoD 是项目统一的完成标准。
 如涉及数据库，请确认：
 
 -  数据库结构已完成。
--  Migration 已编写。
+-  当前 `schema.sql` 已同步；如项目后续引入 Flyway / Liquibase，则对应 Migration 已编写。
 -  索引已确认。
 -  外键关系正确。
 -  数据库文档已更新。

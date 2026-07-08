@@ -122,7 +122,7 @@ Entity
 
 数据库字段随意修改。
 
-数据库变更必须记录 Migration。
+当前项目仍使用 `schema.sql` 作为数据库初始化基线；数据库变更必须同步 `schema.sql` 和 `Database.md`。后续引入 Flyway / Liquibase 后，数据库变更必须记录 Migration。
 
 ---
 
