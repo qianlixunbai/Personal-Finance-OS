@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import { formatCurrency, formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
 interface DashboardData {
     totalAssets: number;
@@ -11,17 +12,6 @@ interface DashboardData {
     assetAllocation: { name: string; value: number; percentage: number }[];
     recentTransactions: { id: number; type: string; amount: number; category: string; account: string; date: string }[];
 }
-
-const currencyFormatter = new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
-});
-
-const transactionTypeLabels: Record<string, string> = {
-    INCOME: '收入',
-    EXPENSE: '支出',
-    ADJUSTMENT: '调整',
-};
 
 export default function Dashboard() {
     const [data, setData] = useState<DashboardData | null>(null);
@@ -68,9 +58,9 @@ export default function Dashboard() {
                                     <td style={tdStyle}>{tx.date}</td>
                                     <td style={tdStyle}>{tx.account}</td>
                                     <td style={tdStyle}>{tx.category}</td>
-                                    <td style={tdStyle}>{transactionTypeLabels[tx.type] ?? tx.type}</td>
-                                    <td style={{ ...tdStyle, textAlign: 'right', color: amountColor(tx.type), fontWeight: 600 }}>
-                                        {currencyFormatter.format(tx.amount)}
+                                    <td style={tdStyle}>{formatTransactionType(tx.type)}</td>
+                                    <td style={{ ...tdStyle, textAlign: 'right', color: transactionAmountColor(tx.type), fontWeight: 600 }}>
+                                        {formatTransactionAmount(tx.type, tx.amount)}
                                     </td>
                                 </tr>
                             ))}
@@ -91,7 +81,7 @@ export default function Dashboard() {
                                 <div key={item.name}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
                                         <span style={{ fontWeight: 600 }}>{item.name}</span>
-                                        <span style={{ color: '#636e72' }}>{currencyFormatter.format(item.value)} / {item.percentage.toFixed(2)}%</span>
+                                        <span style={{ color: '#636e72' }}>{formatCurrency(item.value)} / {item.percentage.toFixed(2)}%</span>
                                     </div>
                                     <div style={{ height: 8, background: '#f1f2f6', borderRadius: 4, overflow: 'hidden' }}>
                                         <div style={{ width: `${Math.min(item.percentage, 100)}%`, height: '100%', background: '#0984e3' }} />
@@ -112,15 +102,9 @@ function Card({ label, value, color }: { label: string; value: number; color: st
     return (
         <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 2px 20px rgba(0,0,0,.06)', textAlign: 'center' }}>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>{label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color }}>{currencyFormatter.format(value ?? 0)}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color }}>{formatCurrency(value)}</div>
         </div>
     );
-}
-
-function amountColor(type: string) {
-    if (type === 'INCOME') return '#00b894';
-    if (type === 'EXPENSE') return '#e17055';
-    return '#0984e3';
 }
 
 const thStyle = {

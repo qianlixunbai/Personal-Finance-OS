@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import api from '../api';
+import { formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
 type TransactionType = 'INCOME' | 'EXPENSE' | 'ADJUSTMENT';
 
@@ -79,11 +80,6 @@ function toLocalDateTime(value: string) {
 function getErrorMessage(error: unknown) {
     const response = (error as { response?: { data?: { message?: string } } }).response;
     return response?.data?.message || '操作失败，请稍后重试';
-}
-
-function formatAmount(tx: Transaction) {
-    const amount = Number(tx.amount || 0).toFixed(2);
-    return tx.type === 'EXPENSE' ? `-${amount}` : amount;
 }
 
 export default function Transactions() {
@@ -274,7 +270,7 @@ export default function Transactions() {
                     <Field label="类型">
                         <select value={filters.type} onChange={e => setFilters({ ...filters, type: e.target.value })} style={controlStyle}>
                             <option value="">全部</option>
-                            {typeOptions.map(type => <option key={type} value={type}>{type}</option>)}
+                            {typeOptions.map(type => <option key={type} value={type}>{formatTransactionType(type)}</option>)}
                         </select>
                     </Field>
                     <Field label="账户">
@@ -305,7 +301,7 @@ export default function Transactions() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                         <Field label="类型">
                             <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value as TransactionType, categoryId: '' })} style={controlStyle}>
-                                {typeOptions.map(type => <option key={type} value={type}>{type}</option>)}
+                                {typeOptions.map(type => <option key={type} value={type}>{formatTransactionType(type)}</option>)}
                             </select>
                         </Field>
                         <Field label="账户">
@@ -359,10 +355,10 @@ export default function Transactions() {
                     {transactions.map(tx => (
                         <tr key={tx.id}>
                             <td style={tdStyle}>{tx.transactedAt?.replace('T', ' ')}</td>
-                            <td style={tdStyle}>{tx.type}</td>
+                            <td style={tdStyle}>{formatTransactionType(tx.type)}</td>
                             <td style={tdStyle}>{accountNameById.get(tx.accountId) || tx.accountId}</td>
                             <td style={tdStyle}>{categoryNameById.get(tx.categoryId) || tx.categoryId}</td>
-                            <td style={{ ...tdStyle, fontWeight: 600, color: tx.type === 'EXPENSE' ? '#e17055' : '#00b894' }}>{formatAmount(tx)}</td>
+                            <td style={{ ...tdStyle, fontWeight: 600, color: transactionAmountColor(tx.type) }}>{formatTransactionAmount(tx.type, tx.amount)}</td>
                             <td style={tdStyle}>{tx.currency}</td>
                             <td style={tdStyle}>{tx.description || '-'}</td>
                             <td style={tdStyle}>
