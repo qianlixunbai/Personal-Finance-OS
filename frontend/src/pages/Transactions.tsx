@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import api from '../api';
+import { getErrorMessage } from '../utils/error';
 import { formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
 type TransactionType = 'INCOME' | 'EXPENSE' | 'ADJUSTMENT';
@@ -77,11 +78,6 @@ function toLocalDateTime(value: string) {
     return value.length === 16 ? `${value}:00` : value;
 }
 
-function getErrorMessage(error: unknown) {
-    const response = (error as { response?: { data?: { message?: string } } }).response;
-    return response?.data?.message || '操作失败，请稍后重试';
-}
-
 export default function Transactions() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [total, setTotal] = useState(0);
@@ -128,8 +124,8 @@ export default function Transactions() {
     };
 
     useEffect(() => {
-        fetchOptions().catch(err => setError(getErrorMessage(err)));
-        fetchTransactions(1).catch(err => setError(getErrorMessage(err)));
+        fetchOptions().catch(err => setError(getErrorMessage(err, '操作失败，请稍后重试')));
+        fetchTransactions(1).catch(err => setError(getErrorMessage(err, '操作失败，请稍后重试')));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -196,7 +192,7 @@ export default function Transactions() {
             await fetchOptions();
             await fetchTransactions(page);
         } catch (err) {
-            setError(getErrorMessage(err));
+            setError(getErrorMessage(err, '操作失败，请稍后重试'));
         }
     };
 
@@ -227,7 +223,7 @@ export default function Transactions() {
             await fetchOptions();
             await fetchTransactions(nextPage);
         } catch (err) {
-            setError(getErrorMessage(err));
+            setError(getErrorMessage(err, '操作失败，请稍后重试'));
         }
     };
 
@@ -238,7 +234,7 @@ export default function Transactions() {
         try {
             await fetchTransactions(1);
         } catch (err) {
-            setError(getErrorMessage(err));
+            setError(getErrorMessage(err, '操作失败，请稍后重试'));
         }
     };
 
@@ -247,7 +243,7 @@ export default function Transactions() {
         try {
             await fetchTransactions(nextPage);
         } catch (err) {
-            setError(getErrorMessage(err));
+            setError(getErrorMessage(err, '操作失败，请稍后重试'));
         }
     };
 

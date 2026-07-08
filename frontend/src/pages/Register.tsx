@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
+import { getErrorMessage } from '../utils/error';
 
 export default function Register() {
     const [form, setForm] = useState({ username: '', email: '', password: '' });
@@ -12,8 +13,8 @@ export default function Register() {
         try {
             await api.post('/register', form);
             navigate('/login');
-        } catch {
-            setError('注册失败');
+        } catch (err) {
+            setError(getErrorMessage(err, '注册失败'));
         }
     };
 

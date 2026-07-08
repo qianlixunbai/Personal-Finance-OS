@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
+import { getErrorMessage } from '../utils/error';
 
 export default function Login() {
     const [username, setUsername] = useState('');
@@ -14,8 +15,8 @@ export default function Login() {
             const res = await api.post('/login', { username, password });
             localStorage.setItem('token', res.data.data.token);
             navigate('/');
-        } catch {
-            setError('用户名或密码错误');
+        } catch (err) {
+            setError(getErrorMessage(err, '用户名或密码错误'));
         }
     };
 
