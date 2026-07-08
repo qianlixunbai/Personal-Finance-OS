@@ -48,6 +48,7 @@
 - [API Review](./review/API-Review.md)
 - [P2 Fix Plan](./review/P2-Fix-Plan.md)
 - [Exception Handling Review](./review/Exception-Handling-Review.md)
+- [V1.0 Closing Review](./review/V1.0-Closing-Review.md)
 
 ## 7. ADR / Logs / 其它
 
