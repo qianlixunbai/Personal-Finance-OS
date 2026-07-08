@@ -208,7 +208,7 @@ Authorization: Bearer <token>
 
 - 参数校验异常尚未显式统一包装为 `ApiResponse`；
 - `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException` 当前尚未统一包装为 `ApiResponse`；
-- Spring Security 自身产生的 `401` 尚未显式统一包装为 `ApiResponse`；
+- Spring Security 自身产生的 `401` / `403` 已统一包装为 `ApiResponse`；
 - 当前错误码体系较简单，暂无稳定 `ErrorCode` 枚举；
 - 当前错误消息为字符串，尚未建立国际化错误消息体系。
 
@@ -562,7 +562,7 @@ v1.0 目标上应统一参数校验和错误响应。
 6. 投资交易流水暂未实现。
 7. 并发下账户余额更新仍需后续评估行锁、乐观锁或原子 SQL。
 8. 参数校验异常未统一包装为 `ApiResponse`，包括但不限于 `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException`。
-9. Spring Security `401` 未统一包装为 `ApiResponse`。
+9. Spring Security `401` / `403` 响应体已统一包装为 `ApiResponse`，详见 `docs/review/Exception-Handling-Review.md`。
 10. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
 11. `/categories/init` 不适合作为长期普通业务 API 暴露。
 12. Account / Asset 分页接口前端尚未接入。
@@ -659,4 +659,4 @@ v1.0 目标上应统一参数校验和错误响应。
 
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、统一参数校验错误响应、Spring Security 错误响应、并发余额更新策略，以及 Account / Asset 分页前端接入。
+后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略，以及 Account / Asset 分页前端接入。

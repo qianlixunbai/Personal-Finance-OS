@@ -127,3 +127,89 @@ BUILD SUCCESS
 - 统一 Spring Security 权限不足 `403` 的响应体。
 - 后续如错误场景继续增加，可评估稳定的 `ErrorCode` 枚举。
 - 当前不把本次修复夸大为完整企业级异常体系，本次仅作为 v1.0 阶段的异常处理补强。
+
+## 11. Spring Security 401/403 响应统一
+
+### 11.1 修改背景
+
+参数类异常已通过 `GlobalExceptionHandler` 统一返回 `ApiResponse`，但 Spring Security 在过滤器链中产生的认证失败和权限不足不经过 Controller 异常处理，因此需要在 Security 配置中单独接入统一响应处理。
+
+### 11.2 修改内容
+
+本次新增 `SecurityErrorResponseHandler`，同时实现：
+
+- `AuthenticationEntryPoint`
+- `AccessDeniedHandler`
+
+并在 `SecurityConfig` 的 `exceptionHandling` 中接入：
+
+- `authenticationEntryPoint(securityErrorResponseHandler)`
+- `accessDeniedHandler(securityErrorResponseHandler)`
+
+本次未修改：
+
+- Controller
+- Service
+- DTO
+- Entity
+- Mapper
+- 前端代码
+- 数据库 schema
+- `Architecture.md`
+- `Database.md`
+- 角色 / 权限模型
+
+### 11.3 响应规则
+
+未认证、未携带 token、token 无效或登录已过期访问受保护接口时，返回：
+
+```json
+{
+  "code": 401,
+  "message": "未认证或登录已过期"
+}
+```
+
+HTTP Status 为 `401 Unauthorized`，`Content-Type` 为 `application/json;charset=UTF-8`。
+
+权限不足时，返回：
+
+```json
+{
+  "code": 403,
+  "message": "无权限访问该资源"
+}
+```
+
+HTTP Status 为 `403 Forbidden`，`Content-Type` 为 `application/json;charset=UTF-8`。
+
+### 11.4 测试覆盖
+
+本次新增测试覆盖：
+
+- 未携带 token 访问受保护接口 `/api/v1/dashboard` 时，返回 HTTP 401。
+- 401 响应体使用统一 `ApiResponse` JSON。
+- `AuthenticationEntryPoint` 分支直接返回统一 401 JSON。
+- `AccessDeniedHandler` 分支直接返回统一 403 JSON。
+
+当前项目没有角色 / 权限模型，因此未为了触发完整业务链路 403 而新增角色体系或复杂权限规则。403 响应通过 handler 单元测试覆盖。
+
+### 11.5 测试命令
+
+```powershell
+cd backend
+.\mvnw.cmd clean test
+```
+
+### 11.6 测试结果
+
+```text
+Tests run: 30, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+### 11.7 后续建议
+
+- 后续如引入角色、资源级权限或管理端能力，应补充真实 `403` Web 链路测试。
+- 当前阶段不引入 `ErrorCode` 枚举，继续保持简单 `code + message` 响应模型。
+- 若未来增加审计、请求追踪或国际化错误消息，可再评估是否扩展统一错误响应结构。
