@@ -294,9 +294,9 @@ Authorization: Bearer <token>
 
 - Dashboard 当前聚合账户余额、资产市值、月收入、月支出、最近流水；
 - Dashboard 不保存人工统计结果；
-- Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`TransactionQueryService` 读取真实业务数据；
+- Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`CategoryQueryService`、`TransactionQueryService` 读取真实业务数据；
 - 当前 `netWorth = totalAssets`，v1 暂无负债模型；
-- 最近流水当前只展示基础字段，`category` 和 `account` 当前为空字符串。
+- 最近流水返回基础字段，并补充当前用户可见范围内的 `category` 和 `account` 展示名称；找不到可见名称时返回 `未知分类` 或 `未知账户`。
 
 ## 9.6 Transaction / Ledger APIs
 
@@ -570,7 +570,7 @@ v1.0 目标上应统一参数校验和错误响应。
 13. 无 OpenAPI / Swagger / API contract。
 14. 无统一排序、过滤、搜索规范。
 15. 无审计日志、幂等、请求追踪 ID。
-16. Dashboard 最近流水中的 `category` 和 `account` 当前为空字符串。
+16. Dashboard 最近流水已补充 `category` 和 `account` 展示名称，后续可继续与交易列表的筛选、分页展示规范对齐。
 17. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
 
 ------
