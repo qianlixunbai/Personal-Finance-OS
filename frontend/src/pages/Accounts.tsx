@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import api from '../api';
+import { getErrorMessage } from '../utils/error';
 
 interface Account {
     id: number;
@@ -20,13 +21,17 @@ interface PageResult<T> {
 }
 
 const pageSize = 20;
+const emptyForm = () => ({ name: '', type: 'BANK', currency: 'CNY' });
 
 export default function Accounts() {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState({ name: '', type: 'BANK', currency: 'CNY' });
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [form, setForm] = useState(emptyForm);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const fetch = async (targetPage = page) => {
         const res = await api.get('/accounts/page', { params: { page: targetPage, size: pageSize } });
@@ -44,21 +49,66 @@ export default function Accounts() {
     };
 
     useEffect(() => {
-        fetch(1);
+        fetch(1).catch(err => setError(getErrorMessage(err, '账户列表加载失败')));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const create = async (e: FormEvent) => {
-        e.preventDefault();
-        await api.post('/accounts', form);
+    const openCreateForm = () => {
+        setEditingId(null);
+        setForm(emptyForm());
+        setShowForm(true);
+        setError('');
+        setSuccess('');
+    };
+
+    const openEditForm = (account: Account) => {
+        setEditingId(account.id);
+        setForm({
+            name: account.name,
+            type: account.type,
+            currency: account.currency || 'CNY',
+        });
+        setShowForm(true);
+        setError('');
+        setSuccess('');
+    };
+
+    const closeForm = () => {
+        setEditingId(null);
+        setForm(emptyForm());
         setShowForm(false);
-        fetch(page);
+    };
+
+    const submit = async (e: FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+
+        try {
+            if (editingId) {
+                await api.put(`/accounts/${editingId}`, form);
+                setSuccess('账户已更新');
+            } else {
+                await api.post('/accounts', form);
+                setSuccess('账户已创建');
+            }
+            closeForm();
+            await fetch(page);
+        } catch (err) {
+            setError(getErrorMessage(err, '账户保存失败'));
+        }
     };
 
     const deactivate = async (id: number) => {
         if (confirm('确定停用该账户？')) {
-            await api.post(`/accounts/${id}/deactivate`);
-            fetch(page);
+            try {
+                await api.post(`/accounts/${id}/deactivate`);
+                setSuccess('账户已停用');
+                setError('');
+                await fetch(page);
+            } catch (err) {
+                setError(getErrorMessage(err, '账户停用失败'));
+            }
         }
     };
 
@@ -69,11 +119,17 @@ export default function Accounts() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h2>账户管理</h2>
-                <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>新增账户</button>
+                <button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+                    {showForm ? '收起表单' : '新增账户'}
+                </button>
             </div>
 
+            {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 8, marginBottom: 16 }}>{error}</div>}
+            {success && <div style={{ background: '#d4edda', color: '#155724', padding: 12, borderRadius: 8, marginBottom: 16 }}>{success}</div>}
+
             {showForm && (
-                <form onSubmit={create} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <form onSubmit={submit} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 16 }}>{editingId ? '编辑账户' : '新增账户'}</h3>
                     <div style={{ marginBottom: 16 }}>
                         <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>名称</label>
                         <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8 }} />
@@ -89,7 +145,14 @@ export default function Accounts() {
                             <option value="CRYPTO_WALLET">加密钱包</option>
                         </select>
                     </div>
-                    <button type="submit" style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>保存</button>
+                    <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>币种</label>
+                        <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="submit" style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>{editingId ? '保存修改' : '保存'}</button>
+                        {editingId && <button type="button" onClick={closeForm} style={{ padding: '10px 20px', background: '#636e72', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>取消编辑</button>}
+                    </div>
                 </form>
             )}
 
@@ -109,7 +172,10 @@ export default function Accounts() {
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>{a.type}</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee', fontWeight: 600, color: '#00b894' }}>¥{a.balance?.toFixed(2)}</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
-                                {a.status === 'ACTIVE' && <button onClick={() => deactivate(a.id)} style={{ padding: '6px 12px', background: '#e17055', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>停用</button>}
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button onClick={() => openEditForm(a)} style={{ padding: '6px 12px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>编辑</button>
+                                    {a.status === 'ACTIVE' && <button onClick={() => deactivate(a.id)} style={{ padding: '6px 12px', background: '#e17055', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>停用</button>}
+                                </div>
                             </td>
                         </tr>
                     ))}
