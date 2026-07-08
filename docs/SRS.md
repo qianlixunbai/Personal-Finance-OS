@@ -239,6 +239,6 @@ V1.0 包含以下核心模块：
 
 **Personal Finance OS v1.0 Foundation / v1.1 Showcase Enhancement**
 
-v1.0 Foundation 已完成阶段验收。v1.1 Showcase Enhancement 已完成或处于最终收尾。v1.2 Visualization Polish、v1.3 Engineering Polish、v2.0 Market Data Foundation、v3.0 Investment Transaction Model、v4.0 AI Finance Assistant 均属于后续规划。
+v1.0 Foundation 已完成阶段验收。v1.1 Showcase Enhancement 已完成阶段验收。当前进入 v1.2 Visualization Polish。v1.3 Engineering Polish、v2.0 Market Data Foundation、v3.0 Investment Transaction Model、v4.0 AI Finance Assistant 均属于后续规划。
 
 未来版本新增需求将在对应版本中扩展，不直接修改已发布版本的功能定义。

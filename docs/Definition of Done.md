@@ -12,7 +12,7 @@ Definition of Done（以下简称 DoD）用于定义一个功能、模块或版�
 
 DoD 是项目统一的完成标准。
 
-当前 v1.1 Showcase Enhancement 不要求 Docker、CI/CD、OpenAPI / Swagger、Flyway / Liquibase 必须完成；这些能力属于后续工程化阶段或未来版本规划。DoD 应按当前任务所属版本和变更范围执行。
+v1.1 Showcase Enhancement 已完成阶段验收。当前 v1.2 Visualization Polish 不要求 Docker、CI/CD、OpenAPI / Swagger、Flyway / Liquibase 必须完成；这些能力属于后续工程化阶段或未来版本规划。DoD 应按当前任务所属版本和变更范围执行。
 
 只有满足 DoD 的所有要求，功能才能：
 

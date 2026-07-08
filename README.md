@@ -147,7 +147,8 @@ npm run build
 ## 当前状态
 
 - `v1.0 Foundation` 已完成阶段验收
-- 当前处于 `v1.1 Showcase Enhancement` 收尾阶段
+- `v1.1 Showcase Enhancement` 已完成阶段验收
+- 当前进入 `v1.2 Visualization Polish`
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -160,6 +161,7 @@ npm run build
 ## 后续计划
 
 - Dashboard 可视化增强
+- 资产分布图和收支趋势图
 - 前端组件抽取和工程化整理
 - Controller 层测试补齐
 - OpenAPI / Swagger 文档

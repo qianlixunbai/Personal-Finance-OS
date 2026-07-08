@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v1.1 Showcase Enhancement 收尾
+**当前阶段：** v1.2 Visualization Polish
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -65,7 +65,7 @@ Personal Finance OS 是面向求职作品集展示的工程化个人财务管理
 
 ------
 
-## v1.1 Showcase Enhancement（当前阶段）
+## v1.1 Showcase Enhancement（已完成）
 
 ### 定位
 
@@ -91,21 +91,36 @@ Personal Finance OS 是面向求职作品集展示的工程化个人财务管理
 
 ### 阶段结论
 
-`v1.1 Showcase Enhancement` 进入收尾阶段。
+`v1.1 Showcase Enhancement` 已完成阶段验收，可作为作品集展示增强版本展示。
 
 ------
 
-## v1.2 Visualization / Engineering Polish（后续规划）
+## v1.2 Visualization Polish（当前阶段）
 
 ### 定位
 
-展示和工程化增强阶段，目标是在不改变核心业务模型的前提下，提高可视化表达、测试完整度和工程规范。
+可视化增强阶段，目标是在不改变核心业务模型的前提下，提高 Dashboard 和资产 / 收支数据的展示表达。
 
 ### 规划能力
 
 - Dashboard 图表；
 - 资产分布图；
 - 收支趋势图；
+
+### 边界说明
+
+v1.2 不默认包含行情数据、不默认包含完整投资交易模型、不默认包含 AI 财务分析。
+
+------
+
+## v1.3 Engineering Polish（后续规划）
+
+### 定位
+
+工程化增强阶段，目标是在业务主链路稳定后，补齐测试、接口契约和数据库演进规范。
+
+### 规划能力
+
 - 前端组件抽取；
 - Controller 层测试；
 - OpenAPI / Swagger；
@@ -114,7 +129,7 @@ Personal Finance OS 是面向求职作品集展示的工程化个人财务管理
 
 ### 边界说明
 
-v1.2 不默认包含行情数据、不默认包含完整投资交易模型、不默认包含 AI 财务分析。
+v1.3 不默认包含行情数据、不默认包含完整投资交易模型、不默认包含 AI 财务分析。
 
 ------
 
@@ -179,7 +194,7 @@ v1.2 不默认包含行情数据、不默认包含完整投资交易模型、不
 
 # 四、当前不做的事
 
-当前 v1.1 收尾阶段不做：
+当前 v1.2 Visualization Polish 阶段不做：
 
 - 行情数据接入；
 - 第三方行情 API；
