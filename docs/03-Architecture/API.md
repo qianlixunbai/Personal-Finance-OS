@@ -204,11 +204,17 @@ Authorization: Bearer <token>
 | `404` | `404 Not Found` |
 | 其他 | `400 Bad Request` |
 
+当前错误响应覆盖：
+
+- `BusinessException` 按业务错误码映射 HTTP Status，并返回 `ApiResponse.error(code, message)`；
+- 参数校验异常已统一返回 `HTTP 400 + ApiResponse.error`，包括 `MethodArgumentNotValidException` 和 `ConstraintViolationException`；
+- 请求参数缺失、参数类型错误、请求体格式错误已统一返回 `HTTP 400 + ApiResponse.error`，包括 `MissingServletRequestParameterException`、`MethodArgumentTypeMismatchException` 和 `HttpMessageNotReadableException`；
+- Spring Security 未认证 `401` 返回统一 JSON 响应；
+- Spring Security 无权限 `403` 返回统一 JSON 响应；
+- 未知异常统一返回 `HTTP 500 + ApiResponse.error(500, "系统异常")`。
+
 当前已知限制：
 
-- 参数校验异常尚未显式统一包装为 `ApiResponse`；
-- `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException` 当前尚未统一包装为 `ApiResponse`；
-- Spring Security 自身产生的 `401` / `403` 已统一包装为 `ApiResponse`；
 - 当前错误码体系较简单，暂无稳定 `ErrorCode` 枚举；
 - 当前错误消息为字符串，尚未建立国际化错误消息体系。
 
@@ -496,7 +502,7 @@ v1.0 剩余目标：
 - 筛选能力增强，例如金额范围、关键词、排序字段、排序方向；
 - 与 Dashboard 最近流水展示字段进一步对齐；
 - Controller 层测试补齐；
-- 参数校验和错误响应进一步收敛；
+- Controller 层参数校验测试进一步补齐；
 - 并发余额更新策略评估。
 
 ## 12.2 Category API Completion
@@ -537,14 +543,18 @@ v1.0 目标上应补齐资产完整更新能力，并与账户关联规则对齐
 
 ## 12.4 Validation and Error Response
 
-v1.0 目标上应统一参数校验和错误响应。
+v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 
-目标能力：
+当前能力：
 
 - `@Valid` 校验异常统一返回 `ApiResponse`；
 - `@RequestParam` 校验异常统一返回 `ApiResponse`；
 - JSON 解析错误统一返回 `ApiResponse`；
 - Spring Security `401` / `403` 统一返回 `ApiResponse`；
+- 未知异常统一返回 `ApiResponse`。
+
+后续目标：
+
 - 业务错误码形成稳定规范。
 
 ------
@@ -560,16 +570,15 @@ v1.0 目标上应统一参数校验和错误响应。
 5. 完整 `TRANSFER` / `REFUND` 模型暂未实现。
 6. 投资交易流水暂未实现。
 7. 并发下账户余额更新仍需后续评估行锁、乐观锁或原子 SQL。
-8. 参数校验异常未统一包装为 `ApiResponse`，包括但不限于 `MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException`。
-9. Spring Security `401` / `403` 响应体已统一包装为 `ApiResponse`，详见 `docs/review/Exception-Handling-Review.md`。
-10. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
-11. `/categories/init` 不适合作为长期普通业务 API 暴露。
-12. Account / Asset 主列表分页已接入前端，后续可继续补齐账户编辑、资产删除等页面操作。
-13. 无 OpenAPI / Swagger / API contract。
-14. 无统一排序、过滤、搜索规范。
-15. 无审计日志、幂等、请求追踪 ID。
-16. Dashboard 最近流水已补充 `category` 和 `account` 展示名称，后续可继续与交易列表的筛选、分页展示规范对齐。
-17. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
+8. 参数校验、请求参数缺失、参数类型错误、请求体格式错误、Spring Security `401` / `403`、未知异常均已统一返回 `ApiResponse`。
+9. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
+10. `/categories/init` 不适合作为长期普通业务 API 暴露。
+11. Account / Asset 主列表分页已接入前端，后续可继续补齐账户编辑、资产删除等页面操作。
+12. 无 OpenAPI / Swagger / API contract。
+13. 无统一排序、过滤、搜索规范。
+14. 无审计日志、幂等、请求追踪 ID。
+15. Dashboard 最近流水已补充 `category` 和 `account` 展示名称，后续可继续与交易列表的筛选、分页展示规范对齐。
+16. `marketValue` 存在持久化字段与响应实时计算之间的一致性风险。
 
 ------
 
@@ -623,7 +632,7 @@ v1.0 目标上应统一参数校验和错误响应。
 - 是否记录 `PageResult<T>`；
 - 是否记录分页参数修正规则；
 - 是否记录 `BusinessException` 与 HTTP Status 映射；
-- 是否记录参数校验和 Spring Security 错误响应 Known Gap。
+- 是否记录参数校验、Spring Security 和未知异常的统一错误响应现状。
 
 ## 15.4 架构与实现边界
 
