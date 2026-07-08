@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import api from '../api';
+import { AlertMessage, EmptyTableRow } from '../components/Feedback';
 import { getErrorMessage } from '../utils/error';
 import { formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
@@ -258,8 +259,8 @@ export default function Transactions() {
                 </button>
             </div>
 
-            {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-            {success && <div style={{ background: '#d4edda', color: '#155724', padding: 12, borderRadius: 8, marginBottom: 16 }}>{success}</div>}
+            {error && <AlertMessage type="error">{error}</AlertMessage>}
+            {success && <AlertMessage type="success">{success}</AlertMessage>}
 
             <form onSubmit={search} style={{ background: '#fff', padding: 20, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'end' }}>
@@ -366,7 +367,7 @@ export default function Transactions() {
                         </tr>
                     ))}
                     {transactions.length === 0 && (
-                        <tr><td colSpan={8} style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无流水</td></tr>
+                        <EmptyTableRow colSpan={8} message="暂无流水" />
                     )}
                 </tbody>
             </table>

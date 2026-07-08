@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import api from '../api';
+import { AlertMessage, EmptyTableRow } from '../components/Feedback';
 import { getErrorMessage } from '../utils/error';
 import { formatCurrency } from '../utils/format';
 
@@ -130,8 +131,8 @@ export default function Assets() {
                 <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>新增资产</button>
             </div>
 
-            {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-            {success && <div style={{ background: '#d4edda', color: '#155724', padding: 12, borderRadius: 8, marginBottom: 16 }}>{success}</div>}
+            {error && <AlertMessage type="error">{error}</AlertMessage>}
+            {success && <AlertMessage type="success">{success}</AlertMessage>}
 
             {showForm && (
                 <form onSubmit={create} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
@@ -208,7 +209,7 @@ export default function Assets() {
                         </tr>
                     ))}
                     {assets.length === 0 && (
-                        <tr><td colSpan={6} style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无资产</td></tr>
+                        <EmptyTableRow colSpan={6} message="暂无资产" />
                     )}
                 </tbody>
             </table>

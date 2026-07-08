@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import { EmptyState } from '../components/Feedback';
+import { getErrorMessage } from '../utils/error';
 import { formatCurrency, formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
 interface DashboardData {
@@ -15,12 +17,16 @@ interface DashboardData {
 
 export default function Dashboard() {
     const [data, setData] = useState<DashboardData | null>(null);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        api.get('/dashboard').then(res => setData(res.data.data));
+        api.get('/dashboard')
+            .then(res => setData(res.data.data))
+            .catch(err => setError(getErrorMessage(err, '财务概览加载失败')));
     }, []);
 
-    if (!data) return <div>加载中...</div>;
+    if (error) return <EmptyState message={error} />;
+    if (!data) return <EmptyState message="加载中..." />;
 
     return (
         <div>
@@ -66,7 +72,9 @@ export default function Dashboard() {
                             ))}
                             {data.recentTransactions.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无最近流水</td>
+                                    <td colSpan={5}>
+                                        <EmptyState message="暂无最近流水" />
+                                    </td>
                                 </tr>
                             )}
                         </tbody>
@@ -90,7 +98,7 @@ export default function Dashboard() {
                             ))}
                         </div>
                     ) : (
-                        <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无资产分布</div>
+                        <EmptyState message="暂无资产分布" />
                     )}
                 </section>
             </div>

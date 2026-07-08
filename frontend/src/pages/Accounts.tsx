@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import api from '../api';
+import { AlertMessage, EmptyTableRow } from '../components/Feedback';
 import { getErrorMessage } from '../utils/error';
 
 interface Account {
@@ -124,8 +125,8 @@ export default function Accounts() {
                 </button>
             </div>
 
-            {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-            {success && <div style={{ background: '#d4edda', color: '#155724', padding: 12, borderRadius: 8, marginBottom: 16 }}>{success}</div>}
+            {error && <AlertMessage type="error">{error}</AlertMessage>}
+            {success && <AlertMessage type="success">{success}</AlertMessage>}
 
             {showForm && (
                 <form onSubmit={submit} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
@@ -180,7 +181,7 @@ export default function Accounts() {
                         </tr>
                     ))}
                     {accounts.length === 0 && (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无账户</td></tr>
+                        <EmptyTableRow colSpan={4} message="暂无账户" />
                     )}
                 </tbody>
             </table>
