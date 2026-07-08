@@ -251,15 +251,16 @@ Authorization: Bearer <token>
 |---|---|---|---|---|---|
 | `GET` | `/api/v1/categories` | 是 | Query: `type?` | `ApiResponse<List<CategoryResponse>>` | 查询当前用户分类和系统分类，可按 `type` 过滤。 |
 | `POST` | `/api/v1/categories` | 是 | Body: `CategoryRequest(name, type, parentId, sortOrder)` | `ApiResponse<CategoryResponse>` | 创建当前用户自定义分类。 |
-| `POST` | `/api/v1/categories/init` | 是 | 无 | `ApiResponse<Void>` | 初始化系统分类。当前作为接口暴露，但不适合作为长期普通业务 API。 |
+| `POST` | `/api/v1/categories/init` | 是 | 无 | `ApiResponse<Void>` | 幂等初始化系统分类。当前保留为开发/兼容入口，不是推荐演示路径。 |
 
 当前说明：
 
 - 分类查询包括当前用户分类和 `isSystem = true` 的系统分类；
+- 系统分类采用全局模型：`userId = null`、`isSystem = true`，应用启动时会幂等初始化默认收入/支出分类；
 - `type` 当前支持 `INCOME`、`EXPENSE`；
 - 当前没有分类更新 API；
 - 当前没有分类删除 API；
-- `/categories/init` 更适合作为开发/初始化接口，后续应考虑迁移为启动初始化逻辑、管理端能力或 migration / data seed 机制。
+- `/categories/init` 当前仅作为开发/兼容入口保留；Fresh DB 演示路径依赖应用启动初始化，不需要用户手工调用该接口。
 
 ## 9.4 Asset APIs
 

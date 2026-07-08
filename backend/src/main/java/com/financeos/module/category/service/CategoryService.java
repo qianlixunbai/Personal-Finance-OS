@@ -48,17 +48,13 @@ public class CategoryService {
     public void initSystemCategories() {
         List<CategoryRequest> defaults = Arrays.asList(
                 new CategoryRequest("工资", "INCOME", null, 1),
-                new CategoryRequest("兼职", "INCOME", null, 2),
-                new CategoryRequest("投资", "INCOME", null, 3),
-                new CategoryRequest("其他收入", "INCOME", null, 4),
+                new CategoryRequest("奖金", "INCOME", null, 2),
+                new CategoryRequest("其他收入", "INCOME", null, 3),
                 new CategoryRequest("餐饮", "EXPENSE", null, 1),
                 new CategoryRequest("交通", "EXPENSE", null, 2),
                 new CategoryRequest("购物", "EXPENSE", null, 3),
                 new CategoryRequest("住房", "EXPENSE", null, 4),
-                new CategoryRequest("娱乐", "EXPENSE", null, 5),
-                new CategoryRequest("医疗", "EXPENSE", null, 6),
-                new CategoryRequest("教育", "EXPENSE", null, 7),
-                new CategoryRequest("其他支出", "EXPENSE", null, 8)
+                new CategoryRequest("其他支出", "EXPENSE", null, 5)
         );
         for (CategoryRequest req : defaults) {
             if (categoryMapper.selectCount(
