@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties, FormEvent } from 'react';
 import api from '../api';
 
 interface Asset {
@@ -15,28 +16,59 @@ interface Asset {
     profitLossRate: number;
 }
 
+interface PageResult<T> {
+    records: T[];
+    total: number;
+    page: number;
+    size: number;
+}
+
+const pageSize = 20;
+
 export default function Assets() {
     const [assets, setAssets] = useState<Asset[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ name: '', symbol: '', type: 'STOCK', market: '', currency: 'CNY', quantity: 0, avgCost: 0 });
 
-    const fetch = () => api.get('/assets').then(res => setAssets(res.data.data));
-    useEffect(() => { fetch(); }, []);
+    const fetch = async (targetPage = page) => {
+        const res = await api.get('/assets/page', { params: { page: targetPage, size: pageSize } });
+        const data: PageResult<Asset> = res.data.data;
+        const records = data.records || [];
 
-    const create = async (e: React.FormEvent) => {
+        if (records.length === 0 && targetPage > 1 && (data.total || 0) > 0) {
+            await fetch(targetPage - 1);
+            return;
+        }
+
+        setAssets(records);
+        setTotal(data.total || 0);
+        setPage(data.page || targetPage);
+    };
+
+    useEffect(() => {
+        fetch(1);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const create = async (e: FormEvent) => {
         e.preventDefault();
         await api.post('/assets', form);
         setShowForm(false);
-        fetch();
+        fetch(page);
     };
 
     const updatePrice = async (id: number) => {
         const price = prompt('输入当前价格:');
         if (price) {
             await api.put(`/assets/${id}/price?price=${price}`);
-            fetch();
+            fetch(page);
         }
     };
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const hasNextPage = page < totalPages && assets.length >= pageSize;
 
     return (
         <div>
@@ -93,8 +125,27 @@ export default function Assets() {
                             </td>
                         </tr>
                     ))}
+                    {assets.length === 0 && (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', color: '#999', padding: 40 }}>暂无资产</td></tr>
+                    )}
                 </tbody>
             </table>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 个资产</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => fetch(page - 1)} disabled={page <= 1} style={pageButtonStyle}>上一页</button>
+                    <button onClick={() => fetch(page + 1)} disabled={!hasNextPage} style={pageButtonStyle}>下一页</button>
+                </div>
+            </div>
         </div>
     );
 }
+
+const pageButtonStyle: CSSProperties = {
+    padding: '8px 14px',
+    background: '#fff',
+    border: '1px solid #ddd',
+    borderRadius: 8,
+    cursor: 'pointer',
+};

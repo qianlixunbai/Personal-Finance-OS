@@ -178,8 +178,8 @@ Authorization: Bearer <token>
 - `size < 1` 修正为 `1`；
 - `size > 100` 修正为 `100`；
 - `Account`、`Asset`、`Transaction / Ledger` 已提供分页接口；
-- 原列表接口仍保留，用于兼容当前前端；
-- 当前前端尚未接入分页接口。
+- 原列表接口仍保留，用于兼容部分前端选项加载场景；
+- 当前前端已接入 `Account`、`Asset`、`Transaction / Ledger` 主列表分页接口。
 
 ------
 
@@ -364,10 +364,10 @@ frontend/src/api/index.ts
 | `POST /login` | `POST /api/v1/login` | `Login.tsx` |
 | `POST /register` | `POST /api/v1/register` | `Register.tsx` |
 | `GET /dashboard` | `GET /api/v1/dashboard` | `Dashboard.tsx` |
-| `GET /accounts` | `GET /api/v1/accounts` | `Accounts.tsx` |
+| `GET /accounts/page?page=...&size=...` | `GET /api/v1/accounts/page?page=...&size=...` | `Accounts.tsx` |
 | `POST /accounts` | `POST /api/v1/accounts` | `Accounts.tsx` |
 | `POST /accounts/{id}/deactivate` | `POST /api/v1/accounts/{id}/deactivate` | `Accounts.tsx` |
-| `GET /assets` | `GET /api/v1/assets` | `Assets.tsx` |
+| `GET /assets/page?page=...&size=...` | `GET /api/v1/assets/page?page=...&size=...` | `Assets.tsx` |
 | `POST /assets` | `POST /api/v1/assets` | `Assets.tsx` |
 | `PUT /assets/{id}/price?price=...` | `PUT /api/v1/assets/{id}/price?price=...` | `Assets.tsx` |
 | `GET /transactions/page?page=...&size=...` | `GET /api/v1/transactions/page?page=...&size=...` | `Transactions.tsx` |
@@ -379,20 +379,18 @@ frontend/src/api/index.ts
 
 当前后端已实现但前端尚未调用的接口包括：
 
-- `GET /api/v1/accounts/page`
 - `GET /api/v1/accounts/{id}`
 - `PUT /api/v1/accounts/{id}`
 - `GET /api/v1/categories`
 - `POST /api/v1/categories`
 - `POST /api/v1/categories/init`
-- `GET /api/v1/assets/page`
 - `GET /api/v1/assets/{id}`
 - `DELETE /api/v1/assets/{id}`
 
 说明：
 
 - `Transactions.tsx` 已接入 Transaction / Ledger API，使用 `/transactions/page` 分页查询，并支持创建、编辑、删除。
-- 当前 Account / Asset 分页接口后端已实现，但前端账户和资产页面仍使用非分页列表接口。
+- `Accounts.tsx`、`Assets.tsx` 已接入 Account / Asset 分页接口，保留上一页 / 下一页基础分页操作。
 - 当前前端尚未接入分类管理页面。
 
 ------
@@ -566,7 +564,7 @@ v1.0 目标上应统一参数校验和错误响应。
 9. Spring Security `401` / `403` 响应体已统一包装为 `ApiResponse`，详见 `docs/review/Exception-Handling-Review.md`。
 10. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
 11. `/categories/init` 不适合作为长期普通业务 API 暴露。
-12. Account / Asset 分页接口前端尚未接入。
+12. Account / Asset 主列表分页已接入前端，后续可继续补齐账户编辑、资产删除等页面操作。
 13. 无 OpenAPI / Swagger / API contract。
 14. 无统一排序、过滤、搜索规范。
 15. 无审计日志、幂等、请求追踪 ID。
@@ -660,4 +658,4 @@ v1.0 目标上应统一参数校验和错误响应。
 
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略，以及 Account / Asset 分页前端接入。
+后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略，以及账户 / 资产页面的更多管理操作。
