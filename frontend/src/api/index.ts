@@ -4,6 +4,14 @@ const api = axios.create({
     baseURL: '/api/v1',
 });
 
+function isPublicAuthRequest(url?: string) {
+    const path = url?.split('?')[0];
+    return path === '/login'
+        || path === '/register'
+        || path?.endsWith('/api/v1/login')
+        || path?.endsWith('/api/v1/register');
+}
+
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -15,9 +23,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (res) => res,
     (err) => {
-        if (err.response?.status === 401) {
+        const token = localStorage.getItem('token');
+        if (err.response?.status === 401 && token && !isPublicAuthRequest(err.config?.url)) {
             localStorage.removeItem('token');
-            window.location.href = '/login';
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(err);
     }
