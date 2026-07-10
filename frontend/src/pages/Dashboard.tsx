@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import { AssetAllocationChart } from '../components/charts/AssetAllocationChart';
+import { MonthlyCashFlowChart } from '../components/charts/MonthlyCashFlowChart';
 import { EmptyState } from '../components/Feedback';
 import { getErrorMessage } from '../utils/error';
 import { formatCurrency, formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
@@ -45,63 +47,45 @@ export default function Dashboard() {
                 <Link to="/transactions" style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, textDecoration: 'none', color: '#2d3436', fontWeight: 600 }}>交易流水</Link>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px,1fr))', gap: 20 }}>
-                <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
-                    <h3 style={{ marginTop: 0 }}>最近交易</h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                        <thead>
-                            <tr>
-                                <th style={thStyle}>日期</th>
-                                <th style={thStyle}>账户</th>
-                                <th style={thStyle}>分类</th>
-                                <th style={thStyle}>类型</th>
-                                <th style={{ ...thStyle, textAlign: 'right' }}>金额</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.recentTransactions.map(tx => (
-                                <tr key={tx.id}>
-                                    <td style={tdStyle}>{tx.date}</td>
-                                    <td style={tdStyle}>{tx.account}</td>
-                                    <td style={tdStyle}>{tx.category}</td>
-                                    <td style={tdStyle}>{formatTransactionType(tx.type)}</td>
-                                    <td style={{ ...tdStyle, textAlign: 'right', color: transactionAmountColor(tx.type), fontWeight: 600 }}>
-                                        {formatTransactionAmount(tx.type, tx.amount)}
-                                    </td>
-                                </tr>
-                            ))}
-                            {data.recentTransactions.length === 0 && (
-                                <tr>
-                                    <td colSpan={5}>
-                                        <EmptyState message="暂无最近流水" />
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </section>
-
-                <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
-                    <h3 style={{ marginTop: 0 }}>资产分布</h3>
-                    {data.assetAllocation.length > 0 ? (
-                        <div style={{ display: 'grid', gap: 12 }}>
-                            {data.assetAllocation.map(item => (
-                                <div key={item.name}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                                        <span style={{ fontWeight: 600 }}>{item.name}</span>
-                                        <span style={{ color: '#636e72' }}>{formatCurrency(item.value)} / {item.percentage.toFixed(2)}%</span>
-                                    </div>
-                                    <div style={{ height: 8, background: '#f1f2f6', borderRadius: 4, overflow: 'hidden' }}>
-                                        <div style={{ width: `${Math.min(item.percentage, 100)}%`, height: '100%', background: '#0984e3' }} />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <EmptyState message="暂无资产分布" />
-                    )}
-                </section>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px,1fr))', gap: 20, marginBottom: 20 }}>
+                <AssetAllocationChart assetAllocation={data.assetAllocation} />
+                <MonthlyCashFlowChart monthIncome={data.monthIncome} monthExpense={data.monthExpense} />
             </div>
+
+            <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <h3 style={{ marginTop: 0 }}>最近交易</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                        <tr>
+                            <th style={thStyle}>日期</th>
+                            <th style={thStyle}>账户</th>
+                            <th style={thStyle}>分类</th>
+                            <th style={thStyle}>类型</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>金额</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.recentTransactions.map(tx => (
+                            <tr key={tx.id}>
+                                <td style={tdStyle}>{tx.date}</td>
+                                <td style={tdStyle}>{tx.account}</td>
+                                <td style={tdStyle}>{tx.category}</td>
+                                <td style={tdStyle}>{formatTransactionType(tx.type)}</td>
+                                <td style={{ ...tdStyle, textAlign: 'right', color: transactionAmountColor(tx.type), fontWeight: 600 }}>
+                                    {formatTransactionAmount(tx.type, tx.amount)}
+                                </td>
+                            </tr>
+                        ))}
+                        {data.recentTransactions.length === 0 && (
+                            <tr>
+                                <td colSpan={5}>
+                                    <EmptyState message="暂无最近流水" />
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </section>
         </div>
     );
 }
