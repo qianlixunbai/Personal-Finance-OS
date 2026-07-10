@@ -307,6 +307,8 @@ Authorization: Bearer <token>
 - Dashboard 不保存人工统计结果；
 - Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`CategoryQueryService`、`TransactionQueryService` 读取真实业务数据；
 - 当前 `netWorth = totalAssets`，v1 暂无负债模型；
+- `assetAllocation` 表示有效 CNY 投资资产内部的市值分布：有效资产要求 `currentPrice != null`、`quantity > 0` 且市值大于 0；分项为 `currentPrice × quantity`，分母为所有有效投资资产市值之和，不包含账户余额；`percentage` 由后端使用 `BigDecimal` 计算；
+- Dashboard 本月收支图直接使用后端 `monthIncome`、`monthExpense`，前端不重新聚合流水或计算金融比例；
 - 最近流水返回基础字段，并补充当前用户可见范围内的 `category` 和 `account` 展示名称；找不到可见名称时返回 `未知分类` 或 `未知账户`。
 
 ## 9.6 Transaction / Ledger APIs
