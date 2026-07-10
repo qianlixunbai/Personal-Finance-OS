@@ -248,6 +248,7 @@ Authorization: Bearer <token>
 
 - 账户 API 使用 `Authentication principal` 获取当前 `userId`；
 - 查询、详情、更新和停用均校验账户归属；
+- V1.x 创建和更新账户时 `currency` 只允许 `CNY`，非 `CNY` 返回 HTTP `400`；
 - 当前未提供账户删除 API；
 - 当前创建账户时不允许客户端直接设置 `balance`。
 
@@ -284,6 +285,7 @@ Authorization: Bearer <token>
 
 - 资产 API 使用 `Authentication principal` 获取当前 `userId`；
 - 查询、详情、更新价格、清仓和删除均校验资产归属；
+- V1.x 创建资产时 `currency` 只允许 `CNY`，非 `CNY` 返回 HTTP `400`；
 - `quantity` 和 `avgCost` 使用 `BigDecimal`；
 - `updatePrice` 要求 `price > 0`；
 - `close` 只将资产快照中的 `quantity` 归零，不修改现金账户余额，不生成流水，不计算实现盈亏；
@@ -301,6 +303,7 @@ Authorization: Bearer <token>
 当前说明：
 
 - Dashboard 当前聚合账户余额、资产市值、月收入、月支出、最近流水；
+- Dashboard 当前只聚合基础币种 `CNY` 的账户、资产和流水数据，不执行汇率换算；
 - Dashboard 不保存人工统计结果；
 - Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`CategoryQueryService`、`TransactionQueryService` 读取真实业务数据；
 - 当前 `netWorth = totalAssets`，v1 暂无负债模型；
@@ -329,11 +332,11 @@ Authorization: Bearer <token>
 
 当请求或历史数据中的流水类型为 `TRANSFER` / `REFUND` 时，当前 Transaction API 返回 `BusinessException(400, "当前版本暂不支持该流水类型")`，不允许查询详情、更新、删除或按该类型分页查询。
 
-账户余额联动规则：
+流水金额存储与账户余额联动规则：
 
-- `INCOME`: `balance += amount`，`amount > 0`；
-- `EXPENSE`: `balance -= amount`，`amount > 0`；
-- `ADJUSTMENT`: `balance += amount`，`amount != 0`，且 `description` 必填；
+- `INCOME`: 请求 `amount > 0`，数据库保存正数，`balance += amount`；
+- `EXPENSE`: 请求 `amount > 0`，数据库保存正数，`balance -= amount`；前端展示时可以显示为负数；
+- `ADJUSTMENT`: 请求 `amount != 0`，数据库保存有符号金额，`balance += amount`，且 `description` 必填；
 - `update` 会先回滚旧流水影响，再应用新流水影响；
 - `delete` 会回滚旧流水影响；
 - `create`、`update`、`delete` 写操作使用 `@Transactional`，保证流水与账户余额在同一事务中提交或回滚。
@@ -346,7 +349,8 @@ Authorization: Bearer <token>
 - `INCOME` 只能使用 `INCOME` 分类；
 - `EXPENSE` 只能使用 `EXPENSE` 分类；
 - `ADJUSTMENT` 当前不强制匹配分类 `type`，但必须填写 `description`；
-- `currency` 为空时默认 `CNY`。
+- `currency` 为空时默认 `CNY`；V1.x 非 `CNY` 输入返回 HTTP `400`；
+- 流水币种必须与所属账户币种一致，否则返回 HTTP `400`。
 
 ------
 
@@ -363,7 +367,7 @@ frontend/src/api/index.ts
 - axios `baseURL` 为 `/api/v1`；
 - request interceptor 从 `localStorage` 读取 `token`；
 - 若 token 存在，自动注入 `Authorization: Bearer <token>`；
-- response interceptor 遇到 HTTP `401` 时删除本地 token 并跳转 `/login`。
+- response interceptor 仅在受保护接口返回 HTTP `401` 且本地存在 token 时删除 token 并跳转 `/login`；`/login`、`/register` 等公开认证请求不触发跳转，已位于登录页时不重复重定向。
 
 当前前端实际调用的接口：
 
@@ -468,6 +472,7 @@ frontend/src/api/index.ts
 - 金额、价格、数量使用 `BigDecimal`；
 - Transaction / Ledger API 已落地基础流水金额方向规则；
 - `INCOME`、`EXPENSE`、`ADJUSTMENT` 的余额联动在后端执行；
+- V1.x 账户、资产、流水只允许 `CNY`，流水币种与账户一致，Dashboard 只聚合 `CNY` 数据；
 - 资产浮动盈亏和收益率由后端计算；
 - Dashboard 统计由后端计算；
 - 前端不执行最终金融计算。

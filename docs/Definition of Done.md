@@ -14,7 +14,7 @@ DoD 是项目统一的完成标准。
 
 v1.1 Showcase Enhancement 已完成阶段验收。当前 v1.2 Visualization Polish 不要求 Docker、CI/CD、OpenAPI / Swagger、Flyway / Liquibase 必须完成；这些能力属于后续工程化阶段或未来版本规划。DoD 应按当前任务所属版本和变更范围执行。
 
-只有满足 DoD 的所有要求，功能才能：
+只有满足适用于当前任务或当前版本范围的 DoD 要求，功能才能：
 
 - 合并代码；
 - 发布版本；
@@ -42,7 +42,7 @@ v1.1 Showcase Enhancement 已完成阶段验收。当前 v1.2 Visualization Poli
 
 请确认：
 
--  已完成 SRS 中定义的所有需求。
+-  已完成当前任务或当前版本范围内 SRS 定义的需求；长期规划中的 SRS 需求不作为本次完成门槛。
 -  未超出本次开发范围。
 -  未遗漏需求。
 -  已符合 Business Rules。
