@@ -17,6 +17,8 @@ import java.util.List;
 @Service
 public class AccountService {
 
+    private static final String BASE_CURRENCY = "CNY";
+
     private final AccountMapper accountMapper;
 
     public AccountService(AccountMapper accountMapper) {
@@ -52,11 +54,13 @@ public class AccountService {
 
     @Transactional
     public AccountResponse create(Long userId, AccountRequest req) {
+        String currency = req.currency() != null ? req.currency() : BASE_CURRENCY;
+        validateCurrency(currency);
         Account account = new Account();
         account.setUserId(userId);
         account.setName(req.name());
         account.setType(req.type());
-        account.setCurrency(req.currency() != null ? req.currency() : "CNY");
+        account.setCurrency(currency);
         account.setBalance(BigDecimal.ZERO);
         accountMapper.insert(account);
         return toResponse(account);
@@ -68,9 +72,11 @@ public class AccountService {
         if (account == null || !account.getUserId().equals(userId)) {
             throw new BusinessException(404, "账户不存在");
         }
+        String currency = req.currency() != null ? req.currency() : account.getCurrency();
+        validateCurrency(currency);
         account.setName(req.name());
         account.setType(req.type());
-        account.setCurrency(req.currency() != null ? req.currency() : account.getCurrency());
+        account.setCurrency(currency);
         accountMapper.updateById(account);
         return toResponse(account);
     }
@@ -83,6 +89,12 @@ public class AccountService {
         }
         account.setStatus("INACTIVE");
         accountMapper.updateById(account);
+    }
+
+    private void validateCurrency(String currency) {
+        if (!BASE_CURRENCY.equals(currency)) {
+            throw new BusinessException(400, "当前版本仅支持 CNY 币种");
+        }
     }
 
     private AccountResponse toResponse(Account a) {

@@ -10,6 +10,8 @@ import java.util.List;
 @Service
 public class AssetQueryService {
 
+    private static final String BASE_CURRENCY = "CNY";
+
     private final AssetMapper assetMapper;
 
     public AssetQueryService(AssetMapper assetMapper) {
@@ -18,7 +20,9 @@ public class AssetQueryService {
 
     public List<Asset> listByUser(Long userId) {
         return assetMapper.selectList(
-                new LambdaQueryWrapper<Asset>().eq(Asset::getUserId, userId)
+                new LambdaQueryWrapper<Asset>()
+                        .eq(Asset::getUserId, userId)
+                        .eq(Asset::getCurrency, BASE_CURRENCY)
         );
     }
 }

@@ -2,7 +2,9 @@ package com.financeos.module.account.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.financeos.common.BusinessException;
 import com.financeos.common.PageResult;
+import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.entity.Account;
 import com.financeos.module.account.mapper.AccountMapper;
@@ -14,12 +16,45 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AccountServiceTest {
+
+    @Test
+    void createRejectsNonCnyCurrency() {
+        AccountMapper accountMapper = mock(AccountMapper.class);
+        AccountService service = new AccountService(accountMapper);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(1L, new AccountRequest("美元账户", "BANK", "USD")));
+
+        assertEquals(400, ex.getCode());
+        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
+        verify(accountMapper, never()).insert(any(Account.class));
+    }
+
+    @Test
+    void updateRejectsNonCnyCurrency() {
+        AccountMapper accountMapper = mock(AccountMapper.class);
+        AccountService service = new AccountService(accountMapper);
+        Account account = new Account();
+        account.setId(10L);
+        account.setUserId(1L);
+        account.setCurrency("CNY");
+        when(accountMapper.selectById(10L)).thenReturn(account);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.update(1L, 10L, new AccountRequest("现金账户", "CASH", "USD")));
+
+        assertEquals(400, ex.getCode());
+        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
+        verify(accountMapper, never()).updateById(any(Account.class));
+    }
 
     @Test
     void deactivateAllowsAccountWithHistoricalTransactions() {

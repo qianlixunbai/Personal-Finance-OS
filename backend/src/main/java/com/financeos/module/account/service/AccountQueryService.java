@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 @Service
 public class AccountQueryService {
 
+    private static final String BASE_CURRENCY = "CNY";
+
     private final AccountMapper accountMapper;
 
     public AccountQueryService(AccountMapper accountMapper) {
@@ -21,7 +23,9 @@ public class AccountQueryService {
 
     public BigDecimal sumBalanceByUser(Long userId) {
         return accountMapper.selectList(
-                new LambdaQueryWrapper<Account>().eq(Account::getUserId, userId)
+                new LambdaQueryWrapper<Account>()
+                        .eq(Account::getUserId, userId)
+                        .eq(Account::getCurrency, BASE_CURRENCY)
         ).stream()
                 .map(Account::getBalance)
                 .filter(balance -> balance != null)

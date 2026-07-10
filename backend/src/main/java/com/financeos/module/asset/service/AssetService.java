@@ -18,6 +18,8 @@ import java.util.List;
 @Service
 public class AssetService {
 
+    private static final String BASE_CURRENCY = "CNY";
+
     private final AssetMapper assetMapper;
 
     public AssetService(AssetMapper assetMapper) {
@@ -53,13 +55,15 @@ public class AssetService {
 
     @Transactional
     public AssetResponse create(Long userId, AssetRequest req) {
+        String currency = req.currency() != null ? req.currency() : BASE_CURRENCY;
+        validateCurrency(currency);
         Asset asset = new Asset();
         asset.setUserId(userId);
         asset.setName(req.name());
         asset.setSymbol(req.symbol());
         asset.setType(req.type());
         asset.setMarket(req.market());
-        asset.setCurrency(req.currency() != null ? req.currency() : "CNY");
+        asset.setCurrency(currency);
         asset.setQuantity(req.quantity());
         asset.setAvgCost(req.avgCost());
         assetMapper.insert(asset);
@@ -105,6 +109,12 @@ public class AssetService {
             throw new BusinessException(400, "该资产仍有持仓，无法删除");
         }
         assetMapper.deleteById(id);
+    }
+
+    private void validateCurrency(String currency) {
+        if (!BASE_CURRENCY.equals(currency)) {
+            throw new BusinessException(400, "当前版本仅支持 CNY 币种");
+        }
     }
 
     private AssetResponse toResponse(Asset a) {

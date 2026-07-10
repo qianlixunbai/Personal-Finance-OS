@@ -12,6 +12,8 @@ import java.util.List;
 @Service
 public class TransactionQueryService {
 
+    private static final String BASE_CURRENCY = "CNY";
+
     private final TransactionMapper transactionMapper;
 
     public TransactionQueryService(TransactionMapper transactionMapper) {
@@ -27,6 +29,7 @@ public class TransactionQueryService {
         return transactionMapper.selectList(
                 new LambdaQueryWrapper<Transaction>()
                         .eq(Transaction::getUserId, userId)
+                        .eq(Transaction::getCurrency, BASE_CURRENCY)
                         .orderByDesc(Transaction::getTransactedAt)
                         .last("LIMIT " + limit)
         );

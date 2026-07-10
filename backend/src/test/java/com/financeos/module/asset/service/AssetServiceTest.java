@@ -1,6 +1,7 @@
 package com.financeos.module.asset.service;
 
 import com.financeos.common.BusinessException;
+import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.mapper.AssetMapper;
@@ -16,6 +17,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AssetServiceTest {
+
+    @Test
+    void createRejectsNonCnyCurrency() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = new AssetService(assetMapper);
+        AssetRequest request = new AssetRequest(
+                "Apple", "AAPL", "STOCK", "NASDAQ", "USD", BigDecimal.ONE, BigDecimal.TEN);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.create(1L, request));
+
+        assertEquals(400, ex.getCode());
+        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
+        verify(assetMapper, never()).insert(org.mockito.ArgumentMatchers.any(Asset.class));
+    }
 
     @Test
     void updatePriceRejectsZeroPrice() {

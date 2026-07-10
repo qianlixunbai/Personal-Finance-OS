@@ -22,6 +22,7 @@ import java.util.List;
 @Service
 public class TransactionService {
 
+    private static final String BASE_CURRENCY = "CNY";
     private static final String TYPE_INCOME = "INCOME";
     private static final String TYPE_EXPENSE = "EXPENSE";
     private static final String TYPE_ADJUSTMENT = "ADJUSTMENT";
@@ -84,12 +85,13 @@ public class TransactionService {
     public TransactionResponse create(Long userId, TransactionRequest req) {
         ensureSupportedType(req.type());
         Account account = validateAccount(userId, req.accountId(), true);
+        String currency = validateCurrency(req.currency(), account);
         validateCategory(userId, req.categoryId(), req.type());
         validateAmountAndDescription(req);
 
         Transaction transaction = new Transaction();
         transaction.setUserId(userId);
-        applyRequest(transaction, req);
+        applyRequest(transaction, req, currency);
 
         applyBalance(account, req.type(), req.amount());
         transactionMapper.insert(transaction);
@@ -109,12 +111,13 @@ public class TransactionService {
         if (!"ACTIVE".equals(newAccount.getStatus())) {
             throw new BusinessException(400, "停用账户不允许新增流水");
         }
+        String currency = validateCurrency(req.currency(), newAccount);
         validateCategory(userId, req.categoryId(), req.type());
         validateAmountAndDescription(req);
 
         reverseBalance(oldAccount, transaction.getType(), transaction.getAmount());
         applyBalance(newAccount, req.type(), req.amount());
-        applyRequest(transaction, req);
+        applyRequest(transaction, req, currency);
 
         transactionMapper.updateById(transaction);
         accountMapper.updateById(oldAccount);
@@ -166,6 +169,17 @@ public class TransactionService {
         }
     }
 
+    private String validateCurrency(String requestedCurrency, Account account) {
+        String currency = requestedCurrency != null ? requestedCurrency : BASE_CURRENCY;
+        if (!BASE_CURRENCY.equals(currency)) {
+            throw new BusinessException(400, "当前版本仅支持 CNY 币种");
+        }
+        if (!currency.equals(account.getCurrency())) {
+            throw new BusinessException(400, "流水币种必须与账户币种一致");
+        }
+        return currency;
+    }
+
     private void ensureSupportedType(String type) {
         if (TYPE_TRANSFER.equals(type) || TYPE_REFUND.equals(type)) {
             throw new BusinessException(400, "当前版本暂不支持该流水类型");
@@ -213,12 +227,12 @@ public class TransactionService {
         }
     }
 
-    private void applyRequest(Transaction transaction, TransactionRequest req) {
+    private void applyRequest(Transaction transaction, TransactionRequest req, String currency) {
         transaction.setAccountId(req.accountId());
         transaction.setCategoryId(req.categoryId());
         transaction.setType(req.type());
         transaction.setAmount(req.amount());
-        transaction.setCurrency(req.currency() != null && !req.currency().isBlank() ? req.currency() : "CNY");
+        transaction.setCurrency(currency);
         transaction.setDescription(req.description());
         transaction.setTransactedAt(req.transactedAt());
     }

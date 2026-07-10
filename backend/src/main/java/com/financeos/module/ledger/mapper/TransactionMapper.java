@@ -12,11 +12,13 @@ import java.util.List;
 @Mapper
 public interface TransactionMapper extends BaseMapper<Transaction> {
 
-    @Select("SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE user_id = #{userId} AND type = #{type}")
+    @Select("SELECT COALESCE(SUM(amount), 0) FROM transactions " +
+            "WHERE user_id = #{userId} AND type = #{type} AND currency = 'CNY'")
     BigDecimal sumByType(@Param("userId") Long userId, @Param("type") String type);
 
     @Select("SELECT COALESCE(SUM(amount), 0) FROM transactions " +
-            "WHERE user_id = #{userId} AND type = #{type} AND transacted_at BETWEEN #{start} AND #{end}")
+            "WHERE user_id = #{userId} AND type = #{type} AND currency = 'CNY' " +
+            "AND transacted_at BETWEEN #{start} AND #{end}")
     BigDecimal sumByTypeAndDate(@Param("userId") Long userId, @Param("type") String type,
                                 @Param("start") java.time.LocalDateTime start, @Param("end") java.time.LocalDateTime end);
 }

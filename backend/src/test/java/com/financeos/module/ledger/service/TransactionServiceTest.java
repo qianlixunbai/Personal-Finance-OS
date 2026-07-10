@@ -114,6 +114,41 @@ class TransactionServiceTest {
     }
 
     @Test
+    void createRejectsNonCnyCurrency() {
+        var fixture = fixture();
+        Account account = activeAccount(10L, 1L, "100.00");
+        Category category = category(20L, 1L, "INCOME", false);
+        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
+        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", "USD", "salary")));
+
+        assertEquals(400, ex.getCode());
+        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
+        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
+        verify(fixture.accountMapper, never()).updateById(any(Account.class));
+    }
+
+    @Test
+    void createRejectsCurrencyDifferentFromAccount() {
+        var fixture = fixture();
+        Account account = activeAccount(10L, 1L, "100.00");
+        account.setCurrency("USD");
+        Category category = category(20L, 1L, "INCOME", false);
+        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
+        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", "CNY", "salary")));
+
+        assertEquals(400, ex.getCode());
+        assertEquals("流水币种必须与账户币种一致", ex.getMessage());
+        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
+        verify(fixture.accountMapper, never()).updateById(any(Account.class));
+    }
+
+    @Test
     void createRejectsAccountOwnedByAnotherUser() {
         var fixture = fixture();
         when(fixture.accountMapper.selectById(10L)).thenReturn(activeAccount(10L, 2L, "100.00"));
@@ -143,7 +178,7 @@ class TransactionServiceTest {
         when(fixture.accountMapper.selectById(11L)).thenReturn(newAccount);
         when(fixture.categoryMapper.selectById(21L)).thenReturn(category(21L, 1L, "EXPENSE", false));
 
-        fixture.service.update(1L, 99L, request(11L, 21L, "EXPENSE", "40.00", "USD", "rent"));
+        fixture.service.update(1L, 99L, request(11L, 21L, "EXPENSE", "40.00", "CNY", "rent"));
 
         assertEquals(new BigDecimal("70.00"), oldAccount.getBalance());
         assertEquals(new BigDecimal("160.00"), newAccount.getBalance());
