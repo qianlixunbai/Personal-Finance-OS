@@ -12,6 +12,6 @@ public record DashboardDto(
         List<AssetAllocation> assetAllocation,
         List<RecentTransaction> recentTransactions
 ) {
-    public record AssetAllocation(String name, BigDecimal value, double percentage) {}
+    public record AssetAllocation(String name, BigDecimal value, BigDecimal percentage) {}
     public record RecentTransaction(Long id, String type, BigDecimal amount, String category, String account, String date) {}
 }

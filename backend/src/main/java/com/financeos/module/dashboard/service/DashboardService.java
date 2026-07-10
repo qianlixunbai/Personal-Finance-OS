@@ -45,26 +45,30 @@ public class DashboardService {
         List<Asset> assets = assetQueryService.listByUser(userId);
 
         BigDecimal assetTotal = assets.stream()
-                .map(a -> {
-                    BigDecimal price = a.getCurrentPrice() != null ? a.getCurrentPrice() : BigDecimal.ZERO;
-                    return price.multiply(a.getQuantity());
-                }).reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(this::marketValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalAssets = accountTotal.add(assetTotal);
 
         // Asset allocation
-        List<DashboardDto.AssetAllocation> allocation = assets.stream()
-                .filter(a -> {
-                    BigDecimal price = a.getCurrentPrice() != null ? a.getCurrentPrice() : BigDecimal.ZERO;
-                    return price.multiply(a.getQuantity()).compareTo(BigDecimal.ZERO) > 0;
-                })
-                .map(a -> {
-                    BigDecimal val = a.getCurrentPrice().multiply(a.getQuantity());
-                    double pct = totalAssets.compareTo(BigDecimal.ZERO) > 0
-                            ? val.divide(totalAssets, 4, RoundingMode.HALF_UP).doubleValue() * 100
-                            : 0;
-                    return new DashboardDto.AssetAllocation(a.getName(), val, pct);
-                }).toList();
+        List<InvestmentAssetValue> investmentAssets = assets.stream()
+                .filter(asset -> asset.getCurrentPrice() != null
+                        && asset.getQuantity() != null
+                        && asset.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+                .map(asset -> new InvestmentAssetValue(asset.getName(), marketValue(asset)))
+                .filter(asset -> asset.value().compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        BigDecimal investmentAssetTotal = investmentAssets.stream()
+                .map(InvestmentAssetValue::value)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<DashboardDto.AssetAllocation> allocation = investmentAssets.stream()
+                .map(asset -> new DashboardDto.AssetAllocation(
+                        asset.name(),
+                        asset.value(),
+                        asset.value().multiply(BigDecimal.valueOf(100))
+                                .divide(investmentAssetTotal, 4, RoundingMode.HALF_UP)
+                ))
+                .toList();
 
         // Monthly income/expense
         BigDecimal monthIncome = transactionQueryService.sumByTypeAndDate(userId, "INCOME", monthStart, monthEnd);
@@ -93,5 +97,15 @@ public class DashboardService {
 
         return new DashboardDto(totalAssets, netWorth, monthIncome, monthExpense,
                 monthIncome.subtract(monthExpense), allocation, recent);
+    }
+
+    private BigDecimal marketValue(Asset asset) {
+        if (asset.getCurrentPrice() == null || asset.getQuantity() == null) {
+            return BigDecimal.ZERO;
+        }
+        return asset.getCurrentPrice().multiply(asset.getQuantity());
+    }
+
+    private record InvestmentAssetValue(String name, BigDecimal value) {
     }
 }

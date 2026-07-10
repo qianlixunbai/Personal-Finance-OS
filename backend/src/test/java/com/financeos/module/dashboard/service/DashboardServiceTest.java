@@ -1,6 +1,7 @@
 package com.financeos.module.dashboard.service;
 
 import com.financeos.module.account.service.AccountQueryService;
+import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.service.AssetQueryService;
 import com.financeos.module.category.service.CategoryQueryService;
 import com.financeos.module.dashboard.dto.DashboardDto;
@@ -15,11 +16,100 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DashboardServiceTest {
+
+    @Test
+    void allocationUsesOnlyInvestmentAssetMarketValueAsItsDenominator() {
+        DashboardDto dashboard = dashboard(
+                new BigDecimal("900.00"),
+                List.of(asset("沪深 300 ETF", "6", "10"), asset("黄金 ETF", "4", "10")),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        assertEquals(new BigDecimal("1000.00"), dashboard.totalAssets());
+        assertEquals(new BigDecimal("60.0000"), dashboard.assetAllocation().get(0).percentage());
+        assertEquals(new BigDecimal("40.0000"), dashboard.assetAllocation().get(1).percentage());
+    }
+
+    @Test
+    void allocationPercentageDoesNotChangeWhenAccountBalanceChanges() {
+        List<Asset> assets = List.of(asset("沪深 300 ETF", "6", "10"), asset("黄金 ETF", "4", "10"));
+
+        DashboardDto withAccounts = dashboard(new BigDecimal("900.00"), assets, BigDecimal.ZERO, BigDecimal.ZERO);
+        DashboardDto withoutAccounts = dashboard(BigDecimal.ZERO, assets, BigDecimal.ZERO, BigDecimal.ZERO);
+
+        assertEquals(withoutAccounts.assetAllocation().get(0).percentage(), withAccounts.assetAllocation().get(0).percentage());
+        assertEquals(withoutAccounts.assetAllocation().get(1).percentage(), withAccounts.assetAllocation().get(1).percentage());
+    }
+
+    @Test
+    void allocationExcludesAssetsWithoutAPositiveCurrentMarketValue() {
+        Asset missingPrice = asset("未报价资产", "1", null);
+        Asset missingQuantity = asset("数量缺失资产", null, "10");
+        Asset zeroQuantity = asset("已清仓资产", "0", "10");
+        Asset zeroValue = asset("零市值资产", "1", "0");
+
+        DashboardDto dashboard = assertDoesNotThrow(() -> dashboard(
+                BigDecimal.ZERO,
+                List.of(asset("有效资产", "2", "10"), missingPrice, missingQuantity, zeroQuantity, zeroValue),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        ));
+
+        assertEquals(1, dashboard.assetAllocation().size());
+        assertEquals("有效资产", dashboard.assetAllocation().getFirst().name());
+        assertEquals(new BigDecimal("100.0000"), dashboard.assetAllocation().getFirst().percentage());
+    }
+
+    @Test
+    void allocationIsEmptyWhenThereAreNoEffectiveAssets() {
+        DashboardDto dashboard = dashboard(
+                new BigDecimal("100.00"),
+                List.of(asset("未报价资产", "1", null), asset("已清仓资产", "0", "10")),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        assertTrue(dashboard.assetAllocation().isEmpty());
+    }
+
+    @Test
+    void allocationPercentagesRemainWithinRoundingTolerance() {
+        DashboardDto dashboard = dashboard(
+                BigDecimal.ZERO,
+                List.of(asset("资产 A", "1", "1"), asset("资产 B", "1", "1"), asset("资产 C", "1", "1")),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        BigDecimal percentageSum = dashboard.assetAllocation().stream()
+                .map(item -> new BigDecimal(String.valueOf(item.percentage())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        assertTrue(percentageSum.compareTo(new BigDecimal("99.99")) >= 0);
+        assertTrue(percentageSum.compareTo(new BigDecimal("100.01")) <= 0);
+    }
+
+    @Test
+    void dashboardKeepsMonthlyIncomeExpenseAndNetValues() {
+        DashboardDto dashboard = dashboard(
+                new BigDecimal("100.00"),
+                List.of(asset("有效资产", "2", "10")),
+                new BigDecimal("500.00"),
+                new BigDecimal("300.00")
+        );
+
+        assertEquals(new BigDecimal("500.00"), dashboard.monthIncome());
+        assertEquals(new BigDecimal("300.00"), dashboard.monthExpense());
+        assertEquals(new BigDecimal("200.00"), dashboard.monthNet());
+    }
 
     @Test
     void recentTransactionsIncludeVisibleAccountAndCategoryNames() {
@@ -67,5 +157,39 @@ class DashboardServiceTest {
         transaction.setAmount(new BigDecimal(amount));
         transaction.setTransactedAt(LocalDateTime.of(2026, 7, 8, 9, 0));
         return transaction;
+    }
+
+    private DashboardDto dashboard(BigDecimal accountTotal, List<Asset> assets,
+                                   BigDecimal monthIncome, BigDecimal monthExpense) {
+        AccountQueryService accountQueryService = mock(AccountQueryService.class);
+        AssetQueryService assetQueryService = mock(AssetQueryService.class);
+        CategoryQueryService categoryQueryService = mock(CategoryQueryService.class);
+        TransactionQueryService transactionQueryService = mock(TransactionQueryService.class);
+        DashboardService service = new DashboardService(
+                accountQueryService,
+                assetQueryService,
+                categoryQueryService,
+                transactionQueryService
+        );
+
+        when(accountQueryService.sumBalanceByUser(1L)).thenReturn(accountTotal);
+        when(assetQueryService.listByUser(1L)).thenReturn(assets);
+        when(transactionQueryService.sumByTypeAndDate(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("INCOME"),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(monthIncome);
+        when(transactionQueryService.sumByTypeAndDate(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("EXPENSE"),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(monthExpense);
+        when(transactionQueryService.listRecentByUser(1L, 5)).thenReturn(List.of());
+        when(accountQueryService.mapNamesByUser(1L, Set.of())).thenReturn(Map.of());
+        when(categoryQueryService.mapVisibleNamesByUser(1L, Set.of())).thenReturn(Map.of());
+
+        return service.getDashboard(1L);
+    }
+
+    private Asset asset(String name, String quantity, String currentPrice) {
+        Asset asset = new Asset();
+        asset.setName(name);
+        asset.setQuantity(quantity != null ? new BigDecimal(quantity) : null);
+        asset.setCurrentPrice(currentPrice != null ? new BigDecimal(currentPrice) : null);
+        return asset;
     }
 }
