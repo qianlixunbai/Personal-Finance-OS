@@ -302,13 +302,15 @@ Authorization: Bearer <token>
 
 当前说明：
 
-- Dashboard 当前聚合账户余额、资产市值、月收入、月支出、最近流水；
+- Dashboard 当前聚合账户余额、资产市值、月收入、月支出、最近 6 个月收支趋势和最近流水；
 - Dashboard 当前只聚合基础币种 `CNY` 的账户、资产和流水数据，不执行汇率换算；
 - Dashboard 不保存人工统计结果；
 - Dashboard 通过 `AccountQueryService`、`AssetQueryService`、`CategoryQueryService`、`TransactionQueryService` 读取真实业务数据；
 - 当前 `netWorth = totalAssets`，v1 暂无负债模型；
 - `assetAllocation` 表示有效 CNY 投资资产内部的市值分布：有效资产要求 `currentPrice != null`、`quantity > 0` 且市值大于 0；分项为 `currentPrice × quantity`，分母为所有有效投资资产市值之和，不包含账户余额；`percentage` 由后端使用 `BigDecimal` 计算；
 - Dashboard 本月收支图直接使用后端 `monthIncome`、`monthExpense`，前端不重新聚合流水或计算金融比例；
+- `monthlyCashFlowTrend` 固定按月返回当前自然月及此前 5 个自然月，共连续 6 项，月份格式为 `YYYY-MM` 且按升序排列；当前月统计截至本次请求开始时在 `Asia/Shanghai` 捕获的时刻，不包含未来流水；
+- `monthlyCashFlowTrend` 仅聚合当前用户的 `CNY`、`INCOME`、`EXPENSE` 流水。每项包含后端 `BigDecimal` 计算的 `income`、`expense` 与 `net = income - expense`；无流水月份返回三个零值，前端只展示这些结果，不读取分页流水重新聚合或计算结余；
 - 最近流水返回基础字段，并补充当前用户可见范围内的 `category` 和 `account` 展示名称；找不到可见名称时返回 `未知分类` 或 `未知账户`。
 
 ## 9.6 Transaction / Ledger APIs

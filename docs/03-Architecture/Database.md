@@ -370,6 +370,7 @@ mybatis-plus:
 - `idx_transactions_account_id(account_id)`；
 - `idx_transactions_category_id(category_id)`；
 - `idx_transactions_transacted(transacted_at)`。
+- `idx_transactions_user_currency_type_time(user_id, currency, type, transacted_at)`，用于 Dashboard 按当前用户、CNY、类型和时间范围聚合月度收支趋势。
 
 当前已知限制：
 
@@ -667,6 +668,7 @@ Personal Finance OS 是个人财务管理系统。所有业务数据必须围绕
 | `transactions` | `idx_transactions_account_id(account_id)` |
 | `transactions` | `idx_transactions_category_id(category_id)` |
 | `transactions` | `idx_transactions_transacted(transacted_at)` |
+| `transactions` | `idx_transactions_user_currency_type_time(user_id, currency, type, transacted_at)` |
 | `assets` | `idx_assets_user_id(user_id)` |
 | `asset_prices` | `idx_asset_prices_symbol(symbol)` |
 
@@ -678,6 +680,7 @@ Personal Finance OS 是个人财务管理系统。所有业务数据必须围绕
 - 按账户查询流水；
 - 按分类查询流水；
 - 按时间查询流水；
+- 按当前用户、CNY、收入/支出类型和时间范围聚合 Dashboard 月度收支趋势；
 - 按用户查询资产；
 - 按 symbol 查询历史价格。
 
