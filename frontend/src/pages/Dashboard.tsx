@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../api';
 import { AssetAllocationChart } from '../components/charts/AssetAllocationChart';
 import { MonthlyCashFlowChart } from '../components/charts/MonthlyCashFlowChart';
+import { MonthlyTrendChart } from '../components/charts/MonthlyTrendChart';
 import { EmptyState } from '../components/Feedback';
 import { getErrorMessage } from '../utils/error';
 import { formatCurrency, formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
@@ -14,6 +15,7 @@ interface DashboardData {
     monthExpense: number;
     monthNet: number;
     assetAllocation: { name: string; value: number; percentage: number }[];
+    monthlyCashFlowTrend: { month: string; income: number; expense: number; net: number }[];
     recentTransactions: { id: number; type: string; amount: number; category: string; account: string; date: string }[];
 }
 
@@ -54,6 +56,10 @@ export default function Dashboard() {
                 <div style={{ minWidth: 0 }}>
                     <MonthlyCashFlowChart monthIncome={data.monthIncome} monthExpense={data.monthExpense} />
                 </div>
+            </div>
+
+            <div style={{ minWidth: 0, marginBottom: 20 }}>
+                <MonthlyTrendChart monthlyCashFlowTrend={data.monthlyCashFlowTrend} />
             </div>
 
             <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
