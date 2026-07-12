@@ -5,13 +5,16 @@ import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.service.AssetQueryService;
 import com.financeos.module.category.service.CategoryQueryService;
 import com.financeos.module.dashboard.dto.DashboardDto;
+import com.financeos.module.ledger.dto.MonthlyCashFlowAggregate;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.service.TransactionQueryService;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,21 +27,24 @@ public class DashboardService {
     private final AssetQueryService assetQueryService;
     private final CategoryQueryService categoryQueryService;
     private final TransactionQueryService transactionQueryService;
+    private final Clock clock;
 
     public DashboardService(AccountQueryService accountQueryService,
                             AssetQueryService assetQueryService,
                             CategoryQueryService categoryQueryService,
-                            TransactionQueryService transactionQueryService) {
+                            TransactionQueryService transactionQueryService,
+                            Clock clock) {
         this.accountQueryService = accountQueryService;
         this.assetQueryService = assetQueryService;
         this.categoryQueryService = categoryQueryService;
         this.transactionQueryService = transactionQueryService;
+        this.clock = clock;
     }
 
     public DashboardDto getDashboard(Long userId) {
-        var now = LocalDateTime.now();
-        var monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
-        var monthEnd = now;
+        LocalDateTime now = LocalDateTime.now(clock);
+        YearMonth currentMonth = YearMonth.from(now);
+        LocalDateTime monthStart = currentMonth.atDay(1).atStartOfDay();
 
         // Total assets: account balances + asset market value
         BigDecimal accountTotal = accountQueryService.sumBalanceByUser(userId);
@@ -71,8 +77,9 @@ public class DashboardService {
                 .toList();
 
         // Monthly income/expense
-        BigDecimal monthIncome = transactionQueryService.sumByTypeAndDate(userId, "INCOME", monthStart, monthEnd);
-        BigDecimal monthExpense = transactionQueryService.sumByTypeAndDate(userId, "EXPENSE", monthStart, monthEnd);
+        BigDecimal monthIncome = transactionQueryService.sumByTypeAndDate(userId, "INCOME", monthStart, now);
+        BigDecimal monthExpense = transactionQueryService.sumByTypeAndDate(userId, "EXPENSE", monthStart, now);
+        List<DashboardDto.MonthlyCashFlow> monthlyCashFlowTrend = monthlyCashFlowTrend(userId, currentMonth, now);
         BigDecimal netWorth = totalAssets; // V1: no liabilities tracking
 
         // Recent transactions
@@ -96,7 +103,32 @@ public class DashboardService {
                 )).toList();
 
         return new DashboardDto(totalAssets, netWorth, monthIncome, monthExpense,
-                monthIncome.subtract(monthExpense), allocation, recent);
+                monthIncome.subtract(monthExpense), allocation, monthlyCashFlowTrend, recent);
+    }
+
+    private List<DashboardDto.MonthlyCashFlow> monthlyCashFlowTrend(
+            Long userId, YearMonth currentMonth, LocalDateTime endExclusive) {
+        YearMonth firstMonth = currentMonth.minusMonths(5);
+        LocalDateTime startInclusive = firstMonth.atDay(1).atStartOfDay();
+        Map<YearMonth, MonthlyCashFlowAggregate> aggregates = transactionQueryService
+                .monthlyCashFlowByMonth(userId, startInclusive, endExclusive)
+                .stream()
+                .collect(Collectors.toMap(
+                        aggregate -> YearMonth.from(aggregate.monthStart()),
+                        aggregate -> aggregate,
+                        (first, second) -> first
+                ));
+
+        return java.util.stream.IntStream.range(0, 6)
+                .mapToObj(firstMonth::plusMonths)
+                .map(month -> monthlyCashFlow(month, aggregates.get(month)))
+                .toList();
+    }
+
+    private DashboardDto.MonthlyCashFlow monthlyCashFlow(YearMonth month, MonthlyCashFlowAggregate aggregate) {
+        BigDecimal income = aggregate != null && aggregate.income() != null ? aggregate.income() : BigDecimal.ZERO;
+        BigDecimal expense = aggregate != null && aggregate.expense() != null ? aggregate.expense() : BigDecimal.ZERO;
+        return new DashboardDto.MonthlyCashFlow(month.toString(), income, expense, income.subtract(expense));
     }
 
     private BigDecimal marketValue(Asset asset) {

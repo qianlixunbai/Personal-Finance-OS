@@ -65,6 +65,8 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_id      ON transactions(user_id
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id   ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_category_id  ON transactions(category_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_transacted   ON transactions(transacted_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_currency_type_time
+    ON transactions(user_id, currency, type, transacted_at);
 
 -- 5. Assets (Investment Portfolio)
 CREATE TABLE IF NOT EXISTS assets (

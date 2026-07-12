@@ -1,6 +1,7 @@
 package com.financeos.module.ledger.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.financeos.module.ledger.dto.MonthlyCashFlowAggregate;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.mapper.TransactionMapper;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,13 @@ public class TransactionQueryService {
     public BigDecimal sumByTypeAndDate(Long userId, String type, LocalDateTime start, LocalDateTime end) {
         BigDecimal sum = transactionMapper.sumByTypeAndDate(userId, type, start, end);
         return sum != null ? sum : BigDecimal.ZERO;
+    }
+
+    public List<MonthlyCashFlowAggregate> monthlyCashFlowByMonth(
+            Long userId, LocalDateTime startInclusive, LocalDateTime endExclusive) {
+        List<MonthlyCashFlowAggregate> aggregates = transactionMapper.monthlyCashFlowByMonth(
+                userId, startInclusive, endExclusive);
+        return aggregates != null ? aggregates : List.of();
     }
 
     public List<Transaction> listRecentByUser(Long userId, int limit) {

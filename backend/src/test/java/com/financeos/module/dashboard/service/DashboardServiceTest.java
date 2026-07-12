@@ -5,22 +5,30 @@ import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.service.AssetQueryService;
 import com.financeos.module.category.service.CategoryQueryService;
 import com.financeos.module.dashboard.dto.DashboardDto;
+import com.financeos.module.ledger.dto.MonthlyCashFlowAggregate;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.service.TransactionQueryService;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.eq;
 
 class DashboardServiceTest {
 
@@ -112,6 +120,72 @@ class DashboardServiceTest {
     }
 
     @Test
+    void monthlyCashFlowTrendUsesOneFixedClockAndFillsCrossYearMonths() {
+        AccountQueryService accountQueryService = mock(AccountQueryService.class);
+        AssetQueryService assetQueryService = mock(AssetQueryService.class);
+        CategoryQueryService categoryQueryService = mock(CategoryQueryService.class);
+        TransactionQueryService transactionQueryService = mock(TransactionQueryService.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-03-15T04:30:00Z"), ZoneId.of("Asia/Shanghai"));
+        DashboardService service = new DashboardService(
+                accountQueryService, assetQueryService, categoryQueryService, transactionQueryService, clock
+        );
+        LocalDateTime currentMonthStart = LocalDateTime.of(2026, 3, 1, 0, 0);
+        LocalDateTime requestNow = LocalDateTime.of(2026, 3, 15, 12, 30);
+
+        when(accountQueryService.sumBalanceByUser(1L)).thenReturn(BigDecimal.ZERO);
+        when(assetQueryService.listByUser(1L)).thenReturn(List.of());
+        when(transactionQueryService.sumByTypeAndDate(1L, "INCOME", currentMonthStart, requestNow))
+                .thenReturn(new BigDecimal("250.00"));
+        when(transactionQueryService.sumByTypeAndDate(1L, "EXPENSE", currentMonthStart, requestNow))
+                .thenReturn(new BigDecimal("400.00"));
+        when(transactionQueryService.monthlyCashFlowByMonth(eq(1L), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(
+                        new MonthlyCashFlowAggregate(LocalDate.of(2025, 10, 1), new BigDecimal("600.00"), new BigDecimal("150.00")),
+                        new MonthlyCashFlowAggregate(LocalDate.of(2026, 1, 1), new BigDecimal("100.00"), new BigDecimal("300.00")),
+                        new MonthlyCashFlowAggregate(LocalDate.of(2026, 3, 1), new BigDecimal("250.00"), new BigDecimal("400.00"))
+                ));
+        when(transactionQueryService.listRecentByUser(1L, 5)).thenReturn(List.of());
+        when(accountQueryService.mapNamesByUser(1L, Set.of())).thenReturn(Map.of());
+        when(categoryQueryService.mapVisibleNamesByUser(1L, Set.of())).thenReturn(Map.of());
+
+        DashboardDto dashboard = service.getDashboard(1L);
+
+        assertThat(dashboard.monthlyCashFlowTrend()).extracting(DashboardDto.MonthlyCashFlow::month)
+                .containsExactly("2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03");
+        assertThat(dashboard.monthlyCashFlowTrend().get(0).income()).isEqualByComparingTo(new BigDecimal("600.00"));
+        assertThat(dashboard.monthlyCashFlowTrend().get(1).income()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(dashboard.monthlyCashFlowTrend().get(3).net()).isEqualByComparingTo(new BigDecimal("-200.00"));
+        assertThat(dashboard.monthlyCashFlowTrend().get(5).expense()).isEqualByComparingTo(new BigDecimal("400.00"));
+        assertThat(dashboard.monthlyCashFlowTrend().get(5).net()).isEqualByComparingTo(new BigDecimal("-150.00"));
+        assertThat(dashboard.monthNet()).isEqualByComparingTo(new BigDecimal("-150.00"));
+
+        ArgumentCaptor<LocalDateTime> trendStart = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> trendEnd = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(transactionQueryService).monthlyCashFlowByMonth(eq(1L), trendStart.capture(), trendEnd.capture());
+        assertEquals(LocalDateTime.of(2025, 10, 1, 0, 0), trendStart.getValue());
+        assertEquals(requestNow, trendEnd.getValue());
+        verify(transactionQueryService).sumByTypeAndDate(1L, "INCOME", currentMonthStart, requestNow);
+        verify(transactionQueryService).sumByTypeAndDate(1L, "EXPENSE", currentMonthStart, requestNow);
+    }
+
+    @Test
+    void monthlyCashFlowTrendReturnsSixZeroMonthsWhenMapperReturnsNoRows() {
+        DashboardDto dashboard = dashboard(
+                BigDecimal.ZERO,
+                List.of(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+
+        assertEquals(6, dashboard.monthlyCashFlowTrend().size());
+        dashboard.monthlyCashFlowTrend().forEach(month -> {
+            assertThat(month.income()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(month.expense()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(month.net()).isEqualByComparingTo(BigDecimal.ZERO);
+        });
+    }
+
+    @Test
     void recentTransactionsIncludeVisibleAccountAndCategoryNames() {
         AccountQueryService accountQueryService = mock(AccountQueryService.class);
         AssetQueryService assetQueryService = mock(AssetQueryService.class);
@@ -121,7 +195,8 @@ class DashboardServiceTest {
                 accountQueryService,
                 assetQueryService,
                 categoryQueryService,
-                transactionQueryService
+                transactionQueryService,
+                testClock()
         );
 
         when(accountQueryService.sumBalanceByUser(1L)).thenReturn(new BigDecimal("100.00"));
@@ -169,7 +244,8 @@ class DashboardServiceTest {
                 accountQueryService,
                 assetQueryService,
                 categoryQueryService,
-                transactionQueryService
+                transactionQueryService,
+                testClock()
         );
 
         when(accountQueryService.sumBalanceByUser(1L)).thenReturn(accountTotal);
@@ -178,11 +254,17 @@ class DashboardServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(monthIncome);
         when(transactionQueryService.sumByTypeAndDate(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("EXPENSE"),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(monthExpense);
+        when(transactionQueryService.monthlyCashFlowByMonth(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
         when(transactionQueryService.listRecentByUser(1L, 5)).thenReturn(List.of());
         when(accountQueryService.mapNamesByUser(1L, Set.of())).thenReturn(Map.of());
         when(categoryQueryService.mapVisibleNamesByUser(1L, Set.of())).thenReturn(Map.of());
 
         return service.getDashboard(1L);
+    }
+
+    private Clock testClock() {
+        return Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneId.of("Asia/Shanghai"));
     }
 
     private Asset asset(String name, String quantity, String currentPrice) {
