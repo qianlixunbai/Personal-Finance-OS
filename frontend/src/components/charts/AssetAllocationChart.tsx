@@ -1,26 +1,20 @@
 import { useMemo } from 'react';
 import type { EChartsOption } from 'echarts';
 import { formatCurrency } from '../../utils/format';
+import { buildAssetAllocationData, type AssetAllocation, type AssetAllocationChartData } from './assetAllocationData';
 import { ChartCard } from './ChartCard';
 import { EChart } from './EChart';
 
-interface AssetAllocation {
-    name: string;
-    value: number;
-    percentage: number;
-}
-
 export function AssetAllocationChart({ assetAllocation }: { assetAllocation: AssetAllocation[] }) {
     const entries = useMemo(() => assetAllocation.filter(item => item.value > 0), [assetAllocation]);
+    const chartData = useMemo(() => buildAssetAllocationData(entries), [entries]);
     const option = useMemo<EChartsOption>(() => {
-        const percentageByName = new Map(entries.map(item => [item.name, item.percentage]));
         return {
             tooltip: {
                 trigger: 'item',
                 formatter: (params) => {
-                    const item = params as { marker?: string; name?: string; value?: number };
-                    const percentage = percentageByName.get(item.name ?? '') ?? 0;
-                    return `${item.marker ?? ''}${item.name ?? ''}<br/>市值：${formatCurrency(item.value)}<br/>占比：${percentage.toFixed(2)}%`;
+                    const item = params as unknown as { marker?: string; data: AssetAllocationChartData };
+                    return `${item.marker ?? ''}${item.data.name}<br/>市值：${formatCurrency(item.data.value)}<br/>占比：${item.data.percentage.toFixed(2)}%`;
                 },
             },
             legend: { type: 'scroll', bottom: 0, left: 'center' },
@@ -32,10 +26,10 @@ export function AssetAllocationChart({ assetAllocation }: { assetAllocation: Ass
                 label: { show: false },
                 labelLine: { show: false },
                 emphasis: { label: { show: true, fontWeight: 'bold' } },
-                data: entries.map(item => ({ name: item.name, value: item.value })),
+                data: chartData,
             }],
         };
-    }, [entries]);
+    }, [chartData]);
 
     return (
         <ChartCard title="投资资产分布" emptyMessage={entries.length === 0 ? '暂无有效投资资产分布' : undefined}>

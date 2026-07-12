@@ -47,9 +47,13 @@ export default function Dashboard() {
                 <Link to="/transactions" style={{ padding: 16, background: '#f8f9fa', borderRadius: 10, textDecoration: 'none', color: '#2d3436', fontWeight: 600 }}>交易流水</Link>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px,1fr))', gap: 20, marginBottom: 20 }}>
-                <AssetAllocationChart assetAllocation={data.assetAllocation} />
-                <MonthlyCashFlowChart monthIncome={data.monthIncome} monthExpense={data.monthExpense} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 20, marginBottom: 20 }}>
+                <div style={{ minWidth: 0 }}>
+                    <AssetAllocationChart assetAllocation={data.assetAllocation} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                    <MonthlyCashFlowChart monthIncome={data.monthIncome} monthExpense={data.monthExpense} />
+                </div>
             </div>
 
             <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
