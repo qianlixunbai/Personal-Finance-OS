@@ -144,7 +144,7 @@ export default function Assets() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h2>投资资产</h2>
                 <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>新增资产</button>
             </div>
@@ -201,6 +201,7 @@ export default function Assets() {
                 </section>
             )}
 
+            <div className="table-scroll">
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
                 <thead>
                     <tr>
@@ -235,6 +236,7 @@ export default function Assets() {
                     )}
                 </tbody>
             </table>
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
                 <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 个资产</span>

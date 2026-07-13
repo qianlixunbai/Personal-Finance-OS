@@ -1,43 +1,55 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import api from '../api';
-import { getErrorMessage } from '../utils/error';
+import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const submit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const res = await api.post('/login', { username, password });
-            localStorage.setItem('token', res.data.data.token);
-            navigate('/');
-        } catch (err) {
-            setError(getErrorMessage(err, '用户名或密码错误'));
-        }
+    const enterDemo = () => {
+        localStorage.setItem('token', 'demo-static-token');
+        navigate('/');
     };
 
     return (
-        <div style={{ maxWidth: 400, margin: '80px auto', padding: 40, background: '#fff', borderRadius: 12, boxShadow: '0 2px 16px rgba(0,0,0,.08)' }}>
-            <h2 style={{ textAlign: 'center', marginBottom: 24 }}>登录</h2>
-            {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 10, borderRadius: 8, marginBottom: 16 }}>{error}</div>}
-            <form onSubmit={submit}>
-                <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>用户名</label>
-                    <input value={username} onChange={e => setUsername(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8, fontSize: 15 }} />
+        <main className="demo-landing">
+            <section className="demo-hero">
+                <p className="demo-eyebrow">PORTFOLIO DEMO · V1.2</p>
+                <h1>Personal Finance OS</h1>
+                <p className="demo-lede">一个面向个人财务管理的全栈作品集：以账户、资产和交易流水为核心，在 Dashboard 中聚合查看财务概览与趋势。</p>
+                <div className="demo-actions">
+                    <button type="button" className="primary-action" onClick={enterDemo}>进入静态演示</button>
+                    <a className="secondary-action" href="https://github.com/qianlixunbai/Personal-Finance-OS" target="_blank" rel="noreferrer">查看 GitHub 仓库</a>
                 </div>
-                <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>密码</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: 8, fontSize: 15 }} />
+                <p className="demo-disclaimer">无需账号、后端、数据库或环境变量。所有页面均使用本地示例数据。</p>
+            </section>
+
+            <section className="demo-overview" aria-label="项目亮点">
+                <article>
+                    <span>01</span>
+                    <h2>业务模块</h2>
+                    <p>账户管理、资产持仓、分类与交易流水，以及聚合分析 Dashboard。</p>
+                </article>
+                <article>
+                    <span>02</span>
+                    <h2>工程化实现</h2>
+                    <p>Java 21、Spring Boot 3、React、TypeScript、Vite、JWT 与 REST API。</p>
+                </article>
+                <article>
+                    <span>03</span>
+                    <h2>展示内容</h2>
+                    <p>资产分布、当月收支、六个月趋势及可体验的页面交互。</p>
+                </article>
+            </section>
+
+            <section className="demo-flow">
+                <div>
+                    <p className="demo-eyebrow">DEMO FLOW</p>
+                    <h2>从概览到明细，快速了解已完成的 v1.2。</h2>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer' }}>登录</button>
-            </form>
-            <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14 }}>
-                <Link to="/register">还没有账号？立即注册</Link>
-            </p>
-        </div>
+                <ol>
+                    <li>进入演示</li>
+                    <li>查看 Dashboard 可视化</li>
+                    <li>浏览账户、资产和交易流水</li>
+                </ol>
+            </section>
+        </main>
     );
 }

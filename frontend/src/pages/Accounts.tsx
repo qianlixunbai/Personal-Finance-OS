@@ -118,7 +118,7 @@ export default function Accounts() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h2>账户管理</h2>
                 <button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                     {showForm ? '收起表单' : '新增账户'}
@@ -157,6 +157,7 @@ export default function Accounts() {
                 </form>
             )}
 
+            <div className="table-scroll">
             <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
                 <thead>
                     <tr>
@@ -185,6 +186,7 @@ export default function Accounts() {
                     )}
                 </tbody>
             </table>
+            </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
                 <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 个账户</span>

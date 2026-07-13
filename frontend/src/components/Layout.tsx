@@ -1,25 +1,27 @@
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 
 export default function Layout() {
     const navigate = useNavigate();
+
     const logout = () => {
         localStorage.removeItem('token');
         navigate('/login');
     };
 
     return (
-        <div>
-            <nav style={{ background: '#1a1a2e', color: '#fff', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 18, fontWeight: 700 }}>Personal Finance OS</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <Link to="/" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>仪表盘</Link>
-                    <Link to="/accounts" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>账户</Link>
-                    <Link to="/assets" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>资产</Link>
-                    <Link to="/transactions" style={{ color: '#ccc', textDecoration: 'none', padding: '8px 14px' }}>交易流水</Link>
-                    <button onClick={logout} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', padding: '8px 14px', fontSize: 14 }}>退出</button>
+        <div className="demo-shell">
+            <nav className="app-nav" aria-label="主导航">
+                <Link className="app-brand" to="/">Personal Finance OS <span>DEMO</span></Link>
+                <div className="app-nav-links">
+                    <Link to="/">仪表盘</Link>
+                    <Link to="/accounts">账户</Link>
+                    <Link to="/assets">资产</Link>
+                    <Link to="/transactions">交易流水</Link>
+                    <button type="button" onClick={logout}>返回介绍</button>
                 </div>
             </nav>
-            <main style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+            <main className="app-main">
+                <p className="demo-notice" role="status">演示数据，仅用于项目展示；不代表真实账户，刷新页面将恢复初始示例。</p>
                 <Outlet />
             </main>
         </div>

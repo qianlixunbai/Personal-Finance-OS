@@ -64,6 +64,7 @@ export default function Dashboard() {
 
             <section style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
                 <h3 style={{ marginTop: 0 }}>最近交易</h3>
+                <div className="table-scroll">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
                         <tr>
@@ -95,6 +96,7 @@ export default function Dashboard() {
                         )}
                     </tbody>
                 </table>
+                </div>
             </section>
         </div>
     );
