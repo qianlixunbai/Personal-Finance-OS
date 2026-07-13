@@ -44,6 +44,7 @@
 - Transaction / Ledger 基础 CRUD
 - 流水创建、编辑、删除时联动账户余额
 - Dashboard 聚合账户、资产、流水数据
+- Dashboard 投资资产分布、本月收支和最近 6 个月收支趋势图
 - 前端页面：`Login`、`Register`、`Dashboard`、`Accounts`、`Assets`、`Transactions`
 - 后端分页接口
 - 登录 / 注册展示后端错误信息
@@ -148,7 +149,8 @@ npm run build
 
 - `v1.0 Foundation` 已完成阶段验收
 - `v1.1 Showcase Enhancement` 已完成阶段验收
-- 当前进入 `v1.2 Visualization Polish`
+- `v1.2 Visualization Polish` 已完成阶段验收
+- 当前进入 `v1.3 Engineering Polish`
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -160,8 +162,6 @@ npm run build
 
 ## 后续计划
 
-- Dashboard 可视化增强
-- 资产分布图和收支趋势图
 - 前端组件抽取和工程化整理
 - Controller 层测试补齐
 - OpenAPI / Swagger 文档

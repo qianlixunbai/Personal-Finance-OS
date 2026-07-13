@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v1.2 Visualization Polish
+**当前阶段：** v1.3 Engineering Polish
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -95,7 +95,7 @@ Personal Finance OS 是面向求职作品集展示的工程化个人财务管理
 
 ------
 
-## v1.2 Visualization Polish（当前阶段）
+## v1.2 Visualization Polish（已完成）
 
 ### 定位
 
@@ -107,11 +107,15 @@ Personal Finance OS 是面向求职作品集展示的工程化个人财务管理
 - 本月收入 / 支出柱状图；
 - Dashboard 图表区域局部响应式布局。
 
-### Phase 2（已完成代码实现，待人工浏览器验收）
+### Phase 2（代码与人工验收已完成）
 
 - 最近 6 个月收入 / 支出 / 结余趋势图；
 - Dashboard 后端月度 CNY 收支聚合、连续自然月补零和 `Asia/Shanghai` 时间边界；
 - Dashboard 趋势折线图和局部响应式展示。
+
+### 阶段结论
+
+`v1.2 Visualization Polish` 已完成代码验收、独立复审、PostgreSQL 人工验收和浏览器人工验收，可以关闭。项目进入 `v1.3 Engineering Polish`。
 
 ### 边界说明
 
@@ -200,7 +204,7 @@ v1.3 不默认包含行情数据、不默认包含完整投资交易模型、不
 
 # 四、当前不做的事
 
-当前 v1.2 Visualization Polish 阶段不做：
+以下内容未纳入 v1.2 Visualization Polish：
 
 - 行情数据接入；
 - 第三方行情 API；
