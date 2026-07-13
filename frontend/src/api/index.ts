@@ -29,8 +29,8 @@ api.interceptors.response.use(
         const token = localStorage.getItem('token');
         if (err.response?.status === 401 && token && !isPublicAuthRequest(err.config?.url)) {
             localStorage.removeItem('token');
-            if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
+            if (window.location.hash !== '#/login') {
+                window.location.hash = '#/login';
             }
         }
         return Promise.reject(err);

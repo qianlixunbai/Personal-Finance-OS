@@ -18,7 +18,10 @@ No PostgreSQL, Java, Spring Boot, account, or environment variable is required.
 
 - The Axios instance uses a branch-local `src/demo/adapter.ts` adapter rather than a network adapter.
 - Sample data is centralized in `src/demo/data.ts` and covers Dashboard, Accounts, Assets, Transactions, categories, six-month trends, positive/negative balances, and a zero-activity month.
-- Page mutations are in-memory demonstration interactions only. Refreshing the page restores the initial sample data.
+- This is a **read-only** static demo. It supports navigation, Dashboard visualization, list browsing, transaction filtering, pagination, asset details, demo entry, and logout.
+- Creating, editing, deleting, deactivating, closing positions, and price updates are intentionally unavailable. The adapter rejects business write requests and never falls back to a real API.
+- Complete business behavior, including backend-owned financial rules and transaction-to-account balance linkage, remains available in the `zh-cn` branch with the local backend version.
+- Refreshing the page restores the initial sample data.
 - Every authenticated page has a visible notice that the data is fictional and not a real account.
 
 ## Static hosting

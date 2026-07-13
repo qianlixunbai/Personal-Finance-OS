@@ -16,10 +16,11 @@ function responseRejectedHandler(): RejectedHandler {
     return responseInterceptor.handlers[0].rejected;
 }
 
-function installBrowserState(pathname: string, token: string | null) {
+function installBrowserState(pathname: string, hash: string, token: string | null) {
     let storedToken = token;
-    let href = pathname;
-    let redirectCount = 0;
+    let currentHash = hash;
+    let serverPathRedirects = 0;
+    let hashRedirects = 0;
 
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
@@ -35,12 +36,19 @@ function installBrowserState(pathname: string, token: string | null) {
         value: {
             location: {
                 pathname,
+                get hash() {
+                    return currentHash;
+                },
+                set hash(value: string) {
+                    currentHash = value;
+                    hashRedirects += 1;
+                },
                 get href() {
-                    return href;
+                    return `${pathname}${currentHash}`;
                 },
                 set href(value: string) {
-                    href = value;
-                    redirectCount += 1;
+                    serverPathRedirects += 1;
+                    throw new Error(`unexpected server redirect: ${value}`);
                 },
             },
         },
@@ -48,8 +56,9 @@ function installBrowserState(pathname: string, token: string | null) {
 
     return {
         token: () => storedToken,
-        href: () => href,
-        redirectCount: () => redirectCount,
+        hash: () => currentHash,
+        hashRedirects: () => hashRedirects,
+        serverPathRedirects: () => serverPathRedirects,
     };
 }
 
@@ -59,48 +68,46 @@ async function rejectUnauthorized(url: string) {
     );
 }
 
-test('登录请求返回 401 时保留 token 和当前页面，由登录页展示错误信息', async () => {
-    const browser = installBrowserState('/login', 'existing-token');
+test('登录和注册 401 不清除 token 或重定向', async () => {
+    const browser = installBrowserState('/portfolio/', '#/login', 'existing-token');
 
     await rejectUnauthorized('/login');
-
-    assert.equal(browser.token(), 'existing-token');
-    assert.equal(browser.redirectCount(), 0);
-});
-
-test('注册请求返回 401 时不触发 token 失效跳转', async () => {
-    const browser = installBrowserState('/register', 'existing-token');
-
     await rejectUnauthorized('/register');
 
     assert.equal(browser.token(), 'existing-token');
-    assert.equal(browser.redirectCount(), 0);
+    assert.equal(browser.hashRedirects(), 0);
+    assert.equal(browser.serverPathRedirects(), 0);
 });
 
-test('受保护接口返回 401 但当前没有 token 时不跳转', async () => {
-    const browser = installBrowserState('/accounts', null);
+test('根目录的受保护接口 401 通过 HashRouter 返回登录页', async () => {
+    const browser = installBrowserState('/', '#/accounts', 'expired-token');
 
     await rejectUnauthorized('/accounts');
 
     assert.equal(browser.token(), null);
-    assert.equal(browser.redirectCount(), 0);
+    assert.equal(browser.hash(), '#/login');
+    assert.equal(browser.hashRedirects(), 1);
+    assert.equal(browser.serverPathRedirects(), 0);
 });
 
-test('受保护接口返回 401 且存在 token 时清除 token 并跳转登录页', async () => {
-    const browser = installBrowserState('/accounts', 'expired-token');
+test('子目录部署的 401 保持当前部署基址并跳转登录 hash', async () => {
+    const browser = installBrowserState('/portfolio/', '#/assets', 'expired-token');
 
-    await rejectUnauthorized('/accounts');
+    await rejectUnauthorized('/assets/page');
 
     assert.equal(browser.token(), null);
-    assert.equal(browser.href(), '/login');
-    assert.equal(browser.redirectCount(), 1);
+    assert.equal(browser.hash(), '#/login');
+    assert.equal(browser.hashRedirects(), 1);
+    assert.equal(browser.serverPathRedirects(), 0);
 });
 
-test('已在登录页时只清除失效 token，不重复跳转', async () => {
-    const browser = installBrowserState('/login', 'expired-token');
+test('已在登录 Hash 路由时只清除失效 token，不重复跳转', async () => {
+    const browser = installBrowserState('/portfolio/', '#/login', 'expired-token');
 
     await rejectUnauthorized('/dashboard');
 
     assert.equal(browser.token(), null);
-    assert.equal(browser.redirectCount(), 0);
+    assert.equal(browser.hash(), '#/login');
+    assert.equal(browser.hashRedirects(), 0);
+    assert.equal(browser.serverPathRedirects(), 0);
 });
