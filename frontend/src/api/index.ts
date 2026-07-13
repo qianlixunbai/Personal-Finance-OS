@@ -1,8 +1,11 @@
 import axios from 'axios';
+import { demoAdapter } from '../demo/adapter.ts';
 
 const api = axios.create({
     baseURL: '/api/v1',
 });
+
+api.defaults.adapter = demoAdapter;
 
 function isPublicAuthRequest(url?: string) {
     const path = url?.split('?')[0];
