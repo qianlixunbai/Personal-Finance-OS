@@ -332,3 +332,16 @@ Merge
 - 启动脚本只把变量设置到当前 PowerShell 进程，不会打印真实 secret
 - 如果前端出现 Vite proxy `ECONNREFUSED`，先确认后端是否启动成功
 - 后端启动成功时，应看到 Tomcat started on port 8080
+
+---
+
+# 15. Backend Integration Tests
+
+月度收支趋势 Mapper 的集成测试使用 Testcontainers 启动 `postgres:17-alpine`，并通过 Spring 的动态数据源属性连接容器；测试会复用正式的 `classpath:schema.sql` 初始化结构，不会连接本地开发数据库。
+
+运行完整后端测试前，请先启动 Docker Desktop（或提供兼容的 Docker daemon），然后执行：
+
+```powershell
+cd backend
+.\mvnw.cmd clean test
+```
