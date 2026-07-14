@@ -1,0 +1,8 @@
+spring:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+jwt:
+  secret: integration-test-secret-with-at-least-thirty-two-characters
