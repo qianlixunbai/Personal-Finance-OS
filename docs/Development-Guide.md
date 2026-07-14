@@ -345,3 +345,5 @@ Merge
 cd backend
 .\mvnw.cmd clean test
 ```
+
+Docker Engine 29 requires Docker API 1.40 or later. The backend Surefire configuration supplies `api.version=1.40` only to the test JVM, so the command above needs no extra parameters or user-level environment variables. This does not affect production runtime configuration.
