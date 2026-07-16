@@ -335,9 +335,11 @@ Merge
 
 ---
 
-# 15. Backend Integration Tests
+# 15. Controller / API Test Strategy
 
-月度收支趋势 Mapper 的集成测试使用 Testcontainers 启动 `postgres:17-alpine`，并通过 Spring 的动态数据源属性连接容器；测试会复用正式的 `classpath:schema.sql` 初始化结构，不会连接本地开发数据库。
+后端当前共有 105 项测试，前端当前共有 8 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
+
+真实 API 集成测试使用真实 JWT 和 Testcontainers 启动的 `postgres:17-alpine`，通过 Spring 的动态数据源属性连接容器；测试复用正式的 `classpath:schema.sql` 初始化结构，不会连接本地开发数据库。集成测试覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除时的账户余额联动，以及分页和组合筛选。
 
 运行完整后端测试前，请先启动 Docker Desktop（或提供兼容的 Docker daemon），然后执行：
 
@@ -352,7 +354,7 @@ Docker Engine 29 requires Docker API 1.40 or later. The backend Surefire configu
 
 # 16. 持续集成 / GitHub Actions
 
-CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，使用最小的 `contents: read` 权限，不需要 GitHub Secrets，也不执行部署。
+CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，使用最小的 `contents: read` 权限，不需要 GitHub Secrets，也不执行部署；CI 执行后端测试，以及前端 test、lint 和 build。
 
 工作流在以下情况触发：
 
@@ -367,7 +369,7 @@ CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)�
 - 运行环境：`ubuntu-latest`；
 - 使用 Temurin Java 21 和 Maven Wrapper；
 - 在 `backend` 目录执行 `./mvnw -B clean test`；
-- 执行全部 61 项后端测试；
+- 执行全部 105 项后端测试；
 - Testcontainers 会启动 `postgres:17-alpine`，因此不需要额外的 PostgreSQL service；
 - `pom.xml` 的测试范围配置会提供 `api.version=1.40`，开发者不需要在 CI 命令中手工传参。
 

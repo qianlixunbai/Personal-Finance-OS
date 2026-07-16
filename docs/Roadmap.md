@@ -123,7 +123,7 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 
 ------
 
-## v1.3 Engineering Polish（后续规划）
+## v1.3 Engineering Polish（进行中）
 
 ### 定位
 
@@ -134,11 +134,13 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 - PostgreSQL Testcontainers 集成测试基础设施已完成，并以真实 PostgreSQL 验证 Dashboard 月度 CNY 收支趋势 Mapper；运行该测试需要 Docker。
 - GitHub Actions CI 已完成远端验证。
 - 推送到 `zh-cn`、目标为 `zh-cn` 的 Pull Request，以及手动触发都会执行 Backend 和 Frontend 检查。
+- Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约均由 MockMvc slice 测试覆盖，并使用真实 Security 配置。
+- 真实 API 集成测试使用真实 JWT 和 PostgreSQL Testcontainers，覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除余额联动，以及分页和组合筛选。
+- 后端当前 105 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
 
 ### 规划能力
 
 - 前端组件抽取；
-- Controller 层测试；
 - OpenAPI / Swagger；
 - Flyway / Liquibase。
 

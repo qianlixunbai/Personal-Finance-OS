@@ -55,8 +55,10 @@
 - Accounts 接入编辑入口
 - Assets 接入详情、删除、清仓入口
 - 前端统一空状态和反馈提示
-- 后端测试已通过：`.\mvnw.cmd clean test`
-- 前端构建已通过：`npm run build`
+- 后端使用 PostgreSQL Testcontainers 进行真实数据库集成测试；六个 Controller 的核心 HTTP 契约已覆盖
+- 真实 API 集成测试覆盖 JWT、安全链、用户隔离和交易余额联动
+- 后端当前 105 项测试通过：`.\mvnw.cmd clean test`
+- 前端当前 8 项测试通过，并通过 `npm run lint` 和 `npm run build`
 
 当前 Transaction / Ledger 支持：
 
@@ -152,8 +154,11 @@ npm run build
 - `v1.0 Foundation` 已完成阶段验收
 - `v1.1 Showcase Enhancement` 已完成阶段验收
 - `v1.2 Visualization Polish` 已完成阶段验收
-- 当前进入 `v1.3 Engineering Polish`
-- `zh-cn` 已配置 GitHub Actions CI，自动执行后端测试、前端测试、lint 和构建；后端集成测试使用 Testcontainers 启动真实 PostgreSQL
+- `v1.3 Engineering Polish` 正在进行
+- Testcontainers 基础设施已完成，后端集成测试使用真实 PostgreSQL
+- GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
+- Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
+- 后端当前 105 项测试，前端当前 8 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -166,7 +171,6 @@ npm run build
 ## 后续计划
 
 - 前端组件抽取和工程化整理
-- Controller 层测试补齐
 - OpenAPI / Swagger 文档
 - Flyway / Liquibase 数据库迁移
 - 行情数据、资产历史价格、多币种汇率、AI 财务分析、部署增强等仍属于后续版本
