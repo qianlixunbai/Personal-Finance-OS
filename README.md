@@ -1,5 +1,7 @@
 # Personal Finance OS
 
+[![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
+
 基于 **Java 21 + Spring Boot 3 + React + TypeScript** 的个人财务管理系统，用于管理账户、资产、交易流水，并通过 Dashboard 聚合分析真实业务数据。
 
 ## 项目亮点
@@ -151,6 +153,7 @@ npm run build
 - `v1.1 Showcase Enhancement` 已完成阶段验收
 - `v1.2 Visualization Polish` 已完成阶段验收
 - 当前进入 `v1.3 Engineering Polish`
+- `zh-cn` 已配置 GitHub Actions CI，自动执行后端测试、前端测试、lint 和构建；后端集成测试使用 Testcontainers 启动真实 PostgreSQL
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -165,7 +168,6 @@ npm run build
 - 前端组件抽取和工程化整理
 - Controller 层测试补齐
 - OpenAPI / Swagger 文档
-- GitHub Actions / CI
 - Flyway / Liquibase 数据库迁移
 - 行情数据、资产历史价格、多币种汇率、AI 财务分析、部署增强等仍属于后续版本
 - 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本

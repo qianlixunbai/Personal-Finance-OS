@@ -131,14 +131,15 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 
 ### 当前进展
 
-- 已建立 PostgreSQL Testcontainers 集成测试基础设施，并以真实 PostgreSQL 验证 Dashboard 月度 CNY 收支趋势 Mapper；运行该测试需要 Docker。
+- PostgreSQL Testcontainers 集成测试基础设施已完成，并以真实 PostgreSQL 验证 Dashboard 月度 CNY 收支趋势 Mapper；运行该测试需要 Docker。
+- GitHub Actions CI 已完成远端验证。
+- 推送到 `zh-cn`、目标为 `zh-cn` 的 Pull Request，以及手动触发都会执行 Backend 和 Frontend 检查。
 
 ### 规划能力
 
 - 前端组件抽取；
 - Controller 层测试；
 - OpenAPI / Swagger；
-- GitHub Actions；
 - Flyway / Liquibase。
 
 ### 边界说明

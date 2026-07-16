@@ -347,3 +347,35 @@ cd backend
 ```
 
 Docker Engine 29 requires Docker API 1.40 or later. The backend Surefire configuration supplies `api.version=1.40` only to the test JVM, so the command above needs no extra parameters or user-level environment variables. This does not affect production runtime configuration.
+
+---
+
+# 16. 持续集成 / GitHub Actions
+
+CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，使用最小的 `contents: read` 权限，不需要 GitHub Secrets，也不执行部署。
+
+工作流在以下情况触发：
+
+- push 到 `zh-cn`；
+- 目标为 `zh-cn` 的 `pull_request`；
+- `workflow_dispatch` 手动触发。
+
+向 `sites-demo` 分支的提交不会触发面向 `zh-cn` 的完整 CI。
+
+## Backend Job
+
+- 运行环境：`ubuntu-latest`；
+- 使用 Temurin Java 21 和 Maven Wrapper；
+- 在 `backend` 目录执行 `./mvnw -B clean test`；
+- 执行全部 61 项后端测试；
+- Testcontainers 会启动 `postgres:17-alpine`，因此不需要额外的 PostgreSQL service；
+- `pom.xml` 的测试范围配置会提供 `api.version=1.40`，开发者不需要在 CI 命令中手工传参。
+
+## Frontend Job
+
+- 运行环境：`ubuntu-latest`；
+- 使用 Node 22；
+- 在 `frontend` 目录依次执行 `npm ci`、`npm test`、`npm run lint` 和 `npm run build`；
+- 当前前端测试总计 8 项。
+
+任一命令失败都会使对应 Job 和整个工作流失败。当前 CI 只负责验证后端和前端，不包含 coverage、artifact、部署或分支保护配置。
