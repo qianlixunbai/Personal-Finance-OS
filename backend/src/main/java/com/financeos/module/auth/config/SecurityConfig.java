@@ -36,7 +36,13 @@ public class SecurityConfig {
                 .accessDeniedHandler(securityErrorResponseHandler)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/register", "/api/v1/login").permitAll()
+                .requestMatchers(
+                        "/api/v1/register",
+                        "/api/v1/login",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

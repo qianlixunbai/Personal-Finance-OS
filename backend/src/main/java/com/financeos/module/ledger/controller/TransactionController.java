@@ -5,6 +5,9 @@ import com.financeos.common.PageResult;
 import com.financeos.module.ledger.dto.TransactionRequest;
 import com.financeos.module.ledger.dto.TransactionResponse;
 import com.financeos.module.ledger.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
@@ -22,6 +25,7 @@ import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
+@Tag(name = "Transaction", description = "Transaction management")
 public class TransactionController {
 
     private final TransactionService transactionService;
@@ -35,6 +39,7 @@ public class TransactionController {
     }
 
     @GetMapping("/page")
+    @Operation(summary = "Page through current user's transactions", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<PageResult<TransactionResponse>> page(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -49,17 +54,20 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get a transaction", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<TransactionResponse> get(@PathVariable Long id, Authentication auth) {
         return ApiResponse.ok(transactionService.getById(userId(auth), id));
     }
 
     @PostMapping
+    @Operation(summary = "Create a transaction", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<TransactionResponse> create(@Valid @RequestBody TransactionRequest req,
                                                    Authentication auth) {
         return ApiResponse.ok(transactionService.create(userId(auth), req));
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Update a transaction", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<TransactionResponse> update(@PathVariable Long id,
                                                    @Valid @RequestBody TransactionRequest req,
                                                    Authentication auth) {
@@ -67,6 +75,7 @@ public class TransactionController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a transaction", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         transactionService.delete(userId(auth), id);
         return ApiResponse.ok();
