@@ -6,11 +6,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
-
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

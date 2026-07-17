@@ -1,5 +1,5 @@
 -- ====================================================================
--- Personal Finance OS v1.0 — Database Schema
+-- Personal Finance OS v1.0 - Database Schema
 -- PostgreSQL 17 · snake_case · all tables include id/created_at/updated_at
 -- ====================================================================
 
