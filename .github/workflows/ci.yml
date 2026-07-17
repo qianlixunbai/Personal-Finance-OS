@@ -59,3 +59,17 @@ jobs:
         run: npm run lint
       - name: Build frontend
         run: npm run build
+
+  deployment:
+    name: Deployment artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build backend image
+        run: docker build -t finance-os-backend:ci ./backend
+      - name: Build frontend image
+        run: docker build -t finance-os-frontend:ci ./frontend
+      - name: Validate Compose configuration
+        run: docker compose --env-file docker/.env.example -f docker/compose.yml config
