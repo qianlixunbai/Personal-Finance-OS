@@ -16,7 +16,7 @@
 
 本文档用于记录 Personal Finance OS 当前数据库实现基线、目标数据库设计、约束策略、索引策略、已知差距和后续演进方向。
 
-本文档不是 `schema.sql` 的替代品，不直接修改数据库结构，也不等同于 migration。实际数据库初始化脚本当前位于 `backend/src/main/resources/schema.sql`。
+本文档不是 migration 文件的替代品，不直接修改数据库结构。当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/V1__baseline.sql`。
 
 本文档的作用是：
 
@@ -50,8 +50,8 @@
 - API URL、请求参数和响应结构；
 - Java Service 业务逻辑实现；
 - Controller、DTO、Mapper 代码修改；
-- `schema.sql` 修改；
-- migration 文件；
+- migration 文件内容修改；
+- migration 执行；
 - Dashboard 或 Analytics 具体计算公式；
 - AI 分析算法；
 - 前端页面设计。
@@ -62,14 +62,16 @@
 
 当前数据库技术栈为：
 
-- Database：PostgreSQL；
-- 当前 schema 文件：`backend/src/main/resources/schema.sql`；
+- Database：PostgreSQL 17；
+- Flyway：10.20.0（`flyway-core`、`flyway-database-postgresql`）；
+- 当前 schema migration：`backend/src/main/resources/db/migration/V1__baseline.sql`；
+- 迁移验证：`FlywayMigrationIntegrationTest` 使用 PostgreSQL 17 Testcontainers 验证空数据库迁移、`flyway_schema_history` 和当前 6 张业务表；
 - ORM / Data Access：MyBatis-Plus；
 - Java 金额类型：`BigDecimal`；
 - SQL 金额类型：`DECIMAL`；
-- 当前初始化方式：Spring Boot `spring.sql.init` 加载 `schema.sql`。
+- 当前初始化方式：Spring Boot Flyway 自动配置执行默认位置 `classpath:db/migration` 下的版本化 migration。
 
-`spring.sql.init.mode: always` 适合当前开发阶段初始化 schema，便于快速重建本地数据库结构。正式部署或生产环境应迁移到 Flyway / Liquibase，避免依赖 `schema.sql` 反复初始化数据库结构。
+原 `schema.sql` 已删除，主应用和测试 profile 均已移除 Spring SQL Init。当前未配置 `baseline-on-migrate`；新的空 PostgreSQL 数据库会自动执行 V1，已有旧开发数据库不会被项目自动 baseline 或重建。
 
 当前 `application.yml` 中数据库相关配置包括：
 
@@ -80,10 +82,6 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
 ```
 
 当前 MyBatis-Plus 配置包括：
@@ -160,7 +158,7 @@ mybatis-plus:
 
 # 7. Current Implementation Baseline
 
-当前 `schema.sql` 实际定义 6 张表：
+当前 `V1__baseline.sql` 实际定义 6 张表：
 
 | 表名 | 当前用途 |
 |---|---|
@@ -182,7 +180,7 @@ mybatis-plus:
 | `assets` | `Asset` | `AssetMapper` |
 | `asset_prices` | 无 | 无 |
 
-`asset_prices` 当前有数据库表，但没有 `AssetPrice` Entity，也没有 `AssetPriceMapper`。因此它目前是 schema 中存在但 Java 持久化层尚未覆盖的表。
+`asset_prices` 当前有数据库表，但没有 `AssetPrice` Entity，也没有 `AssetPriceMapper`。因此它目前是 migration 中存在但 Java 持久化层尚未覆盖的表。
 
 当前 Mapper 基本基于 MyBatis-Plus `BaseMapper`：
 
@@ -768,7 +766,7 @@ market_value = quantity * current_price
 
 ## 15.2 asset_prices 有表但无 Entity / Mapper
 
-当前 `asset_prices` 存在于 `schema.sql`，但 Java 侧没有：
+当前 `asset_prices` 存在于 `V1__baseline.sql`，但 Java 侧没有：
 
 - `AssetPrice` Entity；
 - `AssetPriceMapper`。
@@ -844,14 +842,17 @@ market_value = quantity * current_price
 
 ## 16.1 Migration 管理
 
-当前仍使用 `schema.sql` 初始化数据库。`spring.sql.init.mode: always` 适合当前开发阶段初始化 schema，但正式部署或生产环境应迁移到 Flyway / Liquibase，避免依赖 `schema.sql` 反复初始化数据库结构。
+当前已使用 Flyway 10.20.0 初始化和管理数据库结构。`V1__baseline.sql` 是当前唯一 migration，后续结构变更应新增 `V2__...sql`、`V3__...sql` 等版本化文件，不应修改已应用的 migration。
 
-后续可引入：
+当前约束如下：
 
-- Flyway；
-- Liquibase。
+- 使用 `flyway-core` 和 `flyway-database-postgresql`；
+- 由 Spring Boot 自动执行默认位置 `classpath:db/migration` 下的 migration；
+- 未配置 `baseline-on-migrate`；
+- 新的空 PostgreSQL 数据库会自动创建 `flyway_schema_history` 并执行 V1；
+- 旧开发数据库的重建或受控 baseline 需要单独决策，不由项目自动处理。
 
-目标是让数据库结构演进可追踪、可回滚、可审查，而不是依赖手工修改初始化脚本。
+目标是让数据库结构演进可追踪、可审查，而不是依赖手工修改初始化脚本。V1 不包含 Known Gaps 修复；这些修复应通过后续明确的 migration 和 ADR 评估。
 
 ## 16.2 asset account_id 修正
 
@@ -998,7 +999,7 @@ Database.md 后续 Review 应检查以下事项。
 
 ## 17.5 后续演进清晰
 
-- 是否明确 Flyway / Liquibase 作为后续 migration 方向；
+- 是否明确 Flyway 作为当前 migration 管理方案，并将后续结构变更放入 V2+ migration；
 - 是否明确 `assets.account_id` 修正方向；
 - 是否明确 `AssetPrice` Entity / Mapper 补齐方向；
 - 是否明确汇率表、审计日志、软删除、投资交易流水、完整转账模型为 Future Evolution；
@@ -1010,4 +1011,4 @@ Database.md 后续 Review 应检查以下事项。
 
 当前 Database.md 第一版草稿记录了 Personal Finance OS 当前数据库实现基线，并明确区分 Current Implementation、Target Design、Known Gaps 和 Future Evolution。
 
-本文档可作为后续数据库 Review、schema 修正、migration 规划和 API 设计的上游依据，但不直接替代 `schema.sql`，也不代表本文档中提到的 Target Design 已经实现。
+本文档可作为后续数据库 Review、schema 修正、migration 规划和 API 设计的上游依据，但不直接替代 `V1__baseline.sql`，也不代表本文档中提到的 Target Design 已经实现。

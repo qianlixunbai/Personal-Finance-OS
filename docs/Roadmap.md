@@ -134,16 +134,18 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 - PostgreSQL Testcontainers 集成测试基础设施已完成，并以真实 PostgreSQL 验证 Dashboard 月度 CNY 收支趋势 Mapper；运行该测试需要 Docker。
 - GitHub Actions CI 已完成远端验证。
 - 推送到 `zh-cn`、目标为 `zh-cn` 的 Pull Request，以及手动触发都会执行 Backend 和 Frontend 检查。
+- Flyway Phase 1 已完成：主应用和测试 profile 已移除 Spring SQL Init，`schema.sql` 已删除，当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/V1__baseline.sql`。
+- Flyway 10.20.0 已在空 PostgreSQL 17 Testcontainers 中验证；Flyway 会创建 `flyway_schema_history` 并执行 V1，V1 包含当前 6 张业务表。
+- 当前未配置 `baseline-on-migrate`；旧开发数据库的受控 baseline 或重建仍需单独决策，本项目不会自动处理。
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约均由 MockMvc slice 测试覆盖，并使用真实 Security 配置。
 - 真实 API 集成测试使用真实 JWT 和 PostgreSQL Testcontainers，覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除余额联动，以及分页和组合筛选。
-- 后端当前 107 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
+- 后端当前 108 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
 - OpenAPI 3 与 Swagger UI 已接入，使用 `bearerAuth` JWT 安全方案；六个 Controller 的 24 个接口已生成运行时 API 文档。
 - 注册和登录保持公开，其余业务接口在运行时文档中标记 JWT 安全要求；`OpenApiIntegrationTest` 已验证 OpenAPI JSON、Swagger UI、标签和安全声明。
 
 ### 规划能力
 
 - 前端组件抽取；
-- Flyway / Liquibase。
 
 ### 边界说明
 

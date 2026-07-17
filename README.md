@@ -15,6 +15,9 @@
 - Transaction / Ledger 创建、编辑、删除会联动账户余额
 - Dashboard 聚合账户、资产、流水等真实业务数据
 - 文档驱动开发，Architecture / Database / API 文档持续同步
+- 使用 Flyway 管理 PostgreSQL schema 演进
+- 数据库结构由版本化 migration 管理
+- Testcontainers 在空 PostgreSQL 17 容器中验证 V1 migration
 - 保留 Review / Fix Plan 记录，体现设计、实现、评审、修复闭环
 
 ## 技术栈
@@ -26,6 +29,7 @@
 - Maven Wrapper
 - MyBatis-Plus
 - PostgreSQL
+- Flyway 10.20.0
 - Spring Security
 - JWT
 
@@ -57,10 +61,13 @@
 - Assets 接入详情、删除、清仓入口
 - 前端统一空状态和反馈提示
 - 后端使用 PostgreSQL Testcontainers 进行真实数据库集成测试；六个 Controller 的核心 HTTP 契约已覆盖
+- 数据库初始化已从 `schema.sql` 切换到 Flyway，当前基线 migration 为 `V1__baseline.sql`
+- 空 PostgreSQL 数据库启动时自动执行 V1，并由 `flyway_schema_history` 记录 migration
+- Testcontainers 验证 `flyway_schema_history`、6 张业务表及关键结构
 - 真实 API 集成测试覆盖 JWT、安全链、用户隔离和交易余额联动
 - 已接入 OpenAPI 3 与 Swagger UI，六个 Controller 的 24 个接口已生成运行时 API 文档
 - 注册和登录为公开接口，其余业务接口在运行时文档中显示 JWT 安全要求
-- 后端当前 107 项测试通过：`.\mvnw.cmd clean test`
+- 后端当前 108 项测试通过：`.\mvnw.cmd clean test`
 - 前端当前 8 项测试通过，并通过 `npm run lint` 和 `npm run build`
 
 当前 Transaction / Ledger 支持：
@@ -104,6 +111,12 @@ finance-os/
 `JWT_SECRET` 长度至少 32 个字符。
 
 ### 启动后端
+
+数据库迁移提示：
+
+- 全新或空数据库可以正常启动后端；Flyway 会自动创建 migration history 并执行 V1。
+- 如果已有旧开发数据库由旧版 `schema.sql` 创建、已有业务表但没有 `flyway_schema_history`，不要直接启动新版应用，也不要永久启用 `baseline-on-migrate`。
+- 对旧数据库应先决定是备份后重建空数据库，还是经过 schema 比对后执行一次受控 baseline。本项目目前不会自动替用户处理已有数据库。
 
 主要方式：在配置好环境变量后使用 Maven Wrapper 启动。
 
@@ -168,11 +181,12 @@ npm run build
 - `v1.1 Showcase Enhancement` 已完成阶段验收
 - `v1.2 Visualization Polish` 已完成阶段验收
 - `v1.3 Engineering Polish` 正在进行
+- Flyway 数据库迁移里程碑已完成，V1 已在 PostgreSQL 17 Testcontainers 中验证
 - Testcontainers 基础设施已完成，后端集成测试使用真实 PostgreSQL
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 107 项测试，前端当前 8 项测试
+- 后端当前 108 项测试，前端当前 8 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -185,7 +199,6 @@ npm run build
 ## 后续计划
 
 - 前端组件抽取和工程化整理
-- Flyway / Liquibase 数据库迁移
 - 行情数据、资产历史价格、多币种汇率、AI 财务分析、部署增强等仍属于后续版本
 - 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本
 
