@@ -200,7 +200,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - `v1.2 Visualization Polish` 已完成阶段验收
 - `v1.3 Engineering Polish` 已完成阶段验收
 - `v1.4 Quality Hardening` 已完成阶段验收
-- `v1.5 Deployment Readiness` 已完成本地 Docker、Compose、健康检查与 smoke 验证，等待远端 CI 验证后正式收口
+- `v1.5 Deployment Readiness` 已完成本地 Docker、Compose、健康检查、smoke 与远端 CI 验证
 - Flyway 数据库迁移里程碑已完成，V1 已在 PostgreSQL 17 Testcontainers 中验证
 - Testcontainers 基础设施已完成，后端集成测试使用真实 PostgreSQL
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建

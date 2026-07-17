@@ -187,7 +187,7 @@ v1.4 不包含新的 JWT 算法或认证架构、数据库结构和 migration、
 
 ------
 
-## v1.5 Deployment Readiness（本地验证完成，待远端 CI）
+## v1.5 Deployment Readiness（已完成）
 
 ### 定位
 
@@ -205,8 +205,8 @@ v1.4 不包含新的 JWT 算法或认证架构、数据库结构和 migration、
 ### 当前状态
 
 - 后端与前端 Docker 镜像、Docker Compose、健康检查、Nginx 同源代理、named volume 和本地 smoke 已完成验证；
-- v1.5 正式关闭仍依赖下一次用户授权推送后的 GitHub Actions deployment job 成功；
-- v2.0 Market Data 在该远端 CI 证据具备前不自动启动。
+- GitHub Actions [run #29580604608](https://github.com/qianlixunbai/Personal-Finance-OS/actions/runs/29580604608) 已通过 Backend、Frontend 与 Deployment artifacts；
+- v1.5 已正式关闭，可进入 v2.0 Market Data。
 
 ### 边界说明
 
