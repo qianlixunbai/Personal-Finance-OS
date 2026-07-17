@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.financeos.module.auth.util.JwtUtil;
 import com.financeos.module.dashboard.service.DashboardService;
-import org.junit.jupiter.api.AfterEach;
+import com.financeos.module.user.dto.LoginRequest;
+import com.financeos.module.user.dto.RegisterRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -17,6 +19,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,24 +42,31 @@ class InvalidJwtApiIntegrationTest extends PostgresIntegrationTest {
     @MockBean
     private DashboardService dashboardService;
 
-    @AfterEach
-    void dashboardServiceWasNotCalled() {
-        verifyNoInteractions(dashboardService);
+    @Test
+    void validJwtForActiveUserCanAccessProtectedEndpoint() throws Exception {
+        LoggedInUser user = registerAndLogin("valid-user");
+
+        mockMvc.perform(get("/api/v1/dashboard")
+                        .header("Authorization", "Bearer " + user.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("success"));
     }
 
     @Test
     void expiredJwtReturnsUnifiedUnauthorizedResponseWithoutLeakingDetails() throws Exception {
-        String expiredToken = new JwtUtil(jwtSecret, -60_000L).generateToken(1L, "expired-user");
+        LoggedInUser user = registerAndLogin("expired-user");
+        String expiredToken = new JwtUtil(jwtSecret, -60_000L).generateToken(user.id(), user.username());
 
-        assertUnauthorized(expiredToken, "ExpiredJwtException", "expired-user");
+        assertUnauthorized(expiredToken, "ExpiredJwtException", user.username());
     }
 
     @Test
     void tamperedJwtReturnsUnifiedUnauthorizedResponseWithoutLeakingDetails() throws Exception {
-        String token = jwtUtil.generateToken(1L, "tampered-user");
-        String tamperedToken = tamperSignature(token);
+        LoggedInUser user = registerAndLogin("tampered-user");
+        String tamperedToken = tamperSignature(user.token());
 
-        assertUnauthorized(tamperedToken, "SignatureException", "tampered-user");
+        assertUnauthorized(tamperedToken, "SignatureException", user.username());
     }
 
     @Test
@@ -78,6 +88,7 @@ class InvalidJwtApiIntegrationTest extends PostgresIntegrationTest {
         assertThat(response.path("data").isMissingNode()).isTrue();
         assertThat(body).doesNotContain(token, jwtSecret, "io.jsonwebtoken", "Exception", "at ");
         assertThat(body).doesNotContain(forbiddenFragments);
+        verifyNoInteractions(dashboardService);
     }
 
     private String tamperSignature(String token) {
@@ -86,5 +97,31 @@ class InvalidJwtApiIntegrationTest extends PostgresIntegrationTest {
         String signature = segments[2];
         char replacement = signature.charAt(0) == 'A' ? 'B' : 'A';
         return segments[0] + "." + segments[1] + "." + replacement + signature.substring(1);
+    }
+
+    private LoggedInUser registerAndLogin(String prefix) throws Exception {
+        String username = prefix + java.util.UUID.randomUUID().toString().replace("-", "");
+        String password = "password123";
+
+        mockMvc.perform(post("/api/v1/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new RegisterRequest(username, username + "@example.com", password))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        MvcResult login = mockMvc.perform(post("/api/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(username, password))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.token").isString())
+                .andReturn();
+
+        String token = objectMapper.readTree(login.getResponse().getContentAsByteArray()).at("/data/token").asText();
+        Long userId = jdbcTemplate.queryForObject("SELECT id FROM users WHERE username = ?", Long.class, username);
+        return new LoggedInUser(userId, username, token);
+    }
+
+    private record LoggedInUser(Long id, String username, String token) {
     }
 }
