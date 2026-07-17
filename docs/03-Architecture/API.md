@@ -8,15 +8,15 @@
 
 **分支：** zh-cn
 
-**日期：** 2026-07-07
+**日期：** 2026-07-17
 
 ------
 
 # 1. Purpose
 
-本文档用于记录 Personal Finance OS 当前后端 API 实现基线、统一响应规范、认证规则、分页规则、错误处理、前端调用现状、Known Gaps、v1.0 Target Design 以及 Future Evolution。
+本文档是人工维护的 API 设计和实现基线，用于记录 Personal Finance OS 当前后端 API、统一响应规范、认证规则、分页规则、错误处理、前端调用现状、Known Gaps、v1.0 Target Design 以及 Future Evolution。
 
-本文档不是 OpenAPI / Swagger 文档，也不要求立即补实现。未实现能力不得写成已实现能力。
+运行时机器可读接口文档由 OpenAPI 3 提供，Swagger UI 用于交互查看；API.md 与运行时 OpenAPI 互补。未实现能力不得写成已实现能力。
 
 ------
 
@@ -30,6 +30,7 @@
 - `PageResult<T>` 分页响应格式
 - `BusinessException` 与 `GlobalExceptionHandler`
 - Spring Security / JWT 认证规则
+- 当前 OpenAPI 3 / Swagger UI 能力、JWT `bearerAuth` 以及公开接口和受保护接口的文档安全边界
 - 当前前端 `frontend/src/api` 和页面中的实际 API 调用
 - API 与 `Architecture.md`、`Database.md`、`Business Rules.md`、`Financial Rules.md` 的一致性
 - Current Implementation、Target v1.0 API Design、Known Gaps、Future Evolution
@@ -39,7 +40,7 @@
 - Java / Controller / DTO / Service 实现修改
 - 前端代码修改
 - `schema.sql`、`Architecture.md`、`Database.md` 修改
-- OpenAPI / Swagger 配置
+- OpenAPI / Swagger 配置和 Java 注解的直接修改
 - 新接口实现
 
 ------
@@ -115,7 +116,24 @@ Authorization: Bearer <token>
 
 ------
 
-# 6. Unified Response Format
+# 6. Runtime OpenAPI / Swagger
+
+当前运行时接口文档由 Spring Boot `3.3.5` 和 `springdoc-openapi-starter-webmvc-ui:2.6.0` 提供：
+
+- OpenAPI JSON：`/v3/api-docs`
+- Swagger UI：`/swagger-ui.html`
+- 文档标题：`Personal Finance OS API`
+- 文档版本：`v1`
+- 安全方案：HTTP Bearer `bearerAuth`，`bearerFormat` 为 JWT
+- Controller tag：`User`、`Account`、`Asset`、`Category`、`Transaction`、`Dashboard`
+- 六个 Controller 共 24 个 operation summary
+- 注册和登录为公开接口，其余 22 个业务接口声明 JWT 安全要求
+
+`OpenApiIntegrationTest` 验证 OpenAPI JSON、Swagger UI、tag 和安全声明。OpenAPI 描述接口契约，不替代业务规则文档，也不表示已生成客户端 SDK、已完成 contract diff 或已覆盖所有业务语义。
+
+------
+
+# 7. Unified Response Format
 
 当前统一响应模型为 `ApiResponse<T>`。
 
@@ -587,7 +605,7 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 9. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。
 10. `/categories/init` 不适合作为长期普通业务 API 暴露。
 11. Account / Asset 主列表分页、账户编辑、资产详情、资产删除和资产清仓已接入前端；后续仍可补齐分类管理页面和更完整的资产编辑能力。
-12. 无 OpenAPI / Swagger / API contract。
+12. 当前已有运行时 OpenAPI / Swagger；尚未加入自动 contract diff、客户端 SDK 生成和文档 artifact 发布，这些不阻塞 v1.3。
 13. 无统一排序、过滤、搜索规范。
 14. 无审计日志、幂等、请求追踪 ID。
 15. Dashboard 最近流水已补充 `category` 和 `account` 展示名称，后续可继续与交易列表的筛选、分页展示规范对齐。
@@ -609,7 +627,7 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 - 投资交易流水、股息、拆股、手续费、税费；
 - 多成本计算方式、IRR / XIRR；
 - 多用户协作、家庭账本、管理员接口；
-- OpenAPI / Swagger contract；
+- OpenAPI schema diff、客户端 SDK 生成、文档 artifact 发布；
 - 插件系统 / 开放 API。
 
 未来能力约束：
@@ -633,8 +651,8 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 
 ## 15.2 认证与权限
 
-- 是否明确 `/api/v1/register` 和 `/api/v1/login` 公开；
-- 是否明确其他业务接口默认需要 JWT；
+- 注册和登录是否保持公开；
+- 其余接口是否保持 `bearerAuth`；
 - 是否记录 `Authorization: Bearer <token>`；
 - 是否说明当前无角色、无管理员权限、无细粒度权限模型；
 - 是否说明 Controller 当前通过 `Authentication principal` 获取 `userId`。
@@ -666,6 +684,13 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 - 是否符合 Dashboard 只读聚合规则；
 - 是否符合 `Financial Rules.md` 中的 `BigDecimal` 和后端计算要求。
 
+## 15.6 Runtime OpenAPI / Swagger
+
+- operation summary 是否与 Controller 一致；
+- API.md 是否与运行时 OpenAPI 一致；
+- OpenAPI 是否保持六个 Controller、六个 tag 和 24 个 operation summary；
+- 是否明确区分公开接口、JWT 保护接口、业务规则文档和未来 contract tooling。
+
 ------
 
 # 16. Review Conclusion
@@ -680,4 +705,4 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-后续重点是补齐完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略、分类管理页面，以及 OpenAPI / Swagger 等工程化能力。
+OpenAPI / Swagger 已在 v1.3 完成，当前 API 基线已经包含运行时接口文档。后续重点仍是完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略、分类管理页面，以及 OpenAPI schema diff、客户端 SDK 生成和文档 artifact 发布等配套能力。

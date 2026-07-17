@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v1.3 Engineering Polish
+**当前阶段：** v1.3 Engineering Polish（已完成）
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -123,13 +123,13 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 
 ------
 
-## v1.3 Engineering Polish（进行中）
+## v1.3 Engineering Polish（已完成）
 
 ### 定位
 
 工程化增强阶段，目标是在业务主链路稳定后，补齐测试、接口契约和数据库演进规范。
 
-### 当前进展
+### 已完成事项
 
 - PostgreSQL Testcontainers 集成测试基础设施已完成，并以真实 PostgreSQL 验证 Dashboard 月度 CNY 收支趋势 Mapper；运行该测试需要 Docker。
 - GitHub Actions CI 已完成远端验证。
@@ -139,17 +139,19 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 - 当前未配置 `baseline-on-migrate`；旧开发数据库的受控 baseline 或重建仍需单独决策，本项目不会自动处理。
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约均由 MockMvc slice 测试覆盖，并使用真实 Security 配置。
 - 真实 API 集成测试使用真实 JWT 和 PostgreSQL Testcontainers，覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除余额联动，以及分页和组合筛选。
-- 后端当前 108 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
+- 后端当前 108 项测试通过；前端当前 9 项测试通过，并通过 lint 和 build。
 - OpenAPI 3 与 Swagger UI 已接入，使用 `bearerAuth` JWT 安全方案；六个 Controller 的 24 个接口已生成运行时 API 文档。
 - 注册和登录保持公开，其余业务接口在运行时文档中标记 JWT 安全要求；`OpenApiIntegrationTest` 已验证 OpenAPI JSON、Swagger UI、标签和安全声明。
+- 前端工程化已完成：共享 `PageResult<T>`、`PageHeader`、受控 `Pagination`、共享页面 / 面板 / 表格样式，Accounts、Assets、Transactions 已完成复用。
+- 分页业务逻辑、筛选和删除后的页码回退仍保留在页面内；Pagination 按钮显式使用 `type="button"`，并有对应回归测试。
 
-### 规划能力
+### 阶段结论
 
-- 前端组件抽取；
+v1.3 的代码、测试、CI、数据库迁移、接口文档和前端工程化均已完成；Closing Review 未发现 P0/P1，非阻塞 Known Gaps 已记录。v1.3 可以正式关闭，下一阶段尚未自动启动。
 
 ### 边界说明
 
-v1.3 不默认包含行情数据、不默认包含完整投资交易模型、不默认包含 AI 财务分析。
+v1.3 不默认包含行情数据、不默认包含资产历史价格业务接入、不默认包含汇率、完整投资交易模型、AI 财务分析或生产级部署体系。
 
 ------
 

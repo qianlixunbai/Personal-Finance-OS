@@ -358,7 +358,9 @@ Swagger UI 的 `Authorize` 可用于输入 JWT Bearer token。`OpenApiIntegratio
 
 # 15. Controller / API Test Strategy
 
-后端当前共有 108 项测试，前端当前共有 8 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
+后端当前共有 108 项测试，前端当前共有 9 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
+
+前端第 9 项测试位于 `frontend/tests/pagination.test.ts`，验证 Pagination 的上一页、下一页按钮显式使用 `type="button"`。前端测试当前仍使用 Node 内置 test runner，未引入 Jest、Vitest、React Testing Library 或 jsdom。
 
 真实 API 集成测试使用真实 JWT 和 Testcontainers 启动的 `postgres:17-alpine`，通过 Spring 的动态数据源属性连接容器；测试使用正式的 Flyway `V1__baseline.sql` 初始化结构，不会连接本地开发数据库。`FlywayMigrationIntegrationTest` 额外验证空数据库迁移、`flyway_schema_history`、6 张业务表及关键结构。集成测试覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除时的账户余额联动，以及分页和组合筛选。
 
@@ -399,6 +401,6 @@ CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)�
 - 运行环境：`ubuntu-latest`；
 - 使用 Node 22；
 - 在 `frontend` 目录依次执行 `npm ci`、`npm test`、`npm run lint` 和 `npm run build`；
-- 当前前端测试总计 8 项。
+- 当前前端测试总计 9 项。
 
 任一命令失败都会使对应 Job 和整个工作流失败。当前 CI 只负责验证后端和前端，不包含 coverage、artifact、部署或分支保护配置。

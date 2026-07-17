@@ -50,12 +50,15 @@
 - [Exception Handling Review](./review/Exception-Handling-Review.md)
 - [V1.0 Closing Review](./review/V1.0-Closing-Review.md)
 - [V1.1 Closing Review](./review/V1.1-Closing-Review.md)
+- [V1.2 Closing Review](./review/V1.2-Closing-Review.md)
+- [V1.3 Closing Review](./review/V1.3-Closing-Review.md)
 
 ## 7. ADR / Logs / 其它
 
 - [ADR](./ADR/)：架构决策记录。
 - [ADR Template](./ADR/ADR-000-Template.md)：ADR 模板。
 - [ADR-001：为什么选择 Java 21](./ADR/ADR-001：为什么选择%20Java%2021.md)
+- [ADR-005：采用 Flyway 管理数据库迁移](./ADR/ADR-005：采用%20Flyway%20管理数据库迁移.md)
 - [logs/](./logs/)：开发过程日志。
 - [decisions/](./decisions/)：决策相关文档入口。
 - [meeting/](./meeting/)：会议记录入口。
