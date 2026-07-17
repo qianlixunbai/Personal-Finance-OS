@@ -52,6 +52,7 @@
 - [V1.1 Closing Review](./review/V1.1-Closing-Review.md)
 - [V1.2 Closing Review](./review/V1.2-Closing-Review.md)
 - [V1.3 Closing Review](./review/V1.3-Closing-Review.md)
+- [V1.4 Quality Hardening Closing Review](./review/V1.4-Closing-Review.md)
 
 ## 7. ADR / Logs / 其它
 

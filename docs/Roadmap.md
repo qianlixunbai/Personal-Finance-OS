@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v1.3 Engineering Polish（已完成）
+**当前阶段：** v1.4 Quality Hardening（已完成）
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -152,6 +152,32 @@ v1.3 的代码、测试、CI、数据库迁移、接口文档和前端工程化�
 ### 边界说明
 
 v1.3 不默认包含行情数据、不默认包含资产历史价格业务接入、不默认包含汇率、完整投资交易模型、AI 财务分析或生产级部署体系。
+
+------
+
+## v1.4 Quality Hardening（已完成）
+
+### 定位
+
+认证测试质量加固阶段，目标是关闭此前 Closing Review 中关于无效 JWT 集成测试可能假通过的唯一 P1，不扩大业务和架构范围。
+
+### 已完成事项
+
+- `InvalidJwtApiIntegrationTest` 使用真实注册 / 登录流程创建存在且为 `ACTIVE` 的测试用户；
+- 过期 JWT 使用真实用户 subject 构造；
+- 篡改 JWT 基于真实登录 token 变更签名；
+- 增加有效 JWT 正向控制，并验证无效 JWT 不会调用 Dashboard 业务服务；
+- 过期、篡改、格式错误 JWT 均验证统一 `401` 响应及无敏感详情泄露；
+- 目标测试类共 4 项测试通过，Failures 0、Errors 0、Skipped 0；
+- 相关 Closing Review 已记录 P1 关闭判断和范围边界。
+
+### 阶段结论
+
+`v1.4 Quality Hardening` 的唯一 P1 已关闭，阶段可以正式收口；下一阶段尚未自动启动。
+
+### 边界说明
+
+v1.4 不包含 JWT 生产实现调整、数据库 migration、CI、业务功能、行情、汇率、AI 或完整投资交易模型。
 
 ------
 

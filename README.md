@@ -70,7 +70,7 @@
 - 真实 API 集成测试覆盖 JWT、安全链、用户隔离和交易余额联动
 - 已接入 OpenAPI 3 与 Swagger UI，六个 Controller 的 24 个接口已生成运行时 API 文档
 - 注册和登录为公开接口，其余业务接口在运行时文档中显示 JWT 安全要求
-- 后端当前 108 项测试通过：`.\mvnw.cmd clean test`
+- 后端当前 115 项测试通过：`.\mvnw.cmd clean test`
 - 前端当前 9 项测试通过，并通过 `npm run lint` 和 `npm run build`
 
 当前 Transaction / Ledger 支持：
@@ -179,6 +179,7 @@ npm run build
 - [开发指南](docs/Development-Guide.md)
 - [Review 记录](docs/review/)
 - [v1.3 Engineering Polish Closing Review](docs/review/V1.3-Closing-Review.md)
+- [v1.4 Quality Hardening Closing Review](docs/review/V1.4-Closing-Review.md)
 
 ## 当前状态
 
@@ -186,12 +187,13 @@ npm run build
 - `v1.1 Showcase Enhancement` 已完成阶段验收
 - `v1.2 Visualization Polish` 已完成阶段验收
 - `v1.3 Engineering Polish` 已完成阶段验收
+- `v1.4 Quality Hardening` 已完成阶段验收
 - Flyway 数据库迁移里程碑已完成，V1 已在 PostgreSQL 17 Testcontainers 中验证
 - Testcontainers 基础设施已完成，后端集成测试使用真实 PostgreSQL
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 108 项测试，前端当前 9 项测试
+- 后端当前 115 项测试，前端当前 9 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
