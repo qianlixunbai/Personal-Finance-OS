@@ -159,16 +159,22 @@ v1.3 不默认包含行情数据、不默认包含资产历史价格业务接入
 
 ### 定位
 
-认证测试质量加固阶段，目标是关闭此前 Closing Review 中关于无效 JWT 集成测试可能假通过的唯一 P1，不扩大业务和架构范围。
+质量与可验证性加固阶段，目标是在 v1.3 工程化基线上补充 Dashboard 用户隔离、无效 JWT、数据源可配置性和 CI runtime 兼容性验证，并关闭此前 Closing Review 中确认的 P1；不扩大业务模型范围。
 
 ### 已完成事项
 
+- Dashboard 真实 API 集成测试覆盖两个用户及其账户、资产、分类、流水数据，验证当前用户只能看到自己的聚合结果；
+- 初始 invalid JWT 集成测试覆盖过期、篡改和格式错误 token 的统一 `401` 响应；
 - `InvalidJwtApiIntegrationTest` 使用真实注册 / 登录流程创建存在且为 `ACTIVE` 的测试用户；
 - 过期 JWT 使用真实用户 subject 构造；
 - 篡改 JWT 基于真实登录 token 变更签名；
 - 增加有效 JWT 正向控制，并验证无效 JWT 不会调用 Dashboard 业务服务；
 - 过期、篡改、格式错误 JWT 均验证统一 `401` 响应及无敏感详情泄露；
+- `DB_URL` 已支持通过环境变量覆盖完整 PostgreSQL JDBC URL，并保留本地默认地址；`DataSourceConfigurationTest` 已覆盖默认值和覆盖值；
+- GitHub Actions 已将 `actions/setup-java` 更新至 v5、`actions/setup-node` 更新至 v6，以消除已弃用 runtime；
+- 后续 P1 加固已完成：invalid JWT 测试不再使用不存在的用户 subject，消除过期和篡改场景的假通过路径；
 - 目标测试类共 4 项测试通过，Failures 0、Errors 0、Skipped 0；
+- 完整后端测试套件共 115 项测试通过，Failures 0、Errors 0、Skipped 0；
 - 相关 Closing Review 已记录 P1 关闭判断和范围边界。
 
 ### 阶段结论
@@ -177,7 +183,7 @@ v1.3 不默认包含行情数据、不默认包含资产历史价格业务接入
 
 ### 边界说明
 
-v1.4 不包含 JWT 生产实现调整、数据库 migration、CI、业务功能、行情、汇率、AI 或完整投资交易模型。
+v1.4 不包含新的 JWT 算法或认证架构、数据库结构和 migration、业务功能、行情、汇率、AI 或完整投资交易模型。CI runtime 更新和 `DB_URL` 配置属于本阶段已完成的工程化收口范围。
 
 ------
 
