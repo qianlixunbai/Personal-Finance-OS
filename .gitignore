@@ -16,3 +16,8 @@ backend/.env.local
 .env.local
 application-local.yml
 backend/src/main/resources/application-local.yml
+.env
+.env.local
+.env.*.local
+docker/.env
+docker/.env.local
