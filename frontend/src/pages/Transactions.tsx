@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import api from '../api';
 import { AlertMessage, EmptyTableRow } from '../components/Feedback';
+import { PageHeader } from '../components/PageHeader';
+import { Pagination } from '../components/Pagination';
+import type { PageResult } from '../types/pagination';
 import { getErrorMessage } from '../utils/error';
 import { formatTransactionAmount, formatTransactionType, transactionAmountColor } from '../utils/format';
 
@@ -16,13 +19,6 @@ interface Transaction {
     currency: string;
     description?: string;
     transactedAt: string;
-}
-
-interface PageResult<T> {
-    records: T[];
-    total: number;
-    page: number;
-    size: number;
 }
 
 interface Account {
@@ -252,17 +248,15 @@ export default function Transactions() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2>交易流水</h2>
-                <button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                    {showForm ? '收起表单' : '新增流水'}
-                </button>
-            </div>
+            <PageHeader
+                title="交易流水"
+                actions={<button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>{showForm ? '收起表单' : '新增流水'}</button>}
+            />
 
             {error && <AlertMessage type="error">{error}</AlertMessage>}
             {success && <AlertMessage type="success">{success}</AlertMessage>}
 
-            <form onSubmit={search} style={{ background: '#fff', padding: 20, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+            <form onSubmit={search} className="page-panel page-panel--compact">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'end' }}>
                     <Field label="类型">
                         <select value={filters.type} onChange={e => setFilters({ ...filters, type: e.target.value })} style={controlStyle}>
@@ -293,7 +287,7 @@ export default function Transactions() {
             </form>
 
             {showForm && (
-                <form onSubmit={submit} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <form onSubmit={submit} className="page-panel">
                     <h3 style={{ marginBottom: 16 }}>{editingId ? '编辑流水' : '新增流水'}</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                         <Field label="类型">
@@ -335,7 +329,7 @@ export default function Transactions() {
                 </form>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+            <table className="data-table">
                 <thead>
                     <tr>
                         <th style={thStyle}>时间</th>
@@ -372,13 +366,15 @@ export default function Transactions() {
                 </tbody>
             </table>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 条</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => goPage(page - 1)} disabled={page <= 1} style={pageButtonStyle}>上一页</button>
-                    <button onClick={() => goPage(page + 1)} disabled={page >= totalPages} style={pageButtonStyle}>下一页</button>
-                </div>
-            </div>
+            <Pagination
+                page={page}
+                totalPages={totalPages}
+                summary={<>共 {total} 条</>}
+                previousDisabled={page <= 1}
+                nextDisabled={page >= totalPages}
+                onPrevious={() => goPage(page - 1)}
+                onNext={() => goPage(page + 1)}
+            />
         </div>
     );
 }
@@ -409,12 +405,4 @@ const thStyle: CSSProperties = {
 const tdStyle: CSSProperties = {
     padding: '12px 16px',
     borderBottom: '1px solid #eee',
-};
-
-const pageButtonStyle: CSSProperties = {
-    padding: '8px 14px',
-    background: '#fff',
-    border: '1px solid #ddd',
-    borderRadius: 8,
-    cursor: 'pointer',
 };

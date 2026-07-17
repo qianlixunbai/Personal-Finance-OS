@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import api from '../api';
 import { AlertMessage, EmptyTableRow } from '../components/Feedback';
+import { PageHeader } from '../components/PageHeader';
+import { Pagination } from '../components/Pagination';
+import type { PageResult } from '../types/pagination';
 import { getErrorMessage } from '../utils/error';
 
 interface Account {
@@ -12,13 +15,6 @@ interface Account {
     balance: number;
     status: string;
     createdAt: string;
-}
-
-interface PageResult<T> {
-    records: T[];
-    total: number;
-    page: number;
-    size: number;
 }
 
 const pageSize = 20;
@@ -118,18 +114,16 @@ export default function Accounts() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2>账户管理</h2>
-                <button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                    {showForm ? '收起表单' : '新增账户'}
-                </button>
-            </div>
+            <PageHeader
+                title="账户管理"
+                actions={<button onClick={showForm ? closeForm : openCreateForm} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>{showForm ? '收起表单' : '新增账户'}</button>}
+            />
 
             {error && <AlertMessage type="error">{error}</AlertMessage>}
             {success && <AlertMessage type="success">{success}</AlertMessage>}
 
             {showForm && (
-                <form onSubmit={submit} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <form onSubmit={submit} className="page-panel">
                     <h3 style={{ marginTop: 0, marginBottom: 16 }}>{editingId ? '编辑账户' : '新增账户'}</h3>
                     <div style={{ marginBottom: 16 }}>
                         <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>名称</label>
@@ -157,7 +151,7 @@ export default function Accounts() {
                 </form>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+            <table className="data-table">
                 <thead>
                     <tr>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>名称</th>
@@ -186,21 +180,15 @@ export default function Accounts() {
                 </tbody>
             </table>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 个账户</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => fetch(page - 1)} disabled={page <= 1} style={pageButtonStyle}>上一页</button>
-                    <button onClick={() => fetch(page + 1)} disabled={!hasNextPage} style={pageButtonStyle}>下一页</button>
-                </div>
-            </div>
+            <Pagination
+                page={page}
+                totalPages={totalPages}
+                summary={<>共 {total} 个账户</>}
+                previousDisabled={page <= 1}
+                nextDisabled={!hasNextPage}
+                onPrevious={() => fetch(page - 1)}
+                onNext={() => fetch(page + 1)}
+            />
         </div>
     );
 }
-
-const pageButtonStyle: CSSProperties = {
-    padding: '8px 14px',
-    background: '#fff',
-    border: '1px solid #ddd',
-    borderRadius: 8,
-    cursor: 'pointer',
-};

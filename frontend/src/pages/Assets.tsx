@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import api from '../api';
 import { AlertMessage, EmptyTableRow } from '../components/Feedback';
+import { PageHeader } from '../components/PageHeader';
+import { Pagination } from '../components/Pagination';
+import type { PageResult } from '../types/pagination';
 import { getErrorMessage } from '../utils/error';
 import { formatCurrency } from '../utils/format';
 
@@ -19,13 +22,6 @@ interface Asset {
     profitLoss: number;
     profitLossRate: number;
     createdAt: string;
-}
-
-interface PageResult<T> {
-    records: T[];
-    total: number;
-    page: number;
-    size: number;
 }
 
 const pageSize = 20;
@@ -144,16 +140,16 @@ export default function Assets() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2>投资资产</h2>
-                <button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>新增资产</button>
-            </div>
+            <PageHeader
+                title="投资资产"
+                actions={<button onClick={() => setShowForm(!showForm)} style={{ padding: '10px 20px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>新增资产</button>}
+            />
 
             {error && <AlertMessage type="error">{error}</AlertMessage>}
             {success && <AlertMessage type="success">{success}</AlertMessage>}
 
             {showForm && (
-                <form onSubmit={create} style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <form onSubmit={create} className="page-panel">
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div>
                             <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>名称</label>
@@ -177,7 +173,7 @@ export default function Assets() {
             )}
 
             {selectedAsset && (
-                <section style={{ background: '#fff', padding: 24, borderRadius: 12, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+                <section className="page-panel">
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginBottom: 16 }}>
                         <h3 style={{ margin: 0 }}>资产详情</h3>
                         <div style={{ display: 'flex', gap: 8 }}>
@@ -201,7 +197,7 @@ export default function Assets() {
                 </section>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,.06)' }}>
+            <table className="data-table">
                 <thead>
                     <tr>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>名称</th>
@@ -236,13 +232,15 @@ export default function Assets() {
                 </tbody>
             </table>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                <span style={{ color: '#636e72' }}>第 {page} / {totalPages} 页，共 {total} 个资产</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => fetch(page - 1)} disabled={page <= 1} style={pageButtonStyle}>上一页</button>
-                    <button onClick={() => fetch(page + 1)} disabled={!hasNextPage} style={pageButtonStyle}>下一页</button>
-                </div>
-            </div>
+            <Pagination
+                page={page}
+                totalPages={totalPages}
+                summary={<>共 {total} 个资产</>}
+                previousDisabled={page <= 1}
+                nextDisabled={!hasNextPage}
+                onPrevious={() => fetch(page - 1)}
+                onNext={() => fetch(page + 1)}
+            />
         </div>
     );
 }
@@ -255,11 +253,3 @@ function DetailItem({ label, value }: { label: string; value: string | number })
         </div>
     );
 }
-
-const pageButtonStyle: CSSProperties = {
-    padding: '8px 14px',
-    background: '#fff',
-    border: '1px solid #ddd',
-    borderRadius: 8,
-    cursor: 'pointer',
-};
