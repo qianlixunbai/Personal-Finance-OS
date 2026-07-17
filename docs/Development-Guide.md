@@ -313,13 +313,14 @@ Merge
 - `JWT_SECRET`
 - `DB_USERNAME`
 - `DB_PASSWORD`
+- 可选 `DB_URL`
 
-`JWT_SECRET` 用于创建 JWT 签名密钥，长度必须至少 32 字符。`DB_USERNAME` 和 `DB_PASSWORD` 用于连接本地 PostgreSQL。
+`JWT_SECRET` 用于创建 JWT 签名密钥，长度必须至少 32 字符。`DB_USERNAME` 和 `DB_PASSWORD` 用于连接 PostgreSQL。`DB_URL` 未设置时默认为 `jdbc:postgresql://localhost:5432/finance_os`；如需连接其他实例，可仅覆盖完整 JDBC URL，用户名和密码仍通过各自变量配置，不要将密码嵌入 URL。
 
 第一次使用：
 
 1. 复制 `backend/.env.example` 为 `backend/.env.local`
-2. 在 `backend/.env.local` 中填写本地 PostgreSQL 用户名和密码
+2. 在 `backend/.env.local` 中填写本地 PostgreSQL 用户名和密码；如需覆盖本地默认地址，再填写可选的 `DB_URL`
 3. 确保 `JWT_SECRET` 至少 32 字符
 4. 在项目根目录运行：
 

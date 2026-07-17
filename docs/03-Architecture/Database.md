@@ -78,11 +78,13 @@
 ```yaml
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/finance_os
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/finance_os}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 ```
+
+`DB_URL` 是可选的完整 JDBC URL；未设置时使用本地默认 `jdbc:postgresql://localhost:5432/finance_os`。用户名和密码继续分别由 `DB_USERNAME`、`DB_PASSWORD` 配置，不应嵌入 URL。
 
 当前 MyBatis-Plus 配置包括：
 

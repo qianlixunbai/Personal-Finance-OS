@@ -110,6 +110,7 @@ finance-os/
 - `DB_USERNAME`
 - `DB_PASSWORD`
 - `JWT_SECRET`
+- 可选 `DB_URL`：未设置时默认为 `jdbc:postgresql://localhost:5432/finance_os`
 
 `JWT_SECRET` 长度至少 32 个字符。
 
@@ -132,7 +133,7 @@ cd backend
 
 ```powershell
 copy backend\.env.example backend\.env.local
-# 编辑 backend\.env.local，填写 DB_USERNAME、DB_PASSWORD、JWT_SECRET
+# 编辑 backend\.env.local，填写 DB_USERNAME、DB_PASSWORD、JWT_SECRET；DB_URL 可按需覆盖
 .\scripts\dev-start-backend.ps1
 ```
 
