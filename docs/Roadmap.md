@@ -136,12 +136,13 @@ v1.2 不包含行情、历史价格、汇率、完整投资交易模型或 AI。
 - 推送到 `zh-cn`、目标为 `zh-cn` 的 Pull Request，以及手动触发都会执行 Backend 和 Frontend 检查。
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约均由 MockMvc slice 测试覆盖，并使用真实 Security 配置。
 - 真实 API 集成测试使用真实 JWT 和 PostgreSQL Testcontainers，覆盖注册和登录、禁用用户旧 token 返回 401、账户/资产/分类/流水用户隔离、流水创建/更新/删除余额联动，以及分页和组合筛选。
-- 后端当前 105 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
+- 后端当前 107 项测试通过；前端当前 8 项测试通过，并通过 lint 和 build。
+- OpenAPI 3 与 Swagger UI 已接入，使用 `bearerAuth` JWT 安全方案；六个 Controller 的 24 个接口已生成运行时 API 文档。
+- 注册和登录保持公开，其余业务接口在运行时文档中标记 JWT 安全要求；`OpenApiIntegrationTest` 已验证 OpenAPI JSON、Swagger UI、标签和安全声明。
 
 ### 规划能力
 
 - 前端组件抽取；
-- OpenAPI / Swagger；
 - Flyway / Liquibase。
 
 ### 边界说明
