@@ -93,7 +93,7 @@ finance-os/
 ├─ docs/         # 架构、数据库、API、业务规则、Review 文档
 ├─ database/     # 数据库相关目录
 ├─ scripts/      # 本地开发脚本
-└─ docker/       # Docker 相关预留目录，当前 README 不提供 Docker 启动方式
+└─ docker/       # Docker Compose 本地部署入口与环境变量模板
 ```
 
 ## 本地运行
@@ -169,6 +169,17 @@ cd frontend
 npm run build
 ```
 
+## Docker Compose 启动
+
+项目提供 PostgreSQL、Spring Boot backend 和 Nginx frontend 的最小单机容器化部署入口。复制 `docker/.env.example` 为忽略的 `docker/.env`，填写本地密码和 JWT Secret 后启动：
+
+```powershell
+Copy-Item docker/.env.example docker/.env
+docker compose --env-file docker/.env -f docker/compose.yml up --build -d
+```
+
+完整的健康检查、数据卷、停止和安全说明见 [Deployment Guide](docs/Deployment-Guide.md)。本能力是单机部署基础，不代表完整生产运维能力。
+
 ## 核心文档入口
 
 - [系统架构](docs/03-Architecture/Architecture.md)
@@ -177,6 +188,7 @@ npm run build
 - [业务规则](docs/Business%20Rules.md)
 - [金融规则](docs/Financial%20Rules.md)
 - [开发指南](docs/Development-Guide.md)
+- [部署指南](docs/Deployment-Guide.md)
 - [Review 记录](docs/review/)
 - [v1.3 Engineering Polish Closing Review](docs/review/V1.3-Closing-Review.md)
 - [v1.4 Quality Hardening Closing Review](docs/review/V1.4-Closing-Review.md)
@@ -188,12 +200,13 @@ npm run build
 - `v1.2 Visualization Polish` 已完成阶段验收
 - `v1.3 Engineering Polish` 已完成阶段验收
 - `v1.4 Quality Hardening` 已完成阶段验收
+- `v1.5 Deployment Readiness` 已完成本地 Docker、Compose、健康检查与 smoke 验证，等待远端 CI 验证后正式收口
 - Flyway 数据库迁移里程碑已完成，V1 已在 PostgreSQL 17 Testcontainers 中验证
 - Testcontainers 基础设施已完成，后端集成测试使用真实 PostgreSQL
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 115 项测试，前端当前 9 项测试
+- 后端当前 117 项测试，前端当前 9 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -206,7 +219,7 @@ npm run build
 
 ## 后续计划
 
-- 行情数据、资产历史价格、多币种汇率、AI 财务分析、部署增强等仍属于后续版本
+- 行情数据、资产历史价格、多币种汇率、AI 财务分析和完整生产运维能力仍属于后续版本
 - 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本
 
 ## 项目定位

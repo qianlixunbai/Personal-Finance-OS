@@ -187,6 +187,33 @@ v1.4 不包含新的 JWT 算法或认证架构、数据库结构和 migration、
 
 ------
 
+## v1.5 Deployment Readiness（本地验证完成，待远端 CI）
+
+### 定位
+
+在不扩大业务模型、不修改数据库结构的前提下，补齐单机容器化部署的最小可信链路：镜像构建、生产运行配置、健康检查、Nginx 同源代理、Docker Compose 和 CI 部署产物验证。
+
+### 当前范围
+
+- Spring Boot Actuator health、liveness/readiness 和 graceful shutdown；
+- 后端与前端多阶段 Dockerfile；
+- PostgreSQL、backend、frontend 的 Docker Compose 本地部署；
+- Nginx SPA fallback 与同源 `/api` 代理；
+- Secret 模板、部署说明与 smoke checklist；
+- CI 镜像构建和 Compose 配置解析，不包含镜像推送或自动部署。
+
+### 当前状态
+
+- 后端与前端 Docker 镜像、Docker Compose、健康检查、Nginx 同源代理、named volume 和本地 smoke 已完成验证；
+- v1.5 正式关闭仍依赖下一次用户授权推送后的 GitHub Actions deployment job 成功；
+- v2.0 Market Data 在该远端 CI 证据具备前不自动启动。
+
+### 边界说明
+
+v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registry push、自动 CD、备份、高可用、外部监控、不同 Origin CORS、Market Data 或新的 migration。
+
+------
+
 ## v2.0 Market Data（后续规划）
 
 ### 定位

@@ -35,6 +35,7 @@
 ## 5. 开发规范与 AI 协作
 
 - [Development Guide](./Development-Guide.md)：开发流程、工程实践与本地开发约定。
+- [Deployment Guide](./Deployment-Guide.md)：Docker Compose 单机部署、健康检查、数据卷与 smoke checklist。
 - [AI Rules](./AI-Rules.md)：AI 辅助开发边界和协作规则。
 - [Prompt Guide](./Prompt%20Guide.md)：提示词协作指南。
 - [Code Review Checklist](./Code%20Review%20Checklist.md)：代码审查检查清单。
