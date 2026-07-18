@@ -31,6 +31,14 @@ market-data:
   user-request-limit-per-minute: ${MARKET_DATA_USER_REQUEST_LIMIT_PER_MINUTE:10}
   provider-request-limit-per-minute: ${MARKET_DATA_PROVIDER_REQUEST_LIMIT_PER_MINUTE:8}
 
+fx-data:
+  enabled: ${FX_DATA_ENABLED:false}
+  provider: ${FX_DATA_PROVIDER:}
+  base-url: ${FX_DATA_BASE_URL:}
+  api-key: ${FX_DATA_API_KEY:}
+  connect-timeout: 2s
+  read-timeout: 5s
+
 server:
   port: 8080
 
