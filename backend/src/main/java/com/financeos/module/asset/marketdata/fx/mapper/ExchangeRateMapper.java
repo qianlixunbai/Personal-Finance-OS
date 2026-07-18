@@ -21,6 +21,13 @@ public interface ExchangeRateMapper extends BaseMapper<ExchangeRate> {
     ExchangeRate findByBaseCurrencyAndQuoteCurrency(@Param("baseCurrency") String baseCurrency,
                                                     @Param("quoteCurrency") String quoteCurrency);
 
+    default List<ExchangeRate> findByBaseCurrenciesAndQuoteCurrency(List<String> baseCurrencies, String quoteCurrency) {
+        if (baseCurrencies == null || baseCurrencies.isEmpty()) {
+            return List.of();
+        }
+        return findByBaseCurrenciesAndQuoteCurrencyInternal(baseCurrencies, quoteCurrency);
+    }
+
     @Select("""
             <script>
             SELECT id, base_currency, quote_currency, rate, rate_time, fetched_at, provider, created_at, updated_at
@@ -32,8 +39,8 @@ public interface ExchangeRateMapper extends BaseMapper<ExchangeRate> {
               </foreach>
             </script>
             """)
-    List<ExchangeRate> findByBaseCurrenciesAndQuoteCurrency(@Param("baseCurrencies") List<String> baseCurrencies,
-                                                            @Param("quoteCurrency") String quoteCurrency);
+    List<ExchangeRate> findByBaseCurrenciesAndQuoteCurrencyInternal(@Param("baseCurrencies") List<String> baseCurrencies,
+                                                                    @Param("quoteCurrency") String quoteCurrency);
 
     default int upsertLatest(ExchangeRate exchangeRate) {
         exchangeRate.prepareForPersistence();

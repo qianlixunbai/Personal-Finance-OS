@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ExchangeRateMapperPostgresIntegrationTest extends PostgresIntegrationTest {
@@ -65,6 +66,14 @@ class ExchangeRateMapperPostgresIntegrationTest extends PostgresIntegrationTest 
                 List.of(" usd ", "eur", "JPY"), " cny ");
 
         assertThat(rates).extracting(ExchangeRate::getBaseCurrency).containsExactlyInAnyOrder("USD", "EUR");
+    }
+
+    @Test
+    void returnsNoRatesWithoutQueryingInvalidSqlForNullOrEmptyBaseCurrencies() {
+        assertThatCode(() -> exchangeRateMapper.findByBaseCurrenciesAndQuoteCurrency(null, "CNY"))
+                .doesNotThrowAnyException();
+        assertThat(exchangeRateMapper.findByBaseCurrenciesAndQuoteCurrency(null, "CNY")).isEmpty();
+        assertThat(exchangeRateMapper.findByBaseCurrenciesAndQuoteCurrency(List.of(), "CNY")).isEmpty();
     }
 
     @Test

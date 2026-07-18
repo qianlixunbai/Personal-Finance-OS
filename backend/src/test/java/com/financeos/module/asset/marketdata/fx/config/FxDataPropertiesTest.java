@@ -1,5 +1,6 @@
 package com.financeos.module.asset.marketdata.fx.config;
 
+import com.financeos.module.asset.marketdata.fx.provider.ExchangeRateProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -17,6 +18,7 @@ class FxDataPropertiesTest {
             assertThat(context).hasNotFailed();
             assertThat(context.getBean(FxDataProperties.class).isEnabled()).isFalse();
             assertThat(context.getBeanNamesForType(java.net.http.HttpClient.class)).isEmpty();
+            assertThat(context.getBeanNamesForType(ExchangeRateProvider.class)).isEmpty();
         });
     }
 
@@ -37,6 +39,17 @@ class FxDataPropertiesTest {
                     assertThat(properties.getApiKey()).isEqualTo("test-only-key");
                     assertThat(properties.getConnectTimeout()).isEqualTo(Duration.ofSeconds(3));
                     assertThat(properties.getReadTimeout()).isEqualTo(Duration.ofSeconds(7));
+                    assertThat(properties.toString()).doesNotContain("test-only-key");
+                });
+    }
+
+    @Test
+    void rejectsNonPositiveTimeoutsWithoutExposingTheApiKey() {
+        contextRunner.withPropertyValues("fx-data.enabled=true", "fx-data.api-key=test-only-key",
+                        "fx-data.connect-timeout=0s")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure().getMessage()).doesNotContain("test-only-key");
                 });
     }
 }

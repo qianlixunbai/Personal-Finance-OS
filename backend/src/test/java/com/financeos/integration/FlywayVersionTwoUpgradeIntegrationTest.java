@@ -20,11 +20,23 @@ class FlywayVersionTwoUpgradeIntegrationTest {
     private static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @Test
-    void upgradesExistingVersionOneDataToMarketQuotesVersionTwo() throws Exception {
-        flyway(MigrationVersion.fromVersion("1")).migrate();
+    void upgradesExistingVersionTwoDataToExchangeRatesVersionThreeWithoutDamagingExistingData() throws Exception {
+        flyway(MigrationVersion.fromVersion("2")).migrate();
         try (Connection connection = DriverManager.getConnection(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
             connection.createStatement().execute("""
                     INSERT INTO users (username, email, password_hash) VALUES ('v1-user', 'v1@example.com', 'hash')
+                    """);
+            connection.createStatement().execute("""
+                    INSERT INTO accounts (user_id, name, type, currency, balance)
+                    VALUES (1, 'Cash', 'CASH', 'CNY', 100.00)
+                    """);
+            connection.createStatement().execute("""
+                    INSERT INTO assets (user_id, name, symbol, type, currency, quantity, avg_cost)
+                    VALUES (1, 'Apple', 'AAPL', 'STOCK', 'CNY', 1, 100)
+                    """);
+            connection.createStatement().execute("""
+                    INSERT INTO market_quotes (market, symbol, currency, price, quote_time, fetched_at, provider, created_at, updated_at)
+                    VALUES ('US', 'AAPL', 'USD', 200, now(), now(), 'TEST', now(), now())
                     """);
         }
 
@@ -32,8 +44,17 @@ class FlywayVersionTwoUpgradeIntegrationTest {
 
         try (Connection connection = DriverManager.getConnection(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
              ResultSet result = connection.createStatement().executeQuery("""
-                     SELECT count(*) FROM information_schema.tables
-                     WHERE table_schema = 'public' AND table_name = 'market_quotes'
+                     SELECT (SELECT count(*) FROM users) + (SELECT count(*) FROM accounts)
+                            + (SELECT count(*) FROM assets) + (SELECT count(*) FROM market_quotes)
+                            + (SELECT count(*) FROM exchange_rates)
+                     """)) {
+            result.next();
+            assertThat(result.getInt(1)).isEqualTo(4);
+        }
+
+        try (Connection connection = DriverManager.getConnection(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+             ResultSet result = connection.createStatement().executeQuery("""
+                     SELECT count(*) FROM flyway_schema_history WHERE version = '3' AND success = true
                      """)) {
             result.next();
             assertThat(result.getInt(1)).isEqualTo(1);

@@ -30,4 +30,12 @@ class ExchangeRateProviderContractTest {
         assertThat(exception.getMessage()).isEqualTo("Exchange rate provider response is invalid");
         assertThat(exception.getMessage()).doesNotContain("api", "key", "response body");
     }
+
+    @Test
+    void timeoutHasItsOwnSafeClassification() {
+        ExchangeRateProviderException exception = new ExchangeRateProviderTimeoutException();
+
+        assertThat(exception.getErrorType()).isEqualTo(ExchangeRateProviderException.ErrorType.TIMEOUT);
+        assertThat(exception.getMessage()).doesNotContain("http", "api", "key", "response body");
+    }
 }

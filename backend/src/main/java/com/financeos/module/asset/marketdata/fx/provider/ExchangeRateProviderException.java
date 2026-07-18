@@ -19,6 +19,7 @@ public class ExchangeRateProviderException extends RuntimeException {
         RATE_LIMITED("Exchange rate provider rate limit was reached"),
         UPSTREAM_ERROR("Exchange rate provider is unavailable"),
         TRANSPORT("Exchange rate provider could not be reached"),
+        TIMEOUT("Exchange rate provider timed out"),
         RESPONSE_FORMAT("Exchange rate provider response is invalid"),
         UNSUPPORTED_PAIR("Exchange rate currency pair is unsupported"),
         INVALID_RATE("Exchange rate provider returned an invalid rate"),
