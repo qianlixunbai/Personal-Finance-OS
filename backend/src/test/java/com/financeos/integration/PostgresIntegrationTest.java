@@ -35,6 +35,6 @@ public abstract class PostgresIntegrationTest {
 
     @BeforeEach
     void clearDatabase() {
-        jdbcTemplate.execute("TRUNCATE TABLE transactions, accounts, categories, users RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE market_quotes, transactions, accounts, categories, users RESTART IDENTITY CASCADE");
     }
 }

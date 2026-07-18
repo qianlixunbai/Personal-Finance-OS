@@ -21,6 +21,14 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
 
+market-data:
+  enabled: ${MARKET_DATA_ENABLED:false}
+  api-key: ${MARKET_DATA_API_KEY:}
+  provider: TWELVE_DATA
+  connect-timeout: 2s
+  read-timeout: 5s
+  cache-ttl: 15m
+
 server:
   port: 8080
 

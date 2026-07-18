@@ -34,20 +34,26 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseAndRecordsVersionOne() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionTwo() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes')
                 """, Integer.class);
-        Integer migrationCount = jdbcTemplate.queryForObject("""
+        Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM flyway_schema_history
                 WHERE version = '1' AND description = 'baseline' AND success = true
                 """, Integer.class);
+        Integer versionTwoMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '2' AND description = 'market quotes' AND success = true
+                """, Integer.class);
 
-        assertThat(applicationTableCount).isEqualTo(6);
-        assertThat(migrationCount).isEqualTo(1);
+        assertThat(applicationTableCount).isEqualTo(7);
+        assertThat(versionOneMigrationCount).isEqualTo(1);
+        assertThat(versionTwoMigrationCount).isEqualTo(1);
     }
 }

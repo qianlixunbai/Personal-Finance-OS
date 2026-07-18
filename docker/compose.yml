@@ -25,6 +25,8 @@ services:
       DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER must be set}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      MARKET_DATA_ENABLED: ${MARKET_DATA_ENABLED:-false}
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
