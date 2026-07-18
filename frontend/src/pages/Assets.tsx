@@ -12,6 +12,7 @@ import {
     extractMarketQuote,
     formatQuoteTime,
     formatReferenceQuote,
+    isMarketQuoteSupported,
     marketQuoteRefreshMessage,
     marketQuoteRefreshWarning,
     quoteFreshnessLabel,
@@ -175,7 +176,6 @@ export default function Assets() {
     };
 
     const hasPosition = (asset: Asset) => Number(asset.quantity) > 0;
-    const supportsMarketQuote = (asset: Asset) => asset.type === 'STOCK' || asset.type === 'ETF';
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const hasNextPage = page < totalPages && assets.length >= pageSize;
 
@@ -236,7 +236,7 @@ export default function Assets() {
                         <DetailItem label="浮动盈亏" value={`${formatCurrency(selectedAsset.profitLoss)} (${selectedAsset.profitLossRate?.toFixed(2)}%)`} />
                         <DetailItem label="创建时间" value={selectedAsset.createdAt?.replace('T', ' ') || '-'} />
                     </div>
-                    {supportsMarketQuote(selectedAsset) && <MarketQuoteDetails quote={selectedAsset.marketQuote} />}
+                    {isMarketQuoteSupported(selectedAsset) && <MarketQuoteDetails quote={selectedAsset.marketQuote} />}
                 </section>
             )}
 
@@ -261,13 +261,13 @@ export default function Assets() {
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>{a.currentPrice ? formatCurrency(a.currentPrice) : '-'}</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee', color: a.profitLoss >= 0 ? '#00b894' : '#e17055' }}>{formatCurrency(a.profitLoss)} ({a.profitLossRate?.toFixed(2)}%)</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
-                                {supportsMarketQuote(a) ? <MarketQuoteCell quote={a.marketQuote} /> : '-'}
+                                {isMarketQuoteSupported(a) ? <MarketQuoteCell quote={a.marketQuote} /> : '-'}
                             </td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={() => showDetail(a.id)} style={{ padding: '6px 12px', background: '#0984e3', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>详情</button>
                                     <button onClick={() => updatePrice(a.id)} style={{ padding: '6px 12px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>更新价格</button>
-                                    {supportsMarketQuote(a) && <button onClick={() => refreshQuote(a)} disabled={refreshingAssetIds.has(a.id)} style={{ padding: '6px 12px', background: '#fdcb6e', color: '#2d3436', border: 'none', borderRadius: 6, cursor: refreshingAssetIds.has(a.id) ? 'wait' : 'pointer' }}>{refreshingAssetIds.has(a.id) ? '刷新中…' : '刷新行情'}</button>}
+                                    {isMarketQuoteSupported(a) && <button onClick={() => refreshQuote(a)} disabled={refreshingAssetIds.has(a.id)} style={{ padding: '6px 12px', background: '#fdcb6e', color: '#2d3436', border: 'none', borderRadius: 6, cursor: refreshingAssetIds.has(a.id) ? 'wait' : 'pointer' }}>{refreshingAssetIds.has(a.id) ? '刷新中…' : '刷新行情'}</button>}
                                     {hasPosition(a) && <button onClick={() => closeAsset(a)} style={{ padding: '6px 12px', background: '#00b894', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>清仓</button>}
                                     <button onClick={() => remove(a)} style={{ padding: '6px 12px', background: '#e17055', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>删除</button>
                                 </div>

@@ -5,6 +5,7 @@ import {
     extractMarketQuote,
     formatQuoteTime,
     formatReferenceQuote,
+    isMarketQuoteSupported,
     marketQuoteRefreshMessage,
     marketQuoteRefreshWarning,
     quoteFreshnessLabel,
@@ -39,6 +40,24 @@ test('replaces stale fallback warning with a fixed Chinese message', () => {
     };
     assert.equal(marketQuoteRefreshWarning(staleFallback), '行情刷新失败，当前展示最近一次成功获取的参考行情。');
     assert.equal(marketQuoteRefreshWarning({ ...staleFallback, refreshResult: 'UPDATED', warning: 'ignored' }), null);
+});
+
+test('allows quote refresh only for US STOCK or ETF assets with a nonblank symbol', () => {
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: 'US', symbol: 'AAPL' }), true);
+    assert.equal(isMarketQuoteSupported({ type: 'ETF', market: 'US', symbol: 'QQQ' }), true);
+    assert.equal(isMarketQuoteSupported({ type: 'stock', market: 'us', symbol: 'AAPL' }), true);
+    assert.equal(isMarketQuoteSupported({ type: 'ETF', market: ' Us ', symbol: 'QQQ' }), true);
+
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: 'CN', symbol: '600519' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'ETF', market: 'HK', symbol: '0700' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: '', symbol: 'AAPL' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: null, symbol: 'AAPL' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: 'US', symbol: '' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: 'US', symbol: '   ' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'STOCK', market: 'US', symbol: null }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'CASH', market: 'US', symbol: 'CASH' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'FUND', market: 'US', symbol: 'FUND' }), false);
+    assert.equal(isMarketQuoteSupported({ type: 'CRYPTO', market: 'US', symbol: 'BTC' }), false);
 });
 
 test('keeps only base quote fields and updates one asset without touching valuation', () => {

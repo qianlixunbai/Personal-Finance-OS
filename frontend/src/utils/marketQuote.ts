@@ -1,6 +1,19 @@
 import type { MarketQuote, MarketQuoteRefreshResponse } from '../types/market-data';
 
 type AssetWithMarketQuote = { id: number; marketQuote?: MarketQuote | null };
+type MarketQuoteEligibleAsset = {
+    type?: string | null;
+    market?: string | null;
+    symbol?: string | null;
+};
+
+export function isMarketQuoteSupported(asset: MarketQuoteEligibleAsset) {
+    const type = asset.type?.trim().toUpperCase();
+    const market = asset.market?.trim().toUpperCase();
+    return (type === 'STOCK' || type === 'ETF')
+        && market === 'US'
+        && Boolean(asset.symbol?.trim());
+}
 
 export function formatReferenceQuote(quote: MarketQuote | null | undefined) {
     if (!quote) return '尚未获取参考行情';
