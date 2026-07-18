@@ -45,6 +45,7 @@ export default function Assets() {
     const [form, setForm] = useState({ name: '', symbol: '', type: 'STOCK', market: '', currency: 'CNY', quantity: 0, avgCost: 0 });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [warning, setWarning] = useState('');
     const [refreshingAssetIds, setRefreshingAssetIds] = useState<Set<number>>(new Set());
 
     const fetch = async (targetPage = page) => {
@@ -148,13 +149,18 @@ export default function Assets() {
     const refreshQuote = async (asset: Asset) => {
         setError('');
         setSuccess('');
+        setWarning('');
         setRefreshingAssetIds(ids => new Set(ids).add(asset.id));
         try {
             const response = await refreshAssetQuote(asset.id);
             const marketQuote = extractMarketQuote(response);
             setAssets(current => updateAssetMarketQuote(current, asset.id, marketQuote));
             setSelectedAsset(current => current?.id === asset.id ? { ...current, marketQuote } : current);
-            setSuccess(response.warning || '参考行情已更新');
+            if (response.warning) {
+                setWarning(response.warning);
+            } else {
+                setSuccess('参考行情已更新');
+            }
         } catch (err) {
             setError(marketQuoteRefreshMessage(err));
         } finally {
@@ -180,6 +186,7 @@ export default function Assets() {
 
             {error && <AlertMessage type="error">{error}</AlertMessage>}
             {success && <AlertMessage type="success">{success}</AlertMessage>}
+            {warning && <AlertMessage type="warning">{warning}</AlertMessage>}
 
             {showForm && (
                 <form onSubmit={create} className="page-panel">

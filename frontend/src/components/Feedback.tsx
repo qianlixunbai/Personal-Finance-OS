@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 
-type AlertType = 'error' | 'success';
+type AlertType = 'error' | 'success' | 'warning';
 
 const alertStyles: Record<AlertType, { background: string; color: string }> = {
     error: { background: '#f8d7da', color: '#721c24' },
     success: { background: '#d4edda', color: '#155724' },
+    warning: { background: '#fff3cd', color: '#856404' },
 };
 
 export function AlertMessage({ type, children }: { type: AlertType; children: ReactNode }) {
