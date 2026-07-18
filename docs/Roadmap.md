@@ -253,6 +253,12 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 不包含真实 FX Provider、网络请求、刷新服务、TTL、stale fallback、single-flight、额度、Controller/API、Reference Valuation、Dashboard、前端、外币 Account 或外币 Transaction。v2.1 整体尚未完成。
 
+## v2.1 Phase 2 FX Refresh Workflow（已完成）
+
+- FX 缓存以 `fetched_at` 和 60 分钟 TTL 判断 FRESH/STALE/NEVER_FETCHED；
+- 内部刷新支持 CACHE_HIT、UPDATED、STALE_FALLBACK、单货币对 single-flight 与单进程用户/全局额度保护；
+- 默认关闭、无真实 Provider、无公开 API、无 Reference Valuation、无 Dashboard 或前端改动；Phase 3-4 仍未完成。
+
 ------
 
 ## v3.0 Investment Transaction Model（后续规划）

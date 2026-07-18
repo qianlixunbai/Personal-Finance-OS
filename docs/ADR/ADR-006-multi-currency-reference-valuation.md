@@ -227,5 +227,6 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 - 提出时间：2026-07-19
 - 接受日期：2026-07-19
 - 当前完成范围：仅 v2.1 Phase 1 FX Foundation（`exchange_rates`、Entity、Mapper、Provider abstraction、Properties 与离线测试）
+- Phase 2：FX Refresh Workflow 已完成（60 分钟 TTL、缓存 freshness、single-flight、单进程额度保护与 stale fallback）；仍无真实 Provider、公开 API 或参考估值。
 - 尚未完成：FX refresh workflow、Reference Valuation、API、Dashboard 接入和 UI
 - 正式生效：是；`Accepted` 不等于 v2.1 全部完成
