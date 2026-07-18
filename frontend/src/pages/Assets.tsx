@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import api from '../api';
+import api, { refreshAssetQuote } from '../api';
 import { AlertMessage, EmptyTableRow } from '../components/Feedback';
 import { PageHeader } from '../components/PageHeader';
 import { Pagination } from '../components/Pagination';
 import type { PageResult } from '../types/pagination';
 import { getErrorMessage } from '../utils/error';
 import { formatCurrency } from '../utils/format';
+import type { MarketQuote } from '../types/market-data';
+import {
+    extractMarketQuote,
+    formatQuoteTime,
+    formatReferenceQuote,
+    marketQuoteRefreshMessage,
+    quoteFreshnessLabel,
+    updateAssetMarketQuote,
+} from '../utils/marketQuote';
 
 interface Asset {
     id: number;
@@ -22,6 +31,7 @@ interface Asset {
     profitLoss: number;
     profitLossRate: number;
     createdAt: string;
+    marketQuote?: MarketQuote | null;
 }
 
 const pageSize = 20;
@@ -35,6 +45,7 @@ export default function Assets() {
     const [form, setForm] = useState({ name: '', symbol: '', type: 'STOCK', market: '', currency: 'CNY', quantity: 0, avgCost: 0 });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [refreshingAssetIds, setRefreshingAssetIds] = useState<Set<number>>(new Set());
 
     const fetch = async (targetPage = page) => {
         const res = await api.get('/assets/page', { params: { page: targetPage, size: pageSize } });
@@ -134,7 +145,29 @@ export default function Assets() {
         }
     };
 
+    const refreshQuote = async (asset: Asset) => {
+        setError('');
+        setSuccess('');
+        setRefreshingAssetIds(ids => new Set(ids).add(asset.id));
+        try {
+            const response = await refreshAssetQuote(asset.id);
+            const marketQuote = extractMarketQuote(response);
+            setAssets(current => updateAssetMarketQuote(current, asset.id, marketQuote));
+            setSelectedAsset(current => current?.id === asset.id ? { ...current, marketQuote } : current);
+            setSuccess(response.warning || '参考行情已更新');
+        } catch (err) {
+            setError(marketQuoteRefreshMessage(err));
+        } finally {
+            setRefreshingAssetIds(ids => {
+                const next = new Set(ids);
+                next.delete(asset.id);
+                return next;
+            });
+        }
+    };
+
     const hasPosition = (asset: Asset) => Number(asset.quantity) > 0;
+    const supportsMarketQuote = (asset: Asset) => asset.type === 'STOCK' || asset.type === 'ETF';
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const hasNextPage = page < totalPages && assets.length >= pageSize;
 
@@ -189,11 +222,12 @@ export default function Assets() {
                         <DetailItem label="币种" value={selectedAsset.currency || 'CNY'} />
                         <DetailItem label="持仓数量" value={selectedAsset.quantity} />
                         <DetailItem label="平均成本" value={formatCurrency(selectedAsset.avgCost)} />
-                        <DetailItem label="当前价格" value={selectedAsset.currentPrice ? formatCurrency(selectedAsset.currentPrice) : '-'} />
+                        <DetailItem label="人工估值价格（CNY）" value={selectedAsset.currentPrice ? formatCurrency(selectedAsset.currentPrice) : '-'} />
                         <DetailItem label="当前市值" value={formatCurrency(selectedAsset.marketValue)} />
                         <DetailItem label="浮动盈亏" value={`${formatCurrency(selectedAsset.profitLoss)} (${selectedAsset.profitLossRate?.toFixed(2)}%)`} />
                         <DetailItem label="创建时间" value={selectedAsset.createdAt?.replace('T', ' ') || '-'} />
                     </div>
+                    {supportsMarketQuote(selectedAsset) && <MarketQuoteDetails quote={selectedAsset.marketQuote} />}
                 </section>
             )}
 
@@ -203,8 +237,9 @@ export default function Assets() {
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>名称</th>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>持仓</th>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>成本</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>现价</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>人工估值价格（CNY）</th>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>盈亏</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>参考行情</th>
                         <th style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #eee' }}>操作</th>
                     </tr>
                 </thead>
@@ -217,9 +252,13 @@ export default function Assets() {
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>{a.currentPrice ? formatCurrency(a.currentPrice) : '-'}</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee', color: a.profitLoss >= 0 ? '#00b894' : '#e17055' }}>{formatCurrency(a.profitLoss)} ({a.profitLossRate?.toFixed(2)}%)</td>
                             <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
+                                {supportsMarketQuote(a) ? <MarketQuoteCell quote={a.marketQuote} /> : '-'}
+                            </td>
+                            <td style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                     <button onClick={() => showDetail(a.id)} style={{ padding: '6px 12px', background: '#0984e3', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>详情</button>
                                     <button onClick={() => updatePrice(a.id)} style={{ padding: '6px 12px', background: '#6c5ce7', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>更新价格</button>
+                                    {supportsMarketQuote(a) && <button onClick={() => refreshQuote(a)} disabled={refreshingAssetIds.has(a.id)} style={{ padding: '6px 12px', background: '#fdcb6e', color: '#2d3436', border: 'none', borderRadius: 6, cursor: refreshingAssetIds.has(a.id) ? 'wait' : 'pointer' }}>{refreshingAssetIds.has(a.id) ? '刷新中…' : '刷新行情'}</button>}
                                     {hasPosition(a) && <button onClick={() => closeAsset(a)} style={{ padding: '6px 12px', background: '#00b894', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>清仓</button>}
                                     <button onClick={() => remove(a)} style={{ padding: '6px 12px', background: '#e17055', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>删除</button>
                                 </div>
@@ -227,7 +266,7 @@ export default function Assets() {
                         </tr>
                     ))}
                     {assets.length === 0 && (
-                        <EmptyTableRow colSpan={6} message="暂无资产" />
+                        <EmptyTableRow colSpan={7} message="暂无资产" />
                     )}
                 </tbody>
             </table>
@@ -243,6 +282,28 @@ export default function Assets() {
             />
         </div>
     );
+}
+
+function MarketQuoteCell({ quote }: { quote: MarketQuote | null | undefined }) {
+    if (!quote) return <span style={{ color: '#888' }}>尚未获取参考行情</span>;
+    return <div>
+        <div>{formatReferenceQuote(quote)}</div>
+        <small style={{ color: quote.freshness === 'FRESH' ? '#00b894' : '#e17055' }}>状态：{quoteFreshnessLabel(quote)}</small>
+    </div>;
+}
+
+function MarketQuoteDetails({ quote }: { quote: MarketQuote | null | undefined }) {
+    if (!quote) return <p style={{ color: '#888', marginBottom: 0 }}>尚未获取参考行情</p>;
+    return <section style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #eee' }}>
+        <h4 style={{ margin: '0 0 10px' }}>参考行情（{quote.currency}）</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            <DetailItem label="参考行情" value={formatReferenceQuote(quote)} />
+            <DetailItem label="新鲜度" value={quoteFreshnessLabel(quote)} />
+            <DetailItem label="报价时间" value={formatQuoteTime(quote.quoteTime)} />
+            <DetailItem label="获取时间" value={formatQuoteTime(quote.fetchedAt)} />
+            <DetailItem label="来源" value={quote.provider || '-'} />
+        </div>
+    </section>;
 }
 
 function DetailItem({ label, value }: { label: string; value: string | number }) {

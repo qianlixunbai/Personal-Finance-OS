@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { MarketQuoteRefreshResponse } from '../types/market-data';
 
 const api = axios.create({
     baseURL: '/api/v1',
@@ -35,3 +36,8 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+export async function refreshAssetQuote(assetId: number): Promise<MarketQuoteRefreshResponse> {
+    const response = await api.post(`/assets/${assetId}/quote/refresh`);
+    return response.data.data as MarketQuoteRefreshResponse;
+}

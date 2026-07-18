@@ -411,3 +411,9 @@ CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)�
 `POST /api/v1/assets/{id}/quote/refresh` is disabled by default. It refreshes only an authenticated user's `STOCK` or `ETF` asset and returns an independent USD reference quote. It never writes `assets.current_price`, `assets.market_value`, or Dashboard data.
 
 The cache TTL defaults to 15 minutes. A stale cached quote is returned with a warning if the provider is unavailable. Provider calls use an in-process single-flight key per `(US, symbol)` and configurable per-user/global per-minute limits; cache hits do not consume either limit.
+
+## Cached quotes in Assets
+
+Asset list, page, and detail responses may include a nullable `marketQuote` snapshot. These GET endpoints only read the database: list and page requests batch the current response symbols into one US-market quote query, while detail reads one cached quote. They never call the provider, refresh automatically, or change CNY asset valuation fields.
+
+The Assets page keeps the CNY manual valuation price separate from the reference quote and uses the quote's returned currency. Manual refresh is a per-row action. A successful refresh replaces only that row's cached quote; `STALE_FALLBACK` keeps the old quote visible and displays the backend warning. If market-data refresh is disabled, existing snapshots remain readable and a refresh error is shown as a generic unavailable-service message.
