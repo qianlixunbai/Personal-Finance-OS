@@ -2,7 +2,24 @@
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 
-基于 **Java 21 + Spring Boot 3 + React + TypeScript** 的个人财务管理系统，用于管理账户、资产、交易流水，并通过 Dashboard 聚合分析真实业务数据。
+基于 **Java 21、Spring Boot 3、React 和 PostgreSQL** 的工程化个人财务管理系统，用于管理账户、资产与交易流水，并通过 Dashboard 聚合真实业务数据。它不是简单 CRUD Demo：项目强调用户隔离、金融规则、数据库迁移、端到端验证与持续文档收口。
+
+| 工程指标 | 当前状态 |
+| --- | --- |
+| Backend tests | 178 |
+| Frontend tests | 14 |
+| Java | 21 |
+| PostgreSQL | 17 |
+| Market Data | US `STOCK` / `ETF` 独立参考行情 |
+| 项目规模 | 约 8.7k 行有效代码（不含文档、依赖与构建产物） |
+
+## 项目入口
+
+- [GitHub 仓库](https://github.com/qianlixunbai/Personal-Finance-OS)
+- [Swagger / OpenAPI 本地访问说明](#启动后端)
+- [核心架构文档](docs/03-Architecture/Architecture.md)
+- [v2.0 Market Data Foundation Closing Review](docs/review/V2.0-Closing-Review.md)
+- 在线 Demo：当前未提供公开后端地址，避免展示不可验证的 API 链接；静态展示不调用真实 Market Data API。
 
 ## 项目亮点
 
@@ -20,6 +37,7 @@
 - Testcontainers 在空 PostgreSQL 17 容器中验证 V1 migration
 - v2.0 Market Data Foundation 已完成：仅支持 US `STOCK` / `ETF` 的独立参考行情快照
 - 行情只可手动刷新；页面加载仅读取缓存，不参与 CNY 资产或 Dashboard 估值
+- 后端 178 项、前端 14 项测试覆盖关键业务与展示边界，并通过 lint 和生产构建验证
 - 保留 Review / Fix Plan 记录，体现设计、实现、评审、修复闭环
 
 ## 技术栈
@@ -72,8 +90,8 @@
 - 真实 API 集成测试覆盖 JWT、安全链、用户隔离和交易余额联动
 - 已接入 OpenAPI 3 与 Swagger UI，六个 Controller 的 24 个接口已生成运行时 API 文档
 - 注册和登录为公开接口，其余业务接口在运行时文档中显示 JWT 安全要求
-- 后端当前 115 项测试通过：`.\mvnw.cmd clean test`
-- 前端当前 9 项测试通过，并通过 `npm run lint` 和 `npm run build`
+- 后端当前 178 项测试通过：`.\mvnw.cmd clean test`
+- 前端当前 14 项测试通过，并通过 `npm run lint` 和 `npm run build`
 
 当前 Transaction / Ledger 支持：
 
@@ -194,6 +212,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - [Review 记录](docs/review/)
 - [v1.3 Engineering Polish Closing Review](docs/review/V1.3-Closing-Review.md)
 - [v1.4 Quality Hardening Closing Review](docs/review/V1.4-Closing-Review.md)
+- [v2.0 Market Data Foundation Closing Review](docs/review/V2.0-Closing-Review.md)
 
 ## 当前状态
 
@@ -208,7 +227,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 178 项测试，前端当前 13 项测试
+- 后端当前 178 项测试，前端当前 14 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
