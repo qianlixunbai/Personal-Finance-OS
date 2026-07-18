@@ -16,12 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class AssetService {
 
     private static final String BASE_CURRENCY = "CNY";
+    private static final String MARKET = "US";
 
     private final AssetMapper assetMapper;
     private final MarketQuoteQueryService marketQuoteQueryService;
@@ -142,7 +144,9 @@ public class AssetService {
     }
 
     private boolean supportsMarketQuote(Asset asset) {
-        return "STOCK".equalsIgnoreCase(asset.getType()) || "ETF".equalsIgnoreCase(asset.getType());
+        return ("STOCK".equalsIgnoreCase(asset.getType()) || "ETF".equalsIgnoreCase(asset.getType()))
+                && asset.getMarket() != null
+                && MARKET.equals(asset.getMarket().trim().toUpperCase(Locale.ROOT));
     }
 
     private AssetResponse toResponse(Asset a, MarketQuoteSnapshotResponse marketQuote) {

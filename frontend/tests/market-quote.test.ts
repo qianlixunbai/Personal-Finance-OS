@@ -6,6 +6,7 @@ import {
     formatQuoteTime,
     formatReferenceQuote,
     marketQuoteRefreshMessage,
+    marketQuoteRefreshWarning,
     quoteFreshnessLabel,
     updateAssetMarketQuote,
 } from '../src/utils/marketQuote.ts';
@@ -30,6 +31,14 @@ test('maps refresh errors to safe user messages', () => {
     assert.equal(marketQuoteRefreshMessage({ response: { status: 429 } }), '行情刷新请求过于频繁，请稍后再试。');
     assert.equal(marketQuoteRefreshMessage({ response: { status: 502 } }), '行情服务暂时不可用，请稍后重试。');
     assert.equal(marketQuoteRefreshMessage({ response: { status: 503 } }), '行情服务暂时不可用，请稍后重试。');
+});
+
+test('replaces stale fallback warning with a fixed Chinese message', () => {
+    const staleFallback: MarketQuoteRefreshResponse = {
+        ...quote, freshness: 'STALE', refreshResult: 'STALE_FALLBACK', warning: 'provider failure details',
+    };
+    assert.equal(marketQuoteRefreshWarning(staleFallback), '行情刷新失败，当前展示最近一次成功获取的参考行情。');
+    assert.equal(marketQuoteRefreshWarning({ ...staleFallback, refreshResult: 'UPDATED', warning: 'ignored' }), null);
 });
 
 test('keeps only base quote fields and updates one asset without touching valuation', () => {

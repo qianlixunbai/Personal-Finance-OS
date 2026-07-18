@@ -80,6 +80,59 @@ class AssetMarketQuoteServiceTest {
         verify(assetMapper, never()).updateById(any(Asset.class));
     }
 
+    @Test
+    void excludesNonUsAssetsFromCachedQuoteQueriesAndResponses() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        MarketQuoteQueryService quoteQueryService = mock(MarketQuoteQueryService.class);
+        Asset usStock = asset(1L, "STOCK", "AAPL");
+        Asset nonUsStock = asset(2L, "STOCK", "AAPL");
+        nonUsStock.setMarket("CN");
+        Asset nonUsEtf = asset(3L, "ETF", "MSFT");
+        nonUsEtf.setMarket("HK");
+        when(assetMapper.selectList(any())).thenReturn(List.of(usStock, nonUsStock, nonUsEtf));
+        when(quoteQueryService.findCachedUsQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote()));
+        when(quoteQueryService.normalizeSymbol("AAPL")).thenReturn("AAPL");
+
+        List<AssetResponse> responses = new AssetService(assetMapper, quoteQueryService).listByUser(9L);
+
+        assertThat(responses).extracting(AssetResponse::marketQuote).containsExactly(quote(), null, null);
+        verify(quoteQueryService).findCachedUsQuotes(List.of("AAPL"));
+        verify(quoteQueryService, never()).findCachedUsQuote("AAPL");
+    }
+
+    @Test
+    void pageExcludesNonUsAssetsFromTheBatchQuoteQuery() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        MarketQuoteQueryService quoteQueryService = mock(MarketQuoteQueryService.class);
+        Asset usAsset = asset(1L, "STOCK", "AAPL");
+        Asset nonUsAsset = asset(2L, "ETF", "0700");
+        nonUsAsset.setMarket("HK");
+        Page<Asset> page = new Page<>(1, 20, 2);
+        page.setRecords(List.of(usAsset, nonUsAsset));
+        when(assetMapper.selectPage(any(), any())).thenReturn(page);
+        when(quoteQueryService.findCachedUsQuotes(List.of("AAPL"))).thenReturn(Map.of("AAPL", quote()));
+        when(quoteQueryService.normalizeSymbol("AAPL")).thenReturn("AAPL");
+
+        PageResult<AssetResponse> response = new AssetService(assetMapper, quoteQueryService).pageByUser(9L, 1, 20);
+
+        assertThat(response.records()).extracting(AssetResponse::marketQuote).containsExactly(quote(), null);
+        verify(quoteQueryService).findCachedUsQuotes(List.of("AAPL"));
+    }
+
+    @Test
+    void detailDoesNotQueryOrAttachQuotesForNonUsAssets() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        MarketQuoteQueryService quoteQueryService = mock(MarketQuoteQueryService.class);
+        Asset nonUsAsset = asset(7L, "STOCK", "0700");
+        nonUsAsset.setMarket("HK");
+        when(assetMapper.selectById(7L)).thenReturn(nonUsAsset);
+
+        AssetResponse response = new AssetService(assetMapper, quoteQueryService).getById(9L, 7L);
+
+        assertThat(response.marketQuote()).isNull();
+        verify(quoteQueryService, never()).findCachedUsQuote(any());
+    }
+
     private Asset asset(Long id, String type, String symbol) {
         Asset asset = new Asset();
         asset.setId(id);

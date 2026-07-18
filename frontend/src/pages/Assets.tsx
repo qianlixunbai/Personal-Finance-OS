@@ -13,6 +13,7 @@ import {
     formatQuoteTime,
     formatReferenceQuote,
     marketQuoteRefreshMessage,
+    marketQuoteRefreshWarning,
     quoteFreshnessLabel,
     updateAssetMarketQuote,
 } from '../utils/marketQuote';
@@ -156,8 +157,9 @@ export default function Assets() {
             const marketQuote = extractMarketQuote(response);
             setAssets(current => updateAssetMarketQuote(current, asset.id, marketQuote));
             setSelectedAsset(current => current?.id === asset.id ? { ...current, marketQuote } : current);
-            if (response.warning) {
-                setWarning(response.warning);
+            const warning = marketQuoteRefreshWarning(response);
+            if (warning) {
+                setWarning(warning);
             } else {
                 setSuccess('参考行情已更新');
             }

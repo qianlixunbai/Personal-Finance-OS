@@ -214,22 +214,27 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 ------
 
-## v2.0 Market Data（后续规划）
+## v2.0 Market Data Foundation（已完成）
 
 ### 定位
 
-行情数据阶段，目标是为资产估值提供可追溯的本地行情快照。
+行情数据阶段已提供可追溯的独立参考行情快照，不替代用户确认的 CNY 资产估值。
 
-### 规划能力
+### 已完成范围
 
-- 行情 API 接入；
-- 资产价格刷新；
-- `asset_prices` 历史价格；
-- Dashboard 使用本地行情快照。
+- 独立最新行情快照与 Twelve Data provider adapter；
+- 仅支持 US `STOCK` / `ETF`；
+- 手动单 Asset 刷新与 15 分钟 TTL；
+- `CACHE_HIT` / `UPDATED` / `STALE_FALLBACK`；
+- single-flight 和单进程额度保护；
+- Asset GET 缓存行情附加与 Assets 页面参考行情展示；
+- 外部行情不参与 CNY 资产或 Dashboard 估值。
 
 ### 边界说明
 
-行情模块不得直接替代用户确认的业务数据；行情数据应有来源和更新时间。
+不包含历史价格、Dashboard 行情估值、自动刷新、多币种估值、汇率、盘前盘后、OHLC 或涨跌幅。
+
+后续阶段：v2.1 为 Market Valuation / Multi-Currency（规划中）；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
 
 ------
 

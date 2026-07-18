@@ -85,6 +85,27 @@ class MarketQuoteRefreshApiIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.code").value(401));
     }
 
+    @Test
+    void rejectsNonUsAssetsWithoutCallingProviderOrChangingValuation() throws Exception {
+        LoggedInUser owner = registerAndLogin("non-us-quote-owner");
+        Asset nonUsAsset = asset(owner.userId(), "0700");
+        nonUsAsset.setType("ETF");
+        nonUsAsset.setMarket("HK");
+        assetMapper.insert(nonUsAsset);
+        BigDecimal originalPrice = nonUsAsset.getCurrentPrice();
+        BigDecimal originalValue = nonUsAsset.getMarketValue();
+
+        mockMvc.perform(post("/api/v1/assets/{id}/quote/refresh", nonUsAsset.getId())
+                        .header("Authorization", "Bearer " + owner.token()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verifyNoInteractions(marketDataProvider);
+        Asset saved = assetMapper.selectById(nonUsAsset.getId());
+        assertThat(saved.getCurrentPrice()).isEqualByComparingTo(originalPrice);
+        assertThat(saved.getMarketValue()).isEqualByComparingTo(originalValue);
+    }
+
     private Asset asset(Long userId, String symbol) {
         Asset asset = new Asset();
         asset.setUserId(userId);

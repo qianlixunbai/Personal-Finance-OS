@@ -18,6 +18,8 @@
 - 使用 Flyway 管理 PostgreSQL schema 演进
 - 数据库结构由版本化 migration 管理
 - Testcontainers 在空 PostgreSQL 17 容器中验证 V1 migration
+- v2.0 Market Data Foundation 已完成：仅支持 US `STOCK` / `ETF` 的独立参考行情快照
+- 行情只可手动刷新；页面加载仅读取缓存，不参与 CNY 资产或 Dashboard 估值
 - 保留 Review / Fix Plan 记录，体现设计、实现、评审、修复闭环
 
 ## 技术栈
@@ -206,7 +208,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 117 项测试，前端当前 9 项测试
+- 后端当前 178 项测试，前端当前 13 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口
@@ -216,10 +218,13 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - 前端空状态和反馈提示已统一
 - 前端共享页面、面板、表格和分页样式已统一，详见 `V1.3 Closing Review`
 - 资产清仓只是持仓快照归零，不等于完整卖出交易模型
+- v2.0 Market Data Foundation 已完成：独立最新行情快照、Twelve Data adapter、15 分钟 TTL、`CACHE_HIT` / `UPDATED` / `STALE_FALLBACK`、single-flight 和单进程额度保护；功能默认关闭。
+- 参考行情仅支持 US `STOCK` / `ETF`，不参与 CNY 资产或 Dashboard 估值；Assets 页面只读缓存，刷新为单 Asset 手动操作。公开 `sites-demo` 不调用真实 Market Data API。
+- 启用手动行情刷新需要后端设置 `MARKET_DATA_ENABLED=true` 与 `MARKET_DATA_API_KEY`；当前不支持汇率、多币种估值、历史行情或自动刷新。
 
 ## 后续计划
 
-- 行情数据、资产历史价格、多币种汇率、AI 财务分析和完整生产运维能力仍属于后续版本
+- 资产历史价格、多币种汇率、AI 财务分析和完整生产运维能力仍属于后续版本；当前不支持自动刷新、汇率或多币种估值
 - 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本
 
 ## 项目定位

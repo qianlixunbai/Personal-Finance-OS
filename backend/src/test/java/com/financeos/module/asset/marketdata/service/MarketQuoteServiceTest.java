@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -117,6 +118,28 @@ class MarketQuoteServiceTest {
     }
 
     @Test
+    void rejectsMissingBlankAndNonUsMarketsBeforeQuoteLookupOrQuotaConsumption() {
+        Fixture fixture = fixture();
+        fixture.properties.setUserRequestLimitPerMinute(1);
+        fixture.properties.setProviderRequestLimitPerMinute(1);
+
+        for (String market : new String[]{null, "   ", "CN"}) {
+            when(fixture.assetMapper.selectById(7L)).thenReturn(asset(1L, "STOCK", "AAPL", market));
+            assertCode(() -> fixture.service.refresh(1L, 7L), 400);
+        }
+        when(fixture.assetMapper.selectById(7L)).thenReturn(asset(1L, "ETF", "QQQ", "HK"));
+        assertCode(() -> fixture.service.refresh(1L, 7L), 400);
+        verify(fixture.quoteMapper, never()).findByMarketAndSymbol(any(), any());
+        verify(fixture.provider, never()).fetchQuote(any());
+        verify(fixture.persistence, never()).upsert(any());
+
+        when(fixture.assetMapper.selectById(8L)).thenReturn(asset(1L, "ETF", "MSFT", " us "));
+        when(fixture.provider.fetchQuote("MSFT")).thenReturn(providerQuote("MSFT"));
+        MarketQuoteResponse response = fixture.service.refresh(1L, 8L);
+        assertThat(response.refreshResult()).isEqualTo(MarketQuoteRefreshResult.UPDATED);
+    }
+
+    @Test
     void sharesOneProviderCallAcrossTenConcurrentRefreshes() throws Exception {
         CountDownLatch providerStarted = new CountDownLatch(1);
         CountDownLatch releaseProvider = new CountDownLatch(1);
@@ -183,6 +206,90 @@ class MarketQuoteServiceTest {
     }
 
     @Test
+    void returnsStaleFallbackWhenUserQuotaIsExhausted() {
+        Fixture fixture = fixture();
+        fixture.properties.setUserRequestLimitPerMinute(1);
+        MarketQuote oldQuote = quote("AAPL", NOW.minusSeconds(901));
+        when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
+        when(fixture.quoteMapper.findByMarketAndSymbol("US", "AAPL")).thenReturn(oldQuote);
+        assertThat(fixture.rateLimiter.tryAcquire(1L)).isTrue();
+
+        MarketQuoteResponse response = fixture.service.refresh(1L, 7L);
+
+        assertThat(response.refreshResult()).isEqualTo(MarketQuoteRefreshResult.STALE_FALLBACK);
+        assertThat(response.price()).isEqualByComparingTo(oldQuote.getPrice());
+        assertThat(response.quoteTime()).isEqualTo(oldQuote.getQuoteTime());
+        assertThat(response.fetchedAt()).isEqualTo(oldQuote.getFetchedAt());
+        assertThat(response.warning()).isNotBlank();
+        verify(fixture.provider, never()).fetchQuote(any());
+        verify(fixture.persistence, never()).upsert(any());
+    }
+
+    @Test
+    void returns429WhenGlobalQuotaIsExhaustedWithoutCachedQuote() {
+        Fixture fixture = fixture();
+        fixture.properties.setProviderRequestLimitPerMinute(1);
+        when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
+        assertThat(fixture.rateLimiter.tryAcquire(2L)).isTrue();
+
+        assertCode(() -> fixture.service.refresh(1L, 7L), 429);
+
+        verify(fixture.provider, never()).fetchQuote(any());
+        verify(fixture.persistence, never()).upsert(any());
+    }
+
+    @Test
+    void returns429WhenUserQuotaIsExhaustedWithoutCachedQuote() {
+        Fixture fixture = fixture();
+        fixture.properties.setUserRequestLimitPerMinute(1);
+        when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
+        assertThat(fixture.rateLimiter.tryAcquire(1L)).isTrue();
+
+        assertCode(() -> fixture.service.refresh(1L, 7L), 429);
+
+        verify(fixture.provider, never()).fetchQuote(any());
+    }
+
+    @Test
+    void returnsStaleFallbackWhenGlobalQuotaIsExhausted() {
+        Fixture fixture = fixture();
+        fixture.properties.setProviderRequestLimitPerMinute(1);
+        MarketQuote oldQuote = quote("AAPL", NOW.minusSeconds(901));
+        when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
+        when(fixture.quoteMapper.findByMarketAndSymbol("US", "AAPL")).thenReturn(oldQuote);
+        assertThat(fixture.rateLimiter.tryAcquire(2L)).isTrue();
+
+        MarketQuoteResponse response = fixture.service.refresh(1L, 7L);
+
+        assertThat(response.refreshResult()).isEqualTo(MarketQuoteRefreshResult.STALE_FALLBACK);
+        assertThat(response.price()).isEqualByComparingTo(oldQuote.getPrice());
+        assertThat(response.fetchedAt()).isEqualTo(oldQuote.getFetchedAt());
+        verify(fixture.provider, never()).fetchQuote(any());
+    }
+
+    @Test
+    void doesNotReturnUpdatedWhenPersistenceFailsAndAllowsRetry() {
+        Fixture fixture = fixture();
+        MarketQuote oldQuote = quote("AAPL", NOW.minusSeconds(901));
+        when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
+        when(fixture.quoteMapper.findByMarketAndSymbol("US", "AAPL")).thenReturn(oldQuote);
+        when(fixture.provider.fetchQuote("AAPL")).thenReturn(providerQuote("AAPL"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("database unavailable"))
+                .when(fixture.persistence).upsert(any(MarketQuote.class));
+
+        assertThatThrownBy(() -> fixture.service.refresh(1L, 7L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("database unavailable");
+        assertThat(oldQuote.getQuoteTime()).isEqualTo(NOW.minusSeconds(3600));
+        assertThat(oldQuote.getFetchedAt()).isEqualTo(NOW.minusSeconds(901));
+
+        reset(fixture.persistence);
+        MarketQuoteResponse retry = fixture.service.refresh(1L, 7L);
+        assertThat(retry.refreshResult()).isEqualTo(MarketQuoteRefreshResult.UPDATED);
+        verify(fixture.provider, times(2)).fetchQuote("AAPL");
+    }
+
+    @Test
     void clearsSingleFlightKeyAfterFailureSoTheNextRequestCanRetry() {
         Fixture fixture = fixture();
         when(fixture.assetMapper.selectById(7L)).thenReturn(stock("AAPL"));
@@ -209,7 +316,7 @@ class MarketQuoteServiceTest {
         MarketDataProperties properties = properties();
         MarketQuoteQueryService queryService = new MarketQuoteQueryService(quoteMapper, properties, clock);
         MarketQuoteRateLimiter limiter = new MarketQuoteRateLimiter(properties, clock);
-        return new Fixture(assetMapper, quoteMapper, persistence, provider,
+        return new Fixture(assetMapper, quoteMapper, persistence, provider, properties, limiter,
                 new MarketQuoteService(assetMapper, provider, queryService, persistence, limiter, clock));
     }
 
@@ -224,10 +331,15 @@ class MarketQuoteServiceTest {
     }
 
     private Asset asset(Long userId, String type, String symbol) {
+        return asset(userId, type, symbol, "US");
+    }
+
+    private Asset asset(Long userId, String type, String symbol, String market) {
         Asset asset = new Asset();
         asset.setUserId(userId);
         asset.setType(type);
         asset.setSymbol(symbol);
+        asset.setMarket(market);
         return asset;
     }
 
@@ -256,6 +368,7 @@ class MarketQuoteServiceTest {
 
     private record Fixture(AssetMapper assetMapper, MarketQuoteMapper quoteMapper,
                            MarketQuotePersistenceService persistence, MarketDataProvider provider,
+                           MarketDataProperties properties, MarketQuoteRateLimiter rateLimiter,
                            MarketQuoteService service) {
     }
 

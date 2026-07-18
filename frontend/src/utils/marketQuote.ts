@@ -43,6 +43,12 @@ export function marketQuoteRefreshMessage(error: unknown) {
     return '行情刷新失败，请稍后再试。';
 }
 
+export function marketQuoteRefreshWarning(response: MarketQuoteRefreshResponse) {
+    return response.refreshResult === 'STALE_FALLBACK'
+        ? '行情刷新失败，当前展示最近一次成功获取的参考行情。'
+        : null;
+}
+
 export function updateAssetMarketQuote<T extends AssetWithMarketQuote>(assets: readonly T[], assetId: number,
                                                                         marketQuote: MarketQuote): T[] {
     return assets.map(asset => asset.id === assetId ? { ...asset, marketQuote } : asset);

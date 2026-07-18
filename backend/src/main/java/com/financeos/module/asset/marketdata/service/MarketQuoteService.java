@@ -113,7 +113,14 @@ public class MarketQuoteService {
         if (!"STOCK".equalsIgnoreCase(asset.getType()) && !"ETF".equalsIgnoreCase(asset.getType())) {
             throw new BusinessException(400, "Asset type does not support market quote refresh");
         }
+        if (!MARKET.equals(normalizeMarket(asset.getMarket()))) {
+            throw new BusinessException(400, "当前版本仅支持美国市场股票和 ETF 行情。");
+        }
         return asset;
+    }
+
+    private String normalizeMarket(String value) {
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     private String normalizeSymbol(String value) {
