@@ -38,6 +38,10 @@ fx-data:
   api-key: ${FX_DATA_API_KEY:}
   connect-timeout: 2s
   read-timeout: 5s
+  cache-ttl: 60m
+  rate-limit:
+    per-user-per-minute: 5
+    global-per-minute: 30
 
 server:
   port: 8080
