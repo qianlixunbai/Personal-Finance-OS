@@ -2,7 +2,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v1.4 Quality Hardening（已完成）
+**当前阶段：** v2.1 Phase 1 FX Foundation（已完成）
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -234,7 +234,24 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 不包含历史价格、Dashboard 行情估值、自动刷新、多币种估值、汇率、盘前盘后、OHLC 或涨跌幅。
 
-后续阶段：v2.1 为 Market Valuation / Multi-Currency（规划中）；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
+后续阶段：v2.1 Phase 2-4（FX Refresh、Reference Valuation、Assets UI）仍为规划中；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
+
+------
+
+## v2.1 Phase 1 FX Foundation（已完成）
+
+### 已完成范围
+
+- `V3__exchange_rates.sql` 新增公共最新成功汇率快照；
+- `NUMERIC(24,12)` 汇率精度、货币对唯一键、正数汇率和不同币种约束；
+- `ExchangeRate` Entity、原子最新快照 upsert 与批量货币对查询；
+- Provider abstraction 与 `fx-data.*` 配置绑定，默认关闭；
+- PostgreSQL 17 Testcontainers migration / Mapper 测试；
+- ADR-006 已接受。
+
+### 边界说明
+
+不包含真实 FX Provider、网络请求、刷新服务、TTL、stale fallback、single-flight、额度、Controller/API、Reference Valuation、Dashboard、前端、外币 Account 或外币 Transaction。v2.1 整体尚未完成。
 
 ------
 

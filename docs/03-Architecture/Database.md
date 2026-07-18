@@ -16,7 +16,7 @@
 
 本文档用于记录 Personal Finance OS 当前数据库实现基线、目标数据库设计、约束策略、索引策略、已知差距和后续演进方向。
 
-本文档不是 migration 文件的替代品，不直接修改数据库结构。当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/V1__baseline.sql`。
+本文档不是 migration 文件的替代品，不直接修改数据库结构。当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/` 下的版本化 V1、V2、V3 migration。
 
 本文档的作用是：
 
@@ -64,8 +64,8 @@
 
 - Database：PostgreSQL 17；
 - Flyway：10.20.0（`flyway-core`、`flyway-database-postgresql`）；
-- 当前 schema migration：`backend/src/main/resources/db/migration/V1__baseline.sql`；
-- 迁移验证：`FlywayMigrationIntegrationTest` 使用 PostgreSQL 17 Testcontainers 验证空数据库迁移、`flyway_schema_history` 和当前 6 张业务表；
+- 当前 schema migration：`V1__baseline.sql`、`V2__market_quotes.sql`、`V3__exchange_rates.sql`；
+- 迁移验证：`FlywayMigrationIntegrationTest` 使用 PostgreSQL 17 Testcontainers 验证空数据库迁移、`flyway_schema_history` 和当前 8 张业务表；
 - ORM / Data Access：MyBatis-Plus；
 - Java 金额类型：`BigDecimal`；
 - SQL 金额类型：`DECIMAL`；
@@ -145,7 +145,7 @@ mybatis-plus:
 
 当前实现中：
 
-- `users`、`accounts`、`categories`、`transactions`、`assets` 均包含 `id`、`created_at`、`updated_at`；
+- `users`、`accounts`、`categories`、`transactions`、`assets`、`market_quotes`、`exchange_rates` 均包含 `id`、`created_at`、`updated_at`；
 - `asset_prices` 包含 `id`、`created_at`，但缺少 `updated_at`；
 - `asset_prices` 缺少 `updated_at` 与通用字段约定不完全一致，应进入 Known Gaps。
 
@@ -160,7 +160,7 @@ mybatis-plus:
 
 # 7. Current Implementation Baseline
 
-当前 `V1__baseline.sql` 实际定义 6 张表：
+当前 V1-V3 migration 实际定义 8 张表：
 
 | 表名 | 当前用途 |
 |---|---|
@@ -170,6 +170,8 @@ mybatis-plus:
 | `transactions` | 日常财务流水 |
 | `assets` | 投资资产 / 持仓 |
 | `asset_prices` | 资产历史价格 |
+| `market_quotes` | 公共最新成功市场行情快照 |
+| `exchange_rates` | 公共最新成功汇率快照 |
 
 当前 Java Entity 覆盖 5 张核心表：
 
@@ -181,6 +183,8 @@ mybatis-plus:
 | `transactions` | `Transaction` | `TransactionMapper` |
 | `assets` | `Asset` | `AssetMapper` |
 | `asset_prices` | 无 | 无 |
+| `market_quotes` | `MarketQuote` | `MarketQuoteMapper` |
+| `exchange_rates` | `ExchangeRate` | `ExchangeRateMapper` |
 
 `asset_prices` 当前有数据库表，但没有 `AssetPrice` Entity，也没有 `AssetPriceMapper`。因此它目前是 migration 中存在但 Java 持久化层尚未覆盖的表。
 
@@ -488,6 +492,28 @@ mybatis-plus:
 
 ------
 
+## 8.7 exchange_rates
+
+`exchange_rates` 由 `V3__exchange_rates.sql` 新增，用于保存公共的最新成功 FX 快照，而非用户业务数据或最终参考估值。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | `BIGSERIAL` | 主键 |
+| `base_currency` | `VARCHAR(3)` | 被换算的一单位源币种，例如 `USD` |
+| `quote_currency` | `VARCHAR(3)` | 目标币种，例如 `CNY` |
+| `rate` | `NUMERIC(24,12)` | `1 base_currency = rate quote_currency` |
+| `rate_time` / `fetched_at` | `TIMESTAMPTZ` | Provider 报价时间与成功获取时间 |
+| `provider` | `VARCHAR(30)` | 标准化 Provider 标识 |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | 创建与最近成功快照更新时间 |
+
+约束与边界：
+
+- `(base_currency, quote_currency)` 唯一；唯一索引已覆盖货币对查询，不添加重复普通索引；
+- 两个币种均为大写三字母，且不得相同；`rate > 0`；
+- 不包含 `user_id`、状态、历史记录或最终 CNY 参考估值字段；
+- 只保留最新成功快照；原子 upsert 仅以较新的 `rate_time`，或相同 `rate_time` 下较新的 `fetched_at` 覆盖；
+- `CNY/CNY = 1` 是后续服务层恒等转换，不持久化。
+
 # 9. Relationship Model
 
 当前核心关系如下：
@@ -588,6 +614,8 @@ Personal Finance OS 是个人财务管理系统。所有业务数据必须围绕
 | `assets.current_price` | `DECIMAL(18,4)` | 当前价格 |
 | `assets.market_value` | `DECIMAL(18,2)` | 当前市值 |
 | `asset_prices.price` | `DECIMAL(18,4)` | 历史价格 |
+| `market_quotes.price` | `NUMERIC(20,8)` | Provider 原始行情价格 |
+| `exchange_rates.rate` | `NUMERIC(24,12)` | `1 base_currency = rate quote_currency` |
 
 当前数据库层尚未完整表达金额方向规则，例如：
 
@@ -844,7 +872,7 @@ market_value = quantity * current_price
 
 ## 16.1 Migration 管理
 
-当前已使用 Flyway 10.20.0 初始化和管理数据库结构。`V1__baseline.sql` 是当前唯一 migration，后续结构变更应新增 `V2__...sql`、`V3__...sql` 等版本化文件，不应修改已应用的 migration。
+当前已使用 Flyway 10.20.0 初始化和管理数据库结构。V1、V2、V3 是当前已应用 migration；后续结构变更应新增新的版本化文件，不应修改已应用的 migration。
 
 当前约束如下：
 
@@ -878,7 +906,7 @@ market_value = quantity * current_price
 
 ## 16.4 汇率表
 
-V1 当前不实现自动汇率。
+v2.1 Phase 1 已实现公共最新成功汇率快照表，但未实现真实 Provider、网络请求、刷新、TTL、fallback、Controller 或参考估值。
 
 后续多币种能力可评估新增汇率表，例如记录：
 

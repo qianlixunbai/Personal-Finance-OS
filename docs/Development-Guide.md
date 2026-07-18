@@ -122,7 +122,7 @@ Entity
 
 数据库字段随意修改。
 
-当前项目使用 Flyway 10.20.0 管理数据库迁移，依赖 `flyway-core` 和 `flyway-database-postgresql`。唯一数据库结构来源为 `backend/src/main/resources/db/migration/V1__baseline.sql`；原 `schema.sql` 已删除，主应用和测试 profile 均已移除 Spring SQL Init。
+当前项目使用 Flyway 10.20.0 管理数据库迁移，依赖 `flyway-core` 和 `flyway-database-postgresql`。唯一数据库结构来源为 `backend/src/main/resources/db/migration/` 下的 V1、V2、V3 版本化 migration；原 `schema.sql` 已删除，主应用和测试 profile 均已移除 Spring SQL Init。
 
 数据库变更必须新增版本化 migration，并同步 `Database.md`。当前未配置 `baseline-on-migrate`，新的空 PostgreSQL 数据库会自动执行 V1；已有旧开发数据库不会被项目自动 baseline 或重建。
 
@@ -304,7 +304,7 @@ Merge
 
 数据库迁移提示：
 
-- 全新或空数据库可以正常启动；Flyway 会自动创建 `flyway_schema_history` 并执行 V1。
+- 全新或空数据库可以正常启动；Flyway 会自动创建 `flyway_schema_history` 并顺序执行 V1、V2、V3。
 - 如果旧开发数据库由旧版 `schema.sql` 创建、已有业务表但没有 `flyway_schema_history`，不要直接启动新版应用，也不要永久启用 `baseline-on-migrate`。
 - 对旧数据库应先决定备份后重建空数据库，或经过 schema 比对后执行一次受控 baseline；本项目不会自动替用户处理已有数据库。
 
@@ -359,11 +359,11 @@ Swagger UI 的 `Authorize` 可用于输入 JWT Bearer token。`OpenApiIntegratio
 
 # 15. Controller / API Test Strategy
 
-后端当前共有 178 项测试，前端当前共有 13 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
+后端当前共有 188 项测试，前端当前共有 13 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
 
 前端测试使用 Node 内置 test runner，覆盖分页、认证响应和行情展示纯函数；未引入 Jest、Vitest、React Testing Library 或 jsdom。
 
-真实 API 集成测试使用真实 JWT 和 Testcontainers 启动的 `postgres:17-alpine`，通过 Spring 的动态数据源属性连接容器；测试使用正式的 Flyway `V1__baseline.sql` 初始化结构，不会连接本地开发数据库。`FlywayMigrationIntegrationTest` 额外验证空数据库迁移、`flyway_schema_history`、6 张业务表及关键结构。集成测试覆盖注册和登录、禁用用户旧 token 返回 401、有效 / 过期 / 篡改 / 格式错误 JWT 的统一 401 响应、账户/资产/分类/流水用户隔离、流水创建/更新/删除时的账户余额联动，以及分页和组合筛选。
+真实 API 集成测试使用真实 JWT 和 Testcontainers 启动的 `postgres:17-alpine`，通过 Spring 的动态数据源属性连接容器；测试使用正式的 Flyway V1-V3 migration 初始化结构，不会连接本地开发数据库。`FlywayMigrationIntegrationTest` 额外验证空数据库迁移、`flyway_schema_history`、8 张业务表及 `exchange_rates` 的精度和约束。集成测试覆盖注册和登录、禁用用户旧 token 返回 401、有效 / 过期 / 篡改 / 格式错误 JWT 的统一 401 响应、账户/资产/分类/流水用户隔离、流水创建/更新/删除时的账户余额联动，以及分页和组合筛选。
 
 运行完整后端测试前，请先启动 Docker Desktop（或提供兼容的 Docker daemon），然后执行：
 
@@ -417,3 +417,7 @@ The cache TTL defaults to 15 minutes. A stale cached quote is returned with a wa
 Asset list, page, and detail responses may include a nullable `marketQuote` snapshot only for US-market `STOCK` and `ETF` assets with valid symbols. These GET endpoints only read the database: list and page requests batch eligible response symbols into one US-market quote query, while detail reads one eligible cached quote. Non-US assets always return `marketQuote: null`; GET endpoints never call the provider, refresh automatically, or change CNY asset valuation fields.
 
 The Assets page keeps the CNY manual valuation price separate from the reference quote and uses the quote's returned currency. Manual refresh is a per-row action. A successful refresh replaces only that row's cached quote; `STALE_FALLBACK` keeps the old quote visible and displays a fixed Chinese warning rather than the backend warning text. If market-data refresh is disabled, existing snapshots remain readable and a refresh error is shown as a generic unavailable-service message.
+
+## FX Foundation
+
+v2.1 Phase 1 新增 `exchange_rates` 公共最新成功快照。`fx-data.enabled` 默认 `false`，本阶段没有真实 FX Provider、HTTP Client 或刷新接口，因此不会发出网络请求。`FX_DATA_API_KEY` 仅通过环境变量读取；`backend/.env.example` 只提供空占位符，不得提交真实 Key。

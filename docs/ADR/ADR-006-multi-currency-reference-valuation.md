@@ -6,7 +6,7 @@
 
 **Title:** Multi-Currency Reference Valuation and Exchange-Rate Snapshots
 
-**Status:** Proposed
+**Status:** Accepted
 
 **日期：** 2026-07-19
 
@@ -72,7 +72,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 - 最终 CNY 参考估值不持久化，根据持仓、行情与 FX 快照请求时计算。
 - v2.1 不修改 Dashboard；最早在后续独立 ADR 中增加并列的“市场参考总资产”。
 
-本 ADR 在项目维护者审阅前保持 `Proposed`；进入 Phase 1 前由维护者决定是否转为 `Accepted`。
+本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。这表示架构决策生效，不表示 v2.1 的 refresh workflow、reference valuation 或 UI 已完成。
 
 ## Base Currency
 
@@ -225,5 +225,7 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 ## Approval
 
 - 提出时间：2026-07-19
-- 当前状态：等待项目维护者审阅
-- 正式生效：否
+- 接受日期：2026-07-19
+- 当前完成范围：仅 v2.1 Phase 1 FX Foundation（`exchange_rates`、Entity、Mapper、Provider abstraction、Properties 与离线测试）
+- 尚未完成：FX refresh workflow、Reference Valuation、API、Dashboard 接入和 UI
+- 正式生效：是；`Accepted` 不等于 v2.1 全部完成
