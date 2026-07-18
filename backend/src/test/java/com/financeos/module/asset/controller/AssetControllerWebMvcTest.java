@@ -11,6 +11,7 @@ import com.financeos.module.asset.service.AssetService;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteFreshness;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteRefreshResult;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteResponse;
+import com.financeos.module.asset.marketdata.dto.MarketQuoteSnapshotResponse;
 import com.financeos.module.asset.marketdata.service.MarketQuoteService;
 import com.financeos.module.auth.config.SecurityConfig;
 import com.financeos.module.auth.config.SecurityErrorResponseHandler;
@@ -108,6 +109,8 @@ class AssetControllerWebMvcTest {
                 .andExpect(jsonPath("$.data[0].avgCost").isNumber())
                 .andExpect(jsonPath("$.data[0].currentPrice").isNumber())
                 .andExpect(jsonPath("$.data[0].marketValue").isNumber())
+                .andExpect(jsonPath("$.data[0].marketQuote.symbol").value("AAPL"))
+                .andExpect(jsonPath("$.data[0].marketQuote.freshness").value("FRESH"))
                 .andExpect(jsonPath("$.data[0].createdAt").value("2026-07-16T10:30:45"))
                 .andReturn();
 
@@ -117,6 +120,7 @@ class AssetControllerWebMvcTest {
         assertThat(json.at("/data/0/currentPrice").decimalValue()).isEqualByComparingTo("11.1100");
         assertThat(json.at("/data/0/marketValue").decimalValue()).isEqualByComparingTo("138.8750");
         verify(assetService).listByUser(USER_ID);
+        verifyNoInteractions(marketQuoteService);
     }
 
     @Test
@@ -129,9 +133,11 @@ class AssetControllerWebMvcTest {
                 .andExpect(jsonPath("$.data.records").isArray())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.page").value(1))
-                .andExpect(jsonPath("$.data.size").value(20));
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.records[0].marketQuote.symbol").value("AAPL"));
 
         verify(assetService).pageByUser(USER_ID, 1, 20);
+        verifyNoInteractions(marketQuoteService);
     }
 
     @Test
@@ -216,6 +222,20 @@ class AssetControllerWebMvcTest {
                 .andExpect(jsonPath("$.data").doesNotExist());
 
         verify(assetService).getById(USER_ID, 99L);
+        verifyNoInteractions(marketQuoteService);
+    }
+
+    @Test
+    void getReturnsTheCachedMarketQuoteWithoutCallingTheRefreshService() throws Exception {
+        when(assetService.getById(USER_ID, 7L)).thenReturn(assetResponse(7L, "沪深300ETF"));
+
+        mockMvc.perform(get("/api/v1/assets/{id}", 7L).with(authentication(currentUser())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.marketQuote.price").value(212.34))
+                .andExpect(jsonPath("$.data.marketQuote.refreshResult").doesNotExist());
+
+        verify(assetService).getById(USER_ID, 7L);
+        verifyNoInteractions(marketQuoteService);
     }
 
     @Test
@@ -254,7 +274,10 @@ class AssetControllerWebMvcTest {
         return new AssetResponse(id, name, "510300", "ETF", "CN", "CNY",
                 new BigDecimal("12.50000000"), new BigDecimal("10.2300"), new BigDecimal("11.1100"),
                 new BigDecimal("138.8750"), new BigDecimal("11.0000"), new BigDecimal("8.6022"),
-                LocalDateTime.of(2026, 7, 16, 10, 30, 45));
+                LocalDateTime.of(2026, 7, 16, 10, 30, 45),
+                new MarketQuoteSnapshotResponse("AAPL", "US", "USD", new BigDecimal("212.34"),
+                        Instant.parse("2026-07-18T00:00:00Z"), Instant.parse("2026-07-18T00:01:00Z"),
+                        "TWELVE_DATA", MarketQuoteFreshness.FRESH));
     }
 
     private MarketQuoteResponse quoteResponse() {

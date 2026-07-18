@@ -5,6 +5,7 @@ import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.mapper.AssetMapper;
+import com.financeos.module.asset.marketdata.service.MarketQuoteQueryService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -21,7 +22,7 @@ class AssetServiceTest {
     @Test
     void createRejectsNonCnyCurrency() {
         AssetMapper assetMapper = mock(AssetMapper.class);
-        AssetService service = new AssetService(assetMapper);
+        AssetService service = service(assetMapper);
         AssetRequest request = new AssetRequest(
                 "Apple", "AAPL", "STOCK", "NASDAQ", "USD", BigDecimal.ONE, BigDecimal.TEN);
 
@@ -35,7 +36,7 @@ class AssetServiceTest {
     @Test
     void updatePriceRejectsZeroPrice() {
         AssetMapper assetMapper = mock(AssetMapper.class);
-        AssetService service = new AssetService(assetMapper);
+        AssetService service = service(assetMapper);
 
         assertThrows(BusinessException.class, () -> service.updatePrice(1L, 10L, BigDecimal.ZERO));
 
@@ -45,7 +46,7 @@ class AssetServiceTest {
     @Test
     void closeSetsPositiveQuantityToZero() {
         AssetMapper assetMapper = mock(AssetMapper.class);
-        AssetService service = new AssetService(assetMapper);
+        AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.TEN);
         when(assetMapper.selectById(10L)).thenReturn(asset);
 
@@ -61,7 +62,7 @@ class AssetServiceTest {
     @Test
     void closeIsIdempotentWhenQuantityIsAlreadyZero() {
         AssetMapper assetMapper = mock(AssetMapper.class);
-        AssetService service = new AssetService(assetMapper);
+        AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.ZERO);
         when(assetMapper.selectById(10L)).thenReturn(asset);
 
@@ -74,7 +75,7 @@ class AssetServiceTest {
     @Test
     void deleteStillRejectsAssetWithPositiveQuantity() {
         AssetMapper assetMapper = mock(AssetMapper.class);
-        AssetService service = new AssetService(assetMapper);
+        AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.ONE);
         when(assetMapper.selectById(10L)).thenReturn(asset);
 
@@ -98,5 +99,9 @@ class AssetServiceTest {
         asset.setCurrentPrice(BigDecimal.valueOf(12));
         asset.setMarketValue(asset.getCurrentPrice().multiply(quantity));
         return asset;
+    }
+
+    private AssetService service(AssetMapper assetMapper) {
+        return new AssetService(assetMapper, mock(MarketQuoteQueryService.class));
     }
 }

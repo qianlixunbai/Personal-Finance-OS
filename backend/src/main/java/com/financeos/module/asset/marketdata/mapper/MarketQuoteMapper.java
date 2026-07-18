@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 @Mapper
 public interface MarketQuoteMapper extends BaseMapper<MarketQuote> {
 
@@ -16,6 +18,20 @@ public interface MarketQuoteMapper extends BaseMapper<MarketQuote> {
             WHERE market = #{market} AND symbol = UPPER(TRIM(#{symbol}))
             """)
     MarketQuote findByMarketAndSymbol(@Param("market") String market, @Param("symbol") String symbol);
+
+    @Select("""
+            <script>
+            SELECT id, market, symbol, currency, price, quote_time, fetched_at, provider, created_at, updated_at
+            FROM market_quotes
+            WHERE market = #{market}
+              AND symbol IN
+              <foreach item="symbol" collection="symbols" open="(" separator="," close=")">
+                #{symbol}
+              </foreach>
+            </script>
+            """)
+    List<MarketQuote> findByMarketAndSymbols(@Param("market") String market,
+                                             @Param("symbols") List<String> symbols);
 
     default int upsertLatest(MarketQuote quote) {
         quote.prepareForPersistence();

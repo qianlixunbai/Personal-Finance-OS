@@ -313,6 +313,8 @@ Authorization: Bearer <token>
 - 当前没有完整资产更新 API；
 - 当前没有资产价格历史 API。
 - 行情刷新仅以资产自身 `symbol` 为输入；不会提供任意 symbol、批量刷新或 provider 状态接口。缓存命中不请求 provider；过期数据在 provider 失败时返回最近一次成功的参考行情和 warning。
+- `GET /assets`、`GET /assets/page` 和 `GET /assets/{id}` 的 `AssetResponse` 可包含 `marketQuote`。该字段为 `null` 或只读快照：`symbol`、`market`、`currency`、`price`、`quoteTime`、`fetchedAt`、`provider`、`freshness`；不包含仅属于刷新操作的 `refreshResult` 和 `warning`。
+- 普通 Asset 查询只批量读取 `market_quotes` 缓存，不调用 provider，也不修改 `assets.current_price`、`assets.market_value` 或行情快照。缓存的新鲜度按读取时的 15 分钟 TTL 动态返回 `FRESH` 或 `STALE`。
 
 ## 9.5 Dashboard APIs
 
