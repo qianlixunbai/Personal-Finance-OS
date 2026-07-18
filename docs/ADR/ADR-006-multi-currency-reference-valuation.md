@@ -72,7 +72,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 - 最终 CNY 参考估值不持久化，根据持仓、行情与 FX 快照请求时计算。
 - v2.1 不修改 Dashboard；最早在后续独立 ADR 中增加并列的“市场参考总资产”。
 
-本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。这表示架构决策生效，不表示 v2.1 的 refresh workflow、reference valuation 或 UI 已完成。
+本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。Phase 2 的内部 refresh workflow 已实现并通过最终验证；这表示架构决策生效，不表示 v2.1 的 Reference Valuation、API 或 UI 已完成。
 
 ## Base Currency
 
@@ -156,7 +156,7 @@ baseCurrencyMarketValue = nativeMarketValue × fxRateToCny
 
 ## Provider Boundary
 
-设计 `ExchangeRateProvider.fetchRate(baseCurrency, quoteCurrency)`、`ExchangeRateQuote` 与 `ExchangeRateProviderException`。真实 Provider、价格、许可证、覆盖范围和额度在 Phase 1 实施前独立核实，不假定 Twelve Data 适用。
+设计 `ExchangeRateProvider.fetchRate(baseCurrency, quoteCurrency)`、`ExchangeRateQuote` 与 `ExchangeRateProviderException`。Phase 2 仅实现内部 workflow；真实 Provider、价格、许可证、覆盖范围和额度仍须在 adapter 实施前独立核实，不假定 Twelve Data 适用。
 
 Provider adapter 只负责调用、校验和标准化。API Key 仅来自环境变量或 Secret Store；功能默认关闭；启用但缺 Key 时 fail-fast。401/403、429、5xx、timeout、malformed response、不支持货币对、非正 rate、时间缺失和币种不匹配均映射为内部分类，原始响应不返回客户端。
 
@@ -226,7 +226,6 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 
 - 提出时间：2026-07-19
 - 接受日期：2026-07-19
-- 当前完成范围：仅 v2.1 Phase 1 FX Foundation（`exchange_rates`、Entity、Mapper、Provider abstraction、Properties 与离线测试）
-- Phase 2：FX Refresh Workflow 已完成（60 分钟 TTL、缓存 freshness、single-flight、单进程额度保护与 stale fallback）；仍无真实 Provider、公开 API 或参考估值。
-- 尚未完成：FX refresh workflow、Reference Valuation、API、Dashboard 接入和 UI
+- 当前完成范围：v2.1 Phase 1 FX Foundation 已关闭；Phase 2 FX Refresh Workflow 已实现并完成验证（60 分钟 TTL、缓存 freshness、single-flight、单进程额度保护与 stale fallback）。
+- 尚未完成：Phase 3 Reference Valuation、公开 API、Dashboard 接入和 UI；仍无真实 Provider。
 - 正式生效：是；`Accepted` 不等于 v2.1 全部完成

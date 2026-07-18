@@ -422,4 +422,4 @@ The Assets page keeps the CNY manual valuation price separate from the reference
 
 v2.1 Phase 1 新增 `exchange_rates` 公共最新成功快照。`fx-data.enabled` 默认 `false`，本阶段没有真实 FX Provider、HTTP Client 或刷新接口，因此不会发出网络请求。`FX_DATA_API_KEY` 仅通过环境变量读取；`backend/.env.example` 只提供空占位符，不得提交真实 Key。
 
-Phase 2 增加内部 FX refresh workflow：默认 TTL 为 60 分钟，freshness 以 `fetched_at` 判断；同一 `base:quote` 使用 single-flight，额度为单进程内存中的每用户 5/min 与全局 30/min。刷新仍没有公开 API、真实 Provider 或网络 Client；失败时仅可返回既有 stale 快照，不能伪造汇率。当前后端测试总数为 196。
+Phase 2 增加内部 FX refresh workflow：默认 TTL 为 60 分钟，freshness 以 `fetched_at` 判断；同一 `base:quote` 使用 single-flight，额度为单进程内存中的每用户 5/min 与全局 30/min。刷新仍没有公开 API、真实 Provider 或网络 Client；失败时仅可返回既有 stale 快照，不能伪造汇率。当前后端测试总数为 213。

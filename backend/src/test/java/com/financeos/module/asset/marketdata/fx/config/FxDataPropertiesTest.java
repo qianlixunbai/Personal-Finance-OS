@@ -52,4 +52,14 @@ class FxDataPropertiesTest {
                     assertThat(context.getStartupFailure().getMessage()).doesNotContain("test-only-key");
                 });
     }
+
+    @Test
+    void rejectsNonPositiveRateLimitsWithoutExposingTheApiKey() {
+        contextRunner.withPropertyValues("fx-data.enabled=true", "fx-data.api-key=test-only-key",
+                        "fx-data.rate-limit.per-user-per-minute=0")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure().getMessage()).doesNotContain("test-only-key");
+                });
+    }
 }

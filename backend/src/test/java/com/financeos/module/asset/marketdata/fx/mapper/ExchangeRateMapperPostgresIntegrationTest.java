@@ -8,7 +8,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -52,7 +58,41 @@ class ExchangeRateMapperPostgresIntegrationTest extends PostgresIntegrationTest 
         ExchangeRate stored = exchangeRateMapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY");
         assertThat(affectedRows).isZero();
         assertThat(stored.getRate()).isEqualByComparingTo("7.250000000000");
+        assertThat(stored.getRateTime()).isEqualTo(Instant.parse("2026-01-02T04:04:05Z"));
+        assertThat(stored.getFetchedAt()).isEqualTo(Instant.parse("2026-01-02T04:05:05Z"));
         assertThat(stored.getProvider()).isEqualTo("CURRENT");
+    }
+
+    @Test
+    void replacesASnapshotWhenRateTimeMatchesAndFetchedAtIsNewer() {
+        exchangeRateMapper.upsertLatest(rate("USD", "CNY", "7.200000000000",
+                "2026-01-02T04:04:05Z", "2026-01-02T04:05:05Z", "FIRST"));
+        ExchangeRate original = exchangeRateMapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY");
+
+        exchangeRateMapper.upsertLatest(rate("USD", "CNY", "7.300000000000",
+                "2026-01-02T04:04:05Z", "2026-01-02T04:06:05Z", "SECOND"));
+        ExchangeRate stored = exchangeRateMapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY");
+
+        assertThat(stored.getId()).isEqualTo(original.getId());
+        assertThat(stored.getCreatedAt()).isEqualTo(original.getCreatedAt());
+        assertThat(stored.getRate()).isEqualByComparingTo("7.300000000000");
+        assertThat(stored.getFetchedAt()).isEqualTo(Instant.parse("2026-01-02T04:06:05Z"));
+        assertThat(stored.getProvider()).isEqualTo("SECOND");
+        assertThat(stored.getUpdatedAt()).isAfterOrEqualTo(original.getUpdatedAt());
+    }
+
+    @Test
+    void retainsEveryStoredFieldWhenRateTimeMatchesAndFetchedAtIsOlder() {
+        exchangeRateMapper.upsertLatest(rate("USD", "CNY", "7.200000000000",
+                "2026-01-02T04:04:05Z", "2026-01-02T04:06:05Z", "CURRENT"));
+        ExchangeRate original = exchangeRateMapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY");
+
+        int affectedRows = exchangeRateMapper.upsertLatest(rate("USD", "CNY", "7.100000000000",
+                "2026-01-02T04:04:05Z", "2026-01-02T04:05:05Z", "STALE"));
+        ExchangeRate stored = exchangeRateMapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY");
+
+        assertThat(affectedRows).isZero();
+        assertThat(stored).usingRecursiveComparison().isEqualTo(original);
     }
 
     @Test
@@ -74,6 +114,30 @@ class ExchangeRateMapperPostgresIntegrationTest extends PostgresIntegrationTest 
                 .doesNotThrowAnyException();
         assertThat(exchangeRateMapper.findByBaseCurrenciesAndQuoteCurrency(null, "CNY")).isEmpty();
         assertThat(exchangeRateMapper.findByBaseCurrenciesAndQuoteCurrency(List.of(), "CNY")).isEmpty();
+    }
+
+    @Test
+    void concurrentUpsertsLeaveExactlyOneCurrencyPairSnapshot() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        CyclicBarrier barrier = new CyclicBarrier(10);
+        try {
+            List<Future<Integer>> writes = new ArrayList<>();
+            for (int index = 0; index < 10; index++) {
+                int offset = index;
+                writes.add(executor.submit(() -> {
+                    barrier.await(5, TimeUnit.SECONDS);
+                    return exchangeRateMapper.upsertLatest(rate("USD", "CNY", "7.200000000000",
+                            Instant.parse("2026-01-02T04:04:05Z").plusSeconds(offset).toString(),
+                            Instant.parse("2026-01-02T04:05:05Z").plusSeconds(offset).toString(), "FX"));
+                }));
+            }
+            for (Future<Integer> write : writes) write.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM exchange_rates WHERE base_currency = 'USD' AND quote_currency = 'CNY'", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test

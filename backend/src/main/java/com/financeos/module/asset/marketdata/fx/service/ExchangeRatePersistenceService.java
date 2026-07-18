@@ -15,10 +15,11 @@ public class ExchangeRatePersistenceService {
 
     @Transactional
     public ExchangeRate upsert(ExchangeRate rate) {
+        rate.prepareForPersistence();
+        rate.setRate(rate.getRate().setScale(12, RoundingMode.HALF_UP));
         if (rate.getRate().precision() - rate.getRate().scale() > 12) {
             throw new IllegalArgumentException("Exchange rate exceeds NUMERIC(24,12) capacity");
         }
-        rate.setRate(rate.getRate().setScale(12, RoundingMode.HALF_UP));
         if (mapper.upsertLatest(rate) != 1) throw new IllegalStateException("Could not persist exchange rate");
         ExchangeRate stored = mapper.findByBaseCurrencyAndQuoteCurrency(rate.getBaseCurrency(), rate.getQuoteCurrency());
         if (stored == null) throw new IllegalStateException("Could not read persisted exchange rate");

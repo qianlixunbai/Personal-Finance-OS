@@ -59,9 +59,27 @@ public class ExchangeRateService {
     }
 
     private ExchangeRate entity(String base, String quote, ExchangeRateQuote providerQuote) {
-        if (providerQuote == null || !base.equals(queryService.normalize(providerQuote.baseCurrency())) || !quote.equals(queryService.normalize(providerQuote.quoteCurrency()))
-                || providerQuote.rate() == null || providerQuote.rate().signum() <= 0 || providerQuote.rateTime() == null
-                || providerQuote.provider() == null || providerQuote.provider().trim().isEmpty()) throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.RESPONSE_FORMAT);
+        if (providerQuote == null) throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.RESPONSE_FORMAT);
+        String responseBase;
+        String responseQuote;
+        try {
+            responseBase = queryService.normalize(providerQuote.baseCurrency());
+            responseQuote = queryService.normalize(providerQuote.quoteCurrency());
+        } catch (IllegalArgumentException exception) {
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.CURRENCY_MISMATCH);
+        }
+        if (!base.equals(responseBase) || !quote.equals(responseQuote)) {
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.CURRENCY_MISMATCH);
+        }
+        if (providerQuote.rate() == null || providerQuote.rate().signum() <= 0) {
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.INVALID_RATE);
+        }
+        if (providerQuote.rateTime() == null) {
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.INVALID_TIME);
+        }
+        if (providerQuote.provider() == null || providerQuote.provider().trim().isEmpty()) {
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.RESPONSE_FORMAT);
+        }
         ExchangeRate entity = new ExchangeRate(); entity.setBaseCurrency(base); entity.setQuoteCurrency(quote); entity.setRate(providerQuote.rate()); entity.setRateTime(providerQuote.rateTime()); entity.setFetchedAt(clock.instant()); entity.setProvider(providerQuote.provider()); return entity;
     }
 
