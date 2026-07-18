@@ -28,6 +28,8 @@ market-data:
   connect-timeout: 2s
   read-timeout: 5s
   cache-ttl: 15m
+  user-request-limit-per-minute: ${MARKET_DATA_USER_REQUEST_LIMIT_PER_MINUTE:10}
+  provider-request-limit-per-minute: ${MARKET_DATA_PROVIDER_REQUEST_LIMIT_PER_MINUTE:8}
 
 server:
   port: 8080

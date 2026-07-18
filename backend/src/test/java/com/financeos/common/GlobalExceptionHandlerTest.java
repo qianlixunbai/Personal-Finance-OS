@@ -2,6 +2,8 @@ package com.financeos.common;
 
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +33,17 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo(404);
         assertThat(response.getBody().message()).isEqualTo("流水不存在");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"429, TOO_MANY_REQUESTS", "502, BAD_GATEWAY", "503, SERVICE_UNAVAILABLE"})
+    void marketDataBusinessCodesKeepTheirHttpStatus(int code, HttpStatus expectedStatus) {
+        ResponseEntity<ApiResponse<Void>> response =
+                handler.handleBusinessException(new BusinessException(code, "sanitized market-data error"));
+
+        assertThat(response.getStatusCode()).isEqualTo(expectedStatus);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo(code);
     }
 
     @Test

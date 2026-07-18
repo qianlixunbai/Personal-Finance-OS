@@ -8,6 +8,10 @@ import com.financeos.common.PageResult;
 import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.service.AssetService;
+import com.financeos.module.asset.marketdata.dto.MarketQuoteFreshness;
+import com.financeos.module.asset.marketdata.dto.MarketQuoteRefreshResult;
+import com.financeos.module.asset.marketdata.dto.MarketQuoteResponse;
+import com.financeos.module.asset.marketdata.service.MarketQuoteService;
 import com.financeos.module.auth.config.SecurityConfig;
 import com.financeos.module.auth.config.SecurityErrorResponseHandler;
 import com.financeos.module.auth.util.JwtAuthFilter;
@@ -28,6 +32,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 
@@ -64,6 +69,9 @@ class AssetControllerWebMvcTest {
 
     @MockBean
     private AssetService assetService;
+
+    @MockBean
+    private MarketQuoteService marketQuoteService;
 
     @BeforeEach
     void passThroughJwtFilter() throws Exception {
@@ -224,6 +232,20 @@ class AssetControllerWebMvcTest {
         verify(assetService).delete(USER_ID, 7L);
     }
 
+    @Test
+    void refreshesOneOwnedAssetQuoteThroughTheDedicatedEndpoint() throws Exception {
+        when(marketQuoteService.refresh(USER_ID, 7L)).thenReturn(quoteResponse());
+
+        mockMvc.perform(post("/api/v1/assets/{id}/quote/refresh", 7L).with(authentication(currentUser())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.symbol").value("AAPL"))
+                .andExpect(jsonPath("$.data.refreshResult").value("UPDATED"))
+                .andExpect(jsonPath("$.data.warning").doesNotExist());
+
+        verify(marketQuoteService).refresh(USER_ID, 7L);
+    }
+
     private UsernamePasswordAuthenticationToken currentUser() {
         return new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList());
     }
@@ -233,5 +255,11 @@ class AssetControllerWebMvcTest {
                 new BigDecimal("12.50000000"), new BigDecimal("10.2300"), new BigDecimal("11.1100"),
                 new BigDecimal("138.8750"), new BigDecimal("11.0000"), new BigDecimal("8.6022"),
                 LocalDateTime.of(2026, 7, 16, 10, 30, 45));
+    }
+
+    private MarketQuoteResponse quoteResponse() {
+        return new MarketQuoteResponse("AAPL", "US", "USD", new BigDecimal("212.34"),
+                Instant.parse("2026-07-18T00:00:00Z"), Instant.parse("2026-07-18T00:01:00Z"), "TWELVE_DATA",
+                MarketQuoteFreshness.FRESH, MarketQuoteRefreshResult.UPDATED, null);
     }
 }

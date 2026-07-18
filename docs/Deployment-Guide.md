@@ -104,3 +104,7 @@ Use an empty PostgreSQL database for this Compose path. Flyway initializes it fr
 - Never place real database passwords or JWT secrets in Dockerfiles, Compose files, image build arguments, or image environment defaults.
 - `docker/.env.example` documents only variable structure and placeholder values.
 - This is a local/single-host deployment foundation, not a complete production operations platform.
+
+# Market data refresh configuration
+
+Market data remains disabled unless `MARKET_DATA_ENABLED=true`. Configure `MARKET_DATA_API_KEY` only in the deployment secret store. The optional limits default to `MARKET_DATA_USER_REQUEST_LIMIT_PER_MINUTE=10` and `MARKET_DATA_PROVIDER_REQUEST_LIMIT_PER_MINUTE=8`. These are process-local safeguards, not distributed rate limits.

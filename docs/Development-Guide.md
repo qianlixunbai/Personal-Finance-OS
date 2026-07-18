@@ -405,3 +405,9 @@ CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)�
 - 当前前端测试总计 9 项。
 
 任一命令失败都会使对应 Job 和整个工作流失败。当前 CI 只负责验证后端和前端，不包含 coverage、artifact、部署或分支保护配置。
+
+# Market data refresh
+
+`POST /api/v1/assets/{id}/quote/refresh` is disabled by default. It refreshes only an authenticated user's `STOCK` or `ETF` asset and returns an independent USD reference quote. It never writes `assets.current_price`, `assets.market_value`, or Dashboard data.
+
+The cache TTL defaults to 15 minutes. A stale cached quote is returned with a warning if the provider is unavailable. Provider calls use an in-process single-flight key per `(US, symbol)` and configurable per-user/global per-minute limits; cache hits do not consume either limit.

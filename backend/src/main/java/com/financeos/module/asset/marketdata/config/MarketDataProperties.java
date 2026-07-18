@@ -18,6 +18,8 @@ public class MarketDataProperties {
     private Duration connectTimeout = Duration.ofSeconds(2);
     private Duration readTimeout = Duration.ofSeconds(5);
     private Duration cacheTtl = Duration.ofMinutes(15);
+    private int userRequestLimitPerMinute = 10;
+    private int providerRequestLimitPerMinute = 8;
 
     @PostConstruct
     void validateEnabledConfiguration() {

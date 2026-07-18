@@ -133,7 +133,7 @@ class TwelveDataMarketDataClientTest {
                 Arguments.of(HttpStatus.BAD_REQUEST, MarketDataErrorType.INVALID_REQUEST),
                 Arguments.of(HttpStatus.NOT_FOUND, MarketDataErrorType.NOT_FOUND),
                 Arguments.of(HttpStatus.TOO_MANY_REQUESTS, MarketDataErrorType.RATE_LIMITED),
-                Arguments.of(HttpStatus.INTERNAL_SERVER_ERROR, MarketDataErrorType.PROVIDER_UNAVAILABLE)
+                Arguments.of(HttpStatus.INTERNAL_SERVER_ERROR, MarketDataErrorType.UPSTREAM_ERROR)
         );
     }
 

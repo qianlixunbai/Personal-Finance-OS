@@ -161,6 +161,7 @@ public class TwelveDataMarketDataClient implements MarketDataProvider {
             case 401, 403 -> MarketDataErrorType.AUTHENTICATION;
             case 404 -> MarketDataErrorType.NOT_FOUND;
             case 429 -> MarketDataErrorType.RATE_LIMITED;
+            case 500, 501, 502, 503, 504 -> MarketDataErrorType.UPSTREAM_ERROR;
             default -> MarketDataErrorType.PROVIDER_UNAVAILABLE;
         };
         return new MarketDataProviderException(errorType, "Market data provider request was unsuccessful");

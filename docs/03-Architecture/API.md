@@ -295,6 +295,7 @@ Authorization: Bearer <token>
 | `GET` | `/api/v1/assets/page` | 是 | Query: `page`, `size` | `ApiResponse<PageResult<AssetResponse>>` | 分页查询当前用户资产列表。 |
 | `GET` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 查询当前用户指定资产。非当前用户资产返回 `404`。 |
 | `POST` | `/api/v1/assets` | 是 | Body: `AssetRequest(name, symbol, type, market, currency, quantity, avgCost)` | `ApiResponse<AssetResponse>` | 创建资产持仓记录。 |
+| `POST` | `/api/v1/assets/{id}/quote/refresh` | 是 | Path: `id` | `ApiResponse<MarketQuoteResponse>` | 刷新本人 `STOCK` 或 `ETF` 的独立参考行情；不修改资产估值或 Dashboard。 |
 | `PUT` | `/api/v1/assets/{id}/price` | 是 | Path: `id`; Query: `price` | `ApiResponse<AssetResponse>` | 更新当前价格，并计算 `marketValue`。 |
 | `PUT` | `/api/v1/assets/{id}/close` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 将当前用户资产持仓快照清仓，`quantity` 归零。 |
 | `DELETE` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<Void>` | 删除资产。当前有持仓数量时拒绝删除。 |
@@ -311,6 +312,7 @@ Authorization: Bearer <token>
 - 当前 `AssetRequest` 不包含 `accountId`；
 - 当前没有完整资产更新 API；
 - 当前没有资产价格历史 API。
+- 行情刷新仅以资产自身 `symbol` 为输入；不会提供任意 symbol、批量刷新或 provider 状态接口。缓存命中不请求 provider；过期数据在 provider 失败时返回最近一次成功的参考行情和 warning。
 
 ## 9.5 Dashboard APIs
 

@@ -4,6 +4,8 @@ import com.financeos.common.ApiResponse;
 import com.financeos.common.PageResult;
 import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
+import com.financeos.module.asset.marketdata.dto.MarketQuoteResponse;
+import com.financeos.module.asset.marketdata.service.MarketQuoteService;
 import com.financeos.module.asset.service.AssetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -24,9 +26,11 @@ import java.util.List;
 public class AssetController {
 
     private final AssetService assetService;
+    private final MarketQuoteService marketQuoteService;
 
-    public AssetController(AssetService assetService) {
+    public AssetController(AssetService assetService, MarketQuoteService marketQuoteService) {
         this.assetService = assetService;
+        this.marketQuoteService = marketQuoteService;
     }
 
     @GetMapping
@@ -47,6 +51,12 @@ public class AssetController {
     @Operation(summary = "Get an asset", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<AssetResponse> get(@PathVariable Long id, Authentication auth) {
         return ApiResponse.ok(assetService.getById((Long) auth.getPrincipal(), id));
+    }
+
+    @PostMapping("/{id}/quote/refresh")
+    @Operation(summary = "Refresh an owned stock or ETF reference quote", security = @SecurityRequirement(name = "bearerAuth"))
+    public ApiResponse<MarketQuoteResponse> refreshQuote(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.ok(marketQuoteService.refresh((Long) auth.getPrincipal(), id));
     }
 
     @PostMapping

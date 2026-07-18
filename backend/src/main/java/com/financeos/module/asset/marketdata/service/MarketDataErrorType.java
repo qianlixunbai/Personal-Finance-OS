@@ -6,6 +6,7 @@ public enum MarketDataErrorType {
     NOT_FOUND,
     RATE_LIMITED,
     AUTHENTICATION,
+    UPSTREAM_ERROR,
     PROVIDER_UNAVAILABLE,
     TRANSPORT,
     RESPONSE_FORMAT,
