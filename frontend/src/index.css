@@ -71,6 +71,7 @@ a { color: inherit; }
 .button--small { min-height: 32px; padding: 6px 10px; font-size: 13px; }
 
 .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+.summary-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .summary-card { position: relative; overflow: hidden; min-height: 132px; padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: linear-gradient(135deg, #fff, var(--summary-tint, #f8fbff)); box-shadow: var(--shadow-card); transition: transform var(--transition-fast), box-shadow var(--transition-fast); }
 .summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
 .summary-card::after { position: absolute; right: -25px; bottom: -40px; width: 115px; height: 115px; border-radius: 40px; background: var(--summary-accent, #60a5fa); content: ''; opacity: .06; transform: rotate(24deg); }
