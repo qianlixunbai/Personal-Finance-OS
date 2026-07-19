@@ -36,7 +36,8 @@ class ExchangeRateServiceConcurrencyTest {
 
     @Test
     void singleFlightCallsProviderOnceForTenConcurrentRequestsAndChargesOnlyTheLeader() throws Exception {
-        Fixture fixture = fixture(1, 2);
+        FlightObservation flight = new FlightObservation(10);
+        Fixture fixture = fixture(1, 2, flight);
         blockInitialCacheLookups(fixture, 10, null);
         CountDownLatch providerStarted = new CountDownLatch(1);
         CountDownLatch releaseProvider = new CountDownLatch(1);
@@ -50,9 +51,11 @@ class ExchangeRateServiceConcurrencyTest {
         when(fixture.persistence.upsert(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         List<ExchangeRateRefreshResult> results = concurrently(10,
-                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, releaseProvider);
+                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, flight, releaseProvider);
 
         assertThat(results).allSatisfy(result -> assertThat(result.status()).isEqualTo(ExchangeRateRefreshStatus.UPDATED));
+        assertThat(flight.leaderCount()).isEqualTo(1);
+        assertThat(flight.followerCount()).isEqualTo(9);
         assertThat(calls).hasValue(1);
         verify(fixture.persistence).upsert(any());
         assertThat(fixture.limiter.tryAcquire(42L)).isFalse();
@@ -61,7 +64,8 @@ class ExchangeRateServiceConcurrencyTest {
 
     @Test
     void failedSingleFlightReturnsOneStaleFallbackAndAllowsTheNextRequestToRetry() throws Exception {
-        Fixture fixture = fixture(5, 30);
+        FlightObservation flight = new FlightObservation(10);
+        Fixture fixture = fixture(5, 30, flight);
         ExchangeRate old = rate("USD", "CNY", NOW.minusSeconds(3601), "7.20");
         blockInitialCacheLookups(fixture, 10, old);
         CountDownLatch providerStarted = new CountDownLatch(1);
@@ -79,13 +83,15 @@ class ExchangeRateServiceConcurrencyTest {
         when(fixture.persistence.upsert(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         List<ExchangeRateRefreshResult> results = concurrently(10,
-                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, releaseProvider);
+                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, flight, releaseProvider);
 
         assertThat(results).allSatisfy(result -> {
             assertThat(result.status()).isEqualTo(ExchangeRateRefreshStatus.STALE_FALLBACK);
             assertThat(result.rate()).isEqualByComparingTo(old.getRate());
             assertThat(result.warningCode()).isEqualTo("FX_REFRESH_FAILED");
         });
+        assertThat(flight.leaderCount()).isEqualTo(1);
+        assertThat(flight.followerCount()).isEqualTo(9);
         assertThat(fixture.service.refreshRate(42L, "USD", "CNY").status()).isEqualTo(ExchangeRateRefreshStatus.UPDATED);
         assertThat(calls).hasValue(2);
     }
@@ -223,7 +229,8 @@ class ExchangeRateServiceConcurrencyTest {
 
     @Test
     void followersShareTheLeadersNewerSecondSnapshotAfterAProviderFailure() throws Exception {
-        Fixture fixture = fixture(1, 30);
+        FlightObservation flight = new FlightObservation(10);
+        Fixture fixture = fixture(1, 30, flight);
         ExchangeRate first = staleRate("FIRST", NOW.minusSeconds(7200), NOW.minusSeconds(120), "7.20");
         ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
         blockInitialCacheLookupsThenReturnSecondSnapshot(fixture, 10, first, second);
@@ -241,9 +248,11 @@ class ExchangeRateServiceConcurrencyTest {
         when(fixture.persistence.upsert(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         List<ExchangeRateRefreshResult> results = concurrently(10,
-                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, releaseProvider);
+                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, flight, releaseProvider);
 
         assertThat(results).allSatisfy(result -> assertStaleFallback(result, second));
+        assertThat(flight.leaderCount()).isEqualTo(1);
+        assertThat(flight.followerCount()).isEqualTo(9);
         assertThat(calls).hasValue(1);
         verifyNoInteractions(fixture.persistence);
         assertThat(fixture.limiter.tryAcquire(42L)).isFalse();
@@ -252,7 +261,8 @@ class ExchangeRateServiceConcurrencyTest {
     }
 
     private List<ExchangeRateRefreshResult> concurrently(int count, ThrowingSupplier<ExchangeRateRefreshResult> action,
-                                                           CountDownLatch providerStarted, CountDownLatch releaseProvider) throws Exception {
+                                                           CountDownLatch providerStarted, FlightObservation flight,
+                                                           CountDownLatch releaseProvider) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(count);
         CyclicBarrier barrier = new CyclicBarrier(count);
         try {
@@ -263,17 +273,24 @@ class ExchangeRateServiceConcurrencyTest {
                     return action.get();
                 }));
             }
+            assertThat(flight.leaderCreated.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(flight.followersJoined.await(5, TimeUnit.SECONDS)).isTrue();
             releaseProvider.countDown();
             List<ExchangeRateRefreshResult> results = new ArrayList<>();
             for (Future<ExchangeRateRefreshResult> future : futures) results.add(future.get(5, TimeUnit.SECONDS));
             return results;
         } finally {
+            releaseProvider.countDown();
             executor.shutdownNow();
         }
     }
 
     private Fixture fixture(int perUser, int global) {
+        return fixture(perUser, global, SingleFlightObserver.noop());
+    }
+
+    private Fixture fixture(int perUser, int global, SingleFlightObserver observer) {
         FxDataProperties properties = new FxDataProperties();
         properties.setEnabled(true);
         properties.setCacheTtl(java.time.Duration.ofMinutes(60));
@@ -286,7 +303,7 @@ class ExchangeRateServiceConcurrencyTest {
         ExchangeRateRateLimiter limiter = new ExchangeRateRateLimiter(properties, clock);
         ExchangeRateQueryService query = new ExchangeRateQueryService(mapper, properties, clock);
         return new Fixture(mapper, provider, persistence, limiter,
-                new ExchangeRateService(query, persistence, limiter, properties, provider, clock));
+                new ExchangeRateService(query, persistence, limiter, properties, provider, clock, observer));
     }
 
     private void blockInitialCacheLookups(Fixture fixture, int callerCount, ExchangeRate result) {
@@ -344,6 +361,36 @@ class ExchangeRateServiceConcurrencyTest {
         assertThat(result.fetchedAt()).isEqualTo(expected.getFetchedAt());
         assertThat(result.provider()).isEqualTo(expected.getProvider());
         assertThat(result.warningCode()).isEqualTo("FX_REFRESH_FAILED");
+    }
+
+    private static final class FlightObservation implements SingleFlightObserver {
+        private final CountDownLatch leaderCreated = new CountDownLatch(1);
+        private final CountDownLatch followersJoined;
+        private final AtomicInteger leaders = new AtomicInteger();
+        private final AtomicInteger followers = new AtomicInteger();
+
+        private FlightObservation(int callerCount) {
+            this.followersJoined = new CountDownLatch(callerCount - 1);
+        }
+
+        @Override
+        public void onSingleFlightJoined(String key, SingleFlightRole role) {
+            if (role == SingleFlightRole.LEADER) {
+                leaders.incrementAndGet();
+                leaderCreated.countDown();
+            } else {
+                followers.incrementAndGet();
+                followersJoined.countDown();
+            }
+        }
+
+        private int leaderCount() {
+            return leaders.get();
+        }
+
+        private int followerCount() {
+            return followers.get();
+        }
     }
 
     private record Fixture(ExchangeRateMapper mapper, ExchangeRateProvider provider, ExchangeRatePersistenceService persistence,
