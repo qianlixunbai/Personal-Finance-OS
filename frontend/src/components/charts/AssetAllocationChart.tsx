@@ -17,15 +17,16 @@ export function AssetAllocationChart({ assetAllocation }: { assetAllocation: Ass
                     return `${item.marker ?? ''}${item.data.name}<br/>市值：${formatCurrency(item.data.value)}<br/>占比：${item.data.percentage.toFixed(2)}%`;
                 },
             },
-            legend: { type: 'scroll', bottom: 0, left: 'center' },
+            color: ['#2563eb', '#84cc16', '#f97316', '#334155', '#8b5cf6'],
+            legend: { type: 'scroll', bottom: 0, left: 'center', textStyle: { color: '#475569', fontSize: 12 } },
             series: [{
                 type: 'pie',
-                radius: ['45%', '70%'],
+                radius: ['48%', '72%'],
                 center: ['50%', '42%'],
                 avoidLabelOverlap: true,
                 label: { show: false },
                 labelLine: { show: false },
-                emphasis: { label: { show: true, fontWeight: 'bold' } },
+                emphasis: { label: { show: true, fontWeight: 'bold', color: '#172554' }, itemStyle: { shadowBlur: 10, shadowColor: 'rgba(15, 23, 42, .16)' } },
                 data: chartData,
             }],
         };

@@ -19,22 +19,25 @@ export function MonthlyCashFlowChart({ monthIncome, monthExpense }: MonthlyCashF
                 return items.map(item => `${item.marker}${item.name}：${formatCurrency(Number(item.value))}`).join('<br/>');
             },
         },
-        grid: { top: 24, right: 16, bottom: 48, left: 72 },
+        grid: { top: 20, right: 14, bottom: 44, left: 68 },
         xAxis: {
             type: 'category',
             data: ['本月收入', '本月支出'],
             axisTick: { alignWithLabel: true },
+            axisLine: { lineStyle: { color: '#cbd5e1' } },
+            axisLabel: { color: '#64748b' },
         },
         yAxis: {
             type: 'value',
-            axisLabel: { formatter: value => formatCurrency(Number(value)) },
+            axisLabel: { color: '#64748b', formatter: value => formatCurrency(Number(value)) },
+            splitLine: { lineStyle: { color: '#e8eef7' } },
         },
         series: [{
             type: 'bar',
             barMaxWidth: 72,
             data: [
-                { value: monthIncome, itemStyle: { color: '#00b894' } },
-                { value: monthExpense, itemStyle: { color: '#e17055' } },
+                { value: monthIncome, itemStyle: { color: '#059669', borderRadius: [5, 5, 0, 0] } },
+                { value: monthExpense, itemStyle: { color: '#e5482d', borderRadius: [5, 5, 0, 0] } },
             ],
         }],
     }), [monthIncome, monthExpense]);
