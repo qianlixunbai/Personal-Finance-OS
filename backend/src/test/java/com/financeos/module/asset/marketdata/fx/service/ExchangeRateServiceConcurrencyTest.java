@@ -158,6 +158,99 @@ class ExchangeRateServiceConcurrencyTest {
         verify(emptyFixture.provider, org.mockito.Mockito.times(2)).fetchRate("USD", "CNY");
     }
 
+    @Test
+    void fallsBackToTheSecondStaleSnapshotWhenTheFirstLookupIsEmptyAndProviderFails() {
+        Fixture fixture = fixture(1, 2);
+        ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenReturn(null, second);
+        when(fixture.provider.fetchRate("USD", "CNY"))
+                .thenThrow(new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.TIMEOUT));
+
+        ExchangeRateRefreshResult result = fixture.service.refreshRate(42L, "USD", "CNY");
+
+        assertStaleFallback(result, second);
+        verify(fixture.provider).fetchRate("USD", "CNY");
+        verifyNoInteractions(fixture.persistence);
+        assertThat(fixture.limiter.tryAcquire(42L)).isFalse();
+    }
+
+    @Test
+    void fallsBackToTheNewerSecondStaleSnapshotWhenProviderFails() {
+        Fixture fixture = fixture(5, 30);
+        ExchangeRate first = staleRate("FIRST", NOW.minusSeconds(7200), NOW.minusSeconds(120), "7.20");
+        ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenReturn(first, second);
+        when(fixture.provider.fetchRate("USD", "CNY"))
+                .thenThrow(new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.TIMEOUT));
+
+        ExchangeRateRefreshResult result = fixture.service.refreshRate(42L, "USD", "CNY");
+
+        assertStaleFallback(result, second);
+        verify(fixture.provider).fetchRate("USD", "CNY");
+        verifyNoInteractions(fixture.persistence);
+    }
+
+    @Test
+    void persistenceFailureFallsBackToTheSecondSnapshotWhenTheFirstLookupIsEmpty() {
+        Fixture fixture = fixture(5, 30);
+        ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenReturn(null, second);
+        when(fixture.provider.fetchRate("USD", "CNY")).thenReturn(quote("USD", "CNY"));
+        when(fixture.persistence.upsert(any())).thenThrow(new IllegalStateException("persistence failed"));
+
+        ExchangeRateRefreshResult result = fixture.service.refreshRate(42L, "USD", "CNY");
+
+        assertStaleFallback(result, second);
+        verify(fixture.provider).fetchRate("USD", "CNY");
+        verify(fixture.persistence).upsert(any());
+    }
+
+    @Test
+    void persistenceFailureFallsBackToTheNewerSecondSnapshot() {
+        Fixture fixture = fixture(5, 30);
+        ExchangeRate first = staleRate("FIRST", NOW.minusSeconds(7200), NOW.minusSeconds(120), "7.20");
+        ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenReturn(first, second);
+        when(fixture.provider.fetchRate("USD", "CNY")).thenReturn(quote("USD", "CNY"));
+        when(fixture.persistence.upsert(any())).thenThrow(new IllegalStateException("persistence failed"));
+
+        ExchangeRateRefreshResult result = fixture.service.refreshRate(42L, "USD", "CNY");
+
+        assertStaleFallback(result, second);
+        verify(fixture.provider).fetchRate("USD", "CNY");
+        verify(fixture.persistence).upsert(any());
+    }
+
+    @Test
+    void followersShareTheLeadersNewerSecondSnapshotAfterAProviderFailure() throws Exception {
+        Fixture fixture = fixture(1, 30);
+        ExchangeRate first = staleRate("FIRST", NOW.minusSeconds(7200), NOW.minusSeconds(120), "7.20");
+        ExchangeRate second = staleRate("SECOND", NOW.minusSeconds(3600), NOW.minusSeconds(30), "7.21");
+        blockInitialCacheLookupsThenReturnSecondSnapshot(fixture, 10, first, second);
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch releaseProvider = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        doAnswer(invocation -> {
+            if (calls.incrementAndGet() == 1) {
+                providerStarted.countDown();
+                assertThat(releaseProvider.await(5, TimeUnit.SECONDS)).isTrue();
+                throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.TIMEOUT);
+            }
+            return quote("USD", "CNY");
+        }).when(fixture.provider).fetchRate("USD", "CNY");
+        when(fixture.persistence.upsert(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<ExchangeRateRefreshResult> results = concurrently(10,
+                () -> fixture.service.refreshRate(42L, "USD", "CNY"), providerStarted, releaseProvider);
+
+        assertThat(results).allSatisfy(result -> assertStaleFallback(result, second));
+        assertThat(calls).hasValue(1);
+        verifyNoInteractions(fixture.persistence);
+        assertThat(fixture.limiter.tryAcquire(42L)).isFalse();
+        assertThat(fixture.service.refreshRate(99L, "USD", "CNY").status()).isEqualTo(ExchangeRateRefreshStatus.UPDATED);
+        assertThat(calls).hasValue(2);
+    }
+
     private List<ExchangeRateRefreshResult> concurrently(int count, ThrowingSupplier<ExchangeRateRefreshResult> action,
                                                            CountDownLatch providerStarted, CountDownLatch releaseProvider) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(count);
@@ -208,6 +301,19 @@ class ExchangeRateServiceConcurrencyTest {
         });
     }
 
+    private void blockInitialCacheLookupsThenReturnSecondSnapshot(Fixture fixture, int callerCount, ExchangeRate first, ExchangeRate second) {
+        CountDownLatch allInitialLookups = new CountDownLatch(callerCount);
+        AtomicInteger lookups = new AtomicInteger();
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenAnswer(invocation -> {
+            if (lookups.incrementAndGet() <= callerCount) {
+                allInitialLookups.countDown();
+                assertThat(allInitialLookups.await(5, TimeUnit.SECONDS)).isTrue();
+                return first;
+            }
+            return second;
+        });
+    }
+
     private ExchangeRateQuote quote(String base, String quote) {
         return new ExchangeRateQuote(base, quote, new BigDecimal("7.2345678901234"), NOW.minusSeconds(1), "TEST");
     }
@@ -221,6 +327,23 @@ class ExchangeRateServiceConcurrencyTest {
         rate.setFetchedAt(fetchedAt);
         rate.setProvider("TEST");
         return rate;
+    }
+
+    private ExchangeRate staleRate(String provider, Instant fetchedAt, Instant rateTime, String value) {
+        ExchangeRate rate = rate("USD", "CNY", fetchedAt, value);
+        rate.setRateTime(rateTime);
+        rate.setProvider(provider);
+        return rate;
+    }
+
+    private void assertStaleFallback(ExchangeRateRefreshResult result, ExchangeRate expected) {
+        assertThat(result.status()).isEqualTo(ExchangeRateRefreshStatus.STALE_FALLBACK);
+        assertThat(result.freshness()).isEqualTo(ExchangeRateFreshness.STALE);
+        assertThat(result.rate()).isEqualByComparingTo(expected.getRate());
+        assertThat(result.rateTime()).isEqualTo(expected.getRateTime());
+        assertThat(result.fetchedAt()).isEqualTo(expected.getFetchedAt());
+        assertThat(result.provider()).isEqualTo(expected.getProvider());
+        assertThat(result.warningCode()).isEqualTo("FX_REFRESH_FAILED");
     }
 
     private record Fixture(ExchangeRateMapper mapper, ExchangeRateProvider provider, ExchangeRatePersistenceService persistence,

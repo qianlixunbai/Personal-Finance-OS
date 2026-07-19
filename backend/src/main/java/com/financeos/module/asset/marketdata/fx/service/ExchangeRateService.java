@@ -47,13 +47,14 @@ public class ExchangeRateService {
     private ExchangeRateRefreshResult refreshLeader(Long userId, String base, String quote, ExchangeRate first) {
         ExchangeRate second = queryService.find(base, quote);
         if (queryService.freshnessOf(second) == ExchangeRateFreshness.FRESH) return result(second, ExchangeRateFreshness.FRESH, ExchangeRateRefreshStatus.CACHE_HIT, null);
+        ExchangeRate fallback = second != null ? second : first;
         try {
             if (!limiter.tryAcquire(userId)) throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.RATE_LIMITED);
             ExchangeRateQuote quoteResult = provider.fetchRate(base, quote);
             ExchangeRate entity = entity(base, quote, quoteResult);
             return result(persistenceService.upsert(entity), ExchangeRateFreshness.FRESH, ExchangeRateRefreshStatus.UPDATED, null);
         } catch (RuntimeException exception) {
-            if (first != null) return result(first, ExchangeRateFreshness.STALE, ExchangeRateRefreshStatus.STALE_FALLBACK, "FX_REFRESH_FAILED");
+            if (fallback != null) return result(fallback, ExchangeRateFreshness.STALE, ExchangeRateRefreshStatus.STALE_FALLBACK, "FX_REFRESH_FAILED");
             throw exception;
         }
     }
