@@ -1,5 +1,7 @@
 # Financial Rules（金融领域规则）
 
+> v2.1 Phase 3: reference valuation is derived only (`quantity × quotePrice × fxRate`) with `BigDecimal`; final CNY is scale 2, `HALF_UP`. It is never persisted and never changes manual Asset values, Account/Transaction truth, or Dashboard totals.
+
 **项目名称：** Personal Finance OS
 
 **版本：** v1.0

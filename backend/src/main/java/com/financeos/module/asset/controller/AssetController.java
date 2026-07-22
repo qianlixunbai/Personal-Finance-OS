@@ -6,6 +6,8 @@ import com.financeos.module.asset.dto.AssetRequest;
 import com.financeos.module.asset.dto.AssetResponse;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteResponse;
 import com.financeos.module.asset.marketdata.service.MarketQuoteService;
+import com.financeos.module.asset.valuation.dto.ReferenceValuationResponse;
+import com.financeos.module.asset.valuation.service.ReferenceValuationRefreshService;
 import com.financeos.module.asset.service.AssetService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,10 +29,13 @@ public class AssetController {
 
     private final AssetService assetService;
     private final MarketQuoteService marketQuoteService;
+    private final ReferenceValuationRefreshService referenceValuationRefreshService;
 
-    public AssetController(AssetService assetService, MarketQuoteService marketQuoteService) {
+    public AssetController(AssetService assetService, MarketQuoteService marketQuoteService,
+                           ReferenceValuationRefreshService referenceValuationRefreshService) {
         this.assetService = assetService;
         this.marketQuoteService = marketQuoteService;
+        this.referenceValuationRefreshService = referenceValuationRefreshService;
     }
 
     @GetMapping
@@ -57,6 +62,12 @@ public class AssetController {
     @Operation(summary = "Refresh an owned stock or ETF reference quote", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<MarketQuoteResponse> refreshQuote(@PathVariable Long id, Authentication auth) {
         return ApiResponse.ok(marketQuoteService.refresh((Long) auth.getPrincipal(), id));
+    }
+
+    @PostMapping("/{id}/reference-valuation/refresh")
+    @Operation(summary = "Refresh an owned asset reference valuation", security = @SecurityRequirement(name = "bearerAuth"))
+    public ApiResponse<ReferenceValuationResponse> refreshReferenceValuation(@PathVariable Long id, Authentication auth) {
+        return ApiResponse.ok(referenceValuationRefreshService.refresh((Long) auth.getPrincipal(), id));
     }
 
     @PostMapping

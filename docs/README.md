@@ -1,5 +1,7 @@
 # Personal Finance OS 文档中心
 
+> v2.1 Phase 3 Reference Valuation Backend is implemented: Asset responses can include a cached, read-only reference valuation; normal GET operations do not call providers, and explicit refresh is `POST /api/v1/assets/{id}/reference-valuation/refresh`. Phase 4 UI is not started.
+
 ## 1. 阅读说明
 
 - 根目录 [README.md](../README.md) 是项目首页和作品集入口。

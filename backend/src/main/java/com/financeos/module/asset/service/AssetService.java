@@ -10,6 +10,9 @@ import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.mapper.AssetMapper;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteSnapshotResponse;
 import com.financeos.module.asset.marketdata.service.MarketQuoteQueryService;
+import com.financeos.module.asset.valuation.dto.ReferenceValuationResponse;
+import com.financeos.module.asset.valuation.service.ReferenceValuationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,10 +30,18 @@ public class AssetService {
 
     private final AssetMapper assetMapper;
     private final MarketQuoteQueryService marketQuoteQueryService;
+    private final ReferenceValuationService referenceValuationService;
 
     public AssetService(AssetMapper assetMapper, MarketQuoteQueryService marketQuoteQueryService) {
+        this(assetMapper, marketQuoteQueryService, null);
+    }
+
+    @Autowired
+    public AssetService(AssetMapper assetMapper, MarketQuoteQueryService marketQuoteQueryService,
+                        ReferenceValuationService referenceValuationService) {
         this.assetMapper = assetMapper;
         this.marketQuoteQueryService = marketQuoteQueryService;
+        this.referenceValuationService = referenceValuationService;
     }
 
     public List<AssetResponse> listByUser(Long userId) {
@@ -58,7 +69,8 @@ public class AssetService {
         if (asset == null || !asset.getUserId().equals(userId)) {
             throw new BusinessException(404, "资产不存在");
         }
-        return toResponse(asset, quoteFor(asset));
+        MarketQuoteSnapshotResponse quote = quoteFor(asset);
+        return toResponse(asset, quote, referenceValuationFor(asset, quote));
     }
 
     @Transactional
@@ -75,7 +87,7 @@ public class AssetService {
         asset.setQuantity(req.quantity());
         asset.setAvgCost(req.avgCost());
         assetMapper.insert(asset);
-        return toResponse(asset, null);
+        return toResponse(asset, null, null);
     }
 
     @Transactional
@@ -90,7 +102,7 @@ public class AssetService {
         asset.setCurrentPrice(currentPrice);
         asset.setMarketValue(currentPrice.multiply(asset.getQuantity()));
         assetMapper.updateById(asset);
-        return toResponse(asset, null);
+        return toResponse(asset, null, null);
     }
 
     @Transactional
@@ -104,7 +116,7 @@ public class AssetService {
             asset.setMarketValue(BigDecimal.ZERO);
             assetMapper.updateById(asset);
         }
-        return toResponse(asset, null);
+        return toResponse(asset, null, null);
     }
 
     @Transactional
@@ -128,7 +140,10 @@ public class AssetService {
     private List<AssetResponse> toResponses(List<Asset> assets) {
         Map<String, MarketQuoteSnapshotResponse> quotes = marketQuoteQueryService.findCachedUsQuotes(
                 assets.stream().filter(this::supportsMarketQuote).map(Asset::getSymbol).toList());
-        return assets.stream().map(asset -> toResponse(asset, quoteFromMap(asset, quotes))).toList();
+        List<Asset> supportedAssets = assets.stream().filter(this::supportsMarketQuote).toList();
+        Map<Long, ReferenceValuationResponse> valuations = referenceValuationService == null
+                ? Map.of() : referenceValuationService.calculateAll(supportedAssets, quotes);
+        return assets.stream().map(asset -> toResponse(asset, quoteFromMap(asset, quotes), valuations.get(asset.getId()))).toList();
     }
 
     private MarketQuoteSnapshotResponse quoteFromMap(Asset asset, Map<String, MarketQuoteSnapshotResponse> quotes) {
@@ -149,7 +164,16 @@ public class AssetService {
                 && MARKET.equals(asset.getMarket().trim().toUpperCase(Locale.ROOT));
     }
 
-    private AssetResponse toResponse(Asset a, MarketQuoteSnapshotResponse marketQuote) {
+    private ReferenceValuationResponse referenceValuationFor(Asset asset, MarketQuoteSnapshotResponse quote) {
+        if (referenceValuationService == null || !supportsMarketQuote(asset)) {
+            return null;
+        }
+        Map<String, MarketQuoteSnapshotResponse> quotes = quote == null ? Map.of() : Map.of(quote.symbol(), quote);
+        return referenceValuationService.calculateAll(List.of(asset), quotes).get(asset.getId());
+    }
+
+    private AssetResponse toResponse(Asset a, MarketQuoteSnapshotResponse marketQuote,
+                                     ReferenceValuationResponse referenceValuation) {
         BigDecimal currentPrice = a.getCurrentPrice() != null ? a.getCurrentPrice() : BigDecimal.ZERO;
         BigDecimal marketValue = currentPrice.multiply(a.getQuantity());
         BigDecimal cost = a.getAvgCost().multiply(a.getQuantity());
@@ -159,6 +183,6 @@ public class AssetService {
                 : BigDecimal.ZERO;
         return new AssetResponse(a.getId(), a.getName(), a.getSymbol(), a.getType(),
                 a.getMarket(), a.getCurrency(), a.getQuantity(), a.getAvgCost(),
-                currentPrice, marketValue, profitLoss, profitLossRate, a.getCreatedAt(), marketQuote);
+                currentPrice, marketValue, profitLoss, profitLossRate, a.getCreatedAt(), marketQuote, referenceValuation);
     }
 }

@@ -1,5 +1,7 @@
 # Personal Finance OS
 
+> v2.1 Phase 3 adds read-only, non-persistent CNY reference valuation to Asset APIs. It never changes manual CNY Asset values or Dashboard totals; normal GET requests do not call providers. Phase 4 Assets UI and real FX provider secrets remain future work.
+
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 
 基于 **Java 21、Spring Boot 3、React 和 PostgreSQL** 的工程化个人财务管理系统，用于管理账户、资产与交易流水，并通过 Dashboard 聚合真实业务数据。它不是简单 CRUD Demo：项目强调用户隔离、金融规则、数据库迁移、端到端验证与持续文档收口。

@@ -1,5 +1,7 @@
 # Roadmap（项目发展路线图）
 
+> **v2.1 Phase 3 Reference Valuation Backend: implemented.** Asset APIs provide a read-only, non-persistent cached CNY reference valuation; ordinary GET requests do not call providers and Dashboard remains unchanged. Phase 4 Assets UI, real FX providers, and production secrets are not started.
+
 **项目名称：** Personal Finance OS
 
 **当前阶段：** v2.1 Phase 2 FX Refresh Workflow（已完成；Phase 3-4 尚未开始）

@@ -1,5 +1,7 @@
 # API（接口设计基线）
 
+> v2.1 Phase 3: Asset list/page/detail responses add nullable `referenceValuation`. GET is snapshot-only and never calls providers. `POST /api/v1/assets/{id}/reference-valuation/refresh` accepts only the path Asset ID and authenticated user context; existing quote refresh remains quote-only.
+
 **项目名称：** Personal Finance OS
 
 **版本：** v1.0

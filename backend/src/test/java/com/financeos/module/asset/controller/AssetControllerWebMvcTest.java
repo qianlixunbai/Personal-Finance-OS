@@ -13,6 +13,8 @@ import com.financeos.module.asset.marketdata.dto.MarketQuoteRefreshResult;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteResponse;
 import com.financeos.module.asset.marketdata.dto.MarketQuoteSnapshotResponse;
 import com.financeos.module.asset.marketdata.service.MarketQuoteService;
+import com.financeos.module.asset.valuation.dto.ReferenceValuationResponse;
+import com.financeos.module.asset.valuation.service.ReferenceValuationRefreshService;
 import com.financeos.module.auth.config.SecurityConfig;
 import com.financeos.module.auth.config.SecurityErrorResponseHandler;
 import com.financeos.module.auth.util.JwtAuthFilter;
@@ -73,6 +75,9 @@ class AssetControllerWebMvcTest {
 
     @MockBean
     private MarketQuoteService marketQuoteService;
+
+    @MockBean
+    private ReferenceValuationRefreshService referenceValuationRefreshService;
 
     @BeforeEach
     void passThroughJwtFilter() throws Exception {
@@ -266,6 +271,21 @@ class AssetControllerWebMvcTest {
         verify(marketQuoteService).refresh(USER_ID, 7L);
     }
 
+    @Test
+    void refreshesReferenceValuationThroughItsDedicatedEndpointWithoutRequestBody() throws Exception {
+        when(referenceValuationRefreshService.refresh(USER_ID, 7L)).thenReturn(referenceValuation());
+
+        mockMvc.perform(post("/api/v1/assets/{id}/reference-valuation/refresh", 7L).with(authentication(currentUser())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.assetId").value(7))
+                .andExpect(jsonPath("$.data.baseCurrency").value("CNY"))
+                .andExpect(jsonPath("$.data.formulaVersion").value("REFERENCE_VALUATION_V1"));
+
+        verify(referenceValuationRefreshService).refresh(USER_ID, 7L);
+        verifyNoInteractions(marketQuoteService);
+    }
+
     private UsernamePasswordAuthenticationToken currentUser() {
         return new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList());
     }
@@ -284,5 +304,16 @@ class AssetControllerWebMvcTest {
         return new MarketQuoteResponse("AAPL", "US", "USD", new BigDecimal("212.34"),
                 Instant.parse("2026-07-18T00:00:00Z"), Instant.parse("2026-07-18T00:01:00Z"), "TWELVE_DATA",
                 MarketQuoteFreshness.FRESH, MarketQuoteRefreshResult.UPDATED, null);
+    }
+
+    private ReferenceValuationResponse referenceValuation() {
+        return new ReferenceValuationResponse(7L, "AAPL", new BigDecimal("2.00000000"),
+                "CNY", new BigDecimal("10.00000000"), Instant.parse("2026-07-22T00:00:00Z"),
+                Instant.parse("2026-07-22T00:01:00Z"), "TEST", MarketQuoteFreshness.FRESH,
+                false, "CNY", "CNY", BigDecimal.ONE, null, null, "SYSTEM_IDENTITY",
+                com.financeos.module.asset.marketdata.fx.service.ExchangeRateFreshness.FRESH,
+                new BigDecimal("20.0000000000000000"), "CNY", new BigDecimal("20.00"),
+                com.financeos.module.asset.valuation.dto.ReferenceValuationFreshness.FRESH,
+                Instant.parse("2026-07-22T00:02:00Z"), "REFERENCE_VALUATION_V1", List.of());
     }
 }
