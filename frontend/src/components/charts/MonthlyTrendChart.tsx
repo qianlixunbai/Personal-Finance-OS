@@ -14,7 +14,7 @@ interface MonthlyCashFlow {
 export function MonthlyTrendChart({ monthlyCashFlowTrend }: { monthlyCashFlowTrend: MonthlyCashFlow[] }) {
     const hasCashFlow = monthlyCashFlowTrend.some(item => item.income !== 0 || item.expense !== 0);
     const option = useMemo<EChartsOption>(() => ({
-        color: ['#00b894', '#e17055', '#0984e3'],
+        color: ['#059669', '#e5482d', '#2563eb'],
         tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'line' },
@@ -24,22 +24,24 @@ export function MonthlyTrendChart({ monthlyCashFlowTrend }: { monthlyCashFlowTre
                 return `${month}<br/>${items.map(item => `${item.marker}${item.seriesName}：${formatCurrency(Number(item.value))}`).join('<br/>')}`;
             },
         },
-        legend: { type: 'scroll', top: 0, left: 'center' },
-        grid: { top: 52, right: 16, bottom: 64, left: 72, containLabel: true },
+        legend: { type: 'scroll', top: 0, left: 'center', textStyle: { color: '#475569', fontSize: 12 } },
+        grid: { top: 48, right: 14, bottom: 58, left: 68, containLabel: true },
         xAxis: {
             type: 'category',
             boundaryGap: false,
             data: monthlyCashFlowTrend.map(item => item.month),
-            axisLabel: { rotate: 30, hideOverlap: true },
+            axisLabel: { rotate: 30, hideOverlap: true, color: '#64748b' },
+            axisLine: { lineStyle: { color: '#cbd5e1' } },
         },
         yAxis: {
             type: 'value',
-            axisLabel: { formatter: value => formatCurrency(Number(value)) },
+            axisLabel: { color: '#64748b', formatter: value => formatCurrency(Number(value)) },
+            splitLine: { lineStyle: { color: '#e8eef7' } },
         },
         series: [
-            { name: '收入', type: 'line', data: monthlyCashFlowTrend.map(item => item.income) },
-            { name: '支出', type: 'line', data: monthlyCashFlowTrend.map(item => item.expense) },
-            { name: '结余', type: 'line', lineStyle: { type: 'dashed' }, data: monthlyCashFlowTrend.map(item => item.net) },
+            { name: '收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, data: monthlyCashFlowTrend.map(item => item.income) },
+            { name: '支出', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, data: monthlyCashFlowTrend.map(item => item.expense) },
+            { name: '结余', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { type: 'dashed' }, data: monthlyCashFlowTrend.map(item => item.net) },
         ],
     }), [monthlyCashFlowTrend]);
 

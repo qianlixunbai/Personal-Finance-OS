@@ -1,4 +1,12 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Icon } from './Visual';
+
+const links = [
+    { to: '/', label: '仪表盘', end: true },
+    { to: '/accounts', label: '账户' },
+    { to: '/assets', label: '资产' },
+    { to: '/transactions', label: '交易流水' },
+];
 
 export default function Layout() {
     const navigate = useNavigate();
@@ -9,15 +17,14 @@ export default function Layout() {
     };
 
     return (
-        <div className="demo-shell">
+        <div className="app-shell">
             <nav className="app-nav" aria-label="主导航">
-                <Link className="app-brand" to="/">Personal Finance OS <span>DEMO</span></Link>
-                <div className="app-nav-links">
-                    <Link to="/">仪表盘</Link>
-                    <Link to="/accounts">账户</Link>
-                    <Link to="/assets">资产</Link>
-                    <Link to="/transactions">交易流水</Link>
-                    <button type="button" onClick={logout}>返回介绍</button>
+                <div className="app-nav__inner">
+                    <NavLink to="/" end className="brand" aria-label="Personal Finance OS 仪表盘"><span className="brand__mark"><Icon name="brand" size={20} /></span><span>Personal Finance OS</span><span className="brand__tag">DEMO</span></NavLink>
+                    <div className="app-nav__links">
+                        {links.map(link => <NavLink key={link.to} to={link.to} end={link.end} className={({ isActive }) => `app-nav__link${isActive ? ' app-nav__link--active' : ''}`}>{link.label}</NavLink>)}
+                        <button type="button" className="app-nav__logout" onClick={logout}>返回介绍</button>
+                    </div>
                 </div>
             </nav>
             <main className="app-main">
