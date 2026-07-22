@@ -879,3 +879,6 @@ Architecture Review 结论：**通过**。
 该架构基线已冻结。后续架构级变化必须通过 ADR 记录，不应直接在业务开发中隐式改变架构边界。
 
 根据当前项目规范，下一阶段仍不应直接进入 Database 或 API 设计，除非项目维护者明确确认。
+# Phase 2A concurrency note
+
+Per ADR-008, the Account module owns the balance mutation primitive. Command services coordinate one outer transaction and lock existing facts before deduplicated Account rows in ascending ID order. Future investment write paths must reuse this protocol.

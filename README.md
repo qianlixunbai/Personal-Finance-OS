@@ -256,3 +256,6 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 ## 项目定位
 
 Personal Finance OS 不是简单 CRUD Demo，而是面向求职作品集的工程化个人财务管理系统。项目重点展示模块化架构、领域规则、后端金融计算、前后端集成、测试验证和文档同步能力。
+# Phase 2A Account Balance Concurrency
+
+Ordinary transaction balance mutations now use PostgreSQL pessimistic locks and the protocol defined in [ADR-008](docs/ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md). This does not add Transfer, investment writes, multi-currency, Redis, MQ, or automatic retries.

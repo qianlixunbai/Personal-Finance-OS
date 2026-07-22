@@ -719,3 +719,6 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
 OpenAPI / Swagger 已在 v1.3 完成，当前 API 基线已经包含运行时接口文档。后续重点仍是完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略、分类管理页面，以及 OpenAPI schema diff、客户端 SDK 生成和文档 artifact 发布等配套能力。
+# Phase 2A concurrency note
+
+Missing or cross-user locked resources return 404. An inactive new target returns 400. Lock timeout and deadlock-victim errors return a sanitized 409; normal lock waits that complete in time remain successful. Success payloads are unchanged and clients choose whether to retry.

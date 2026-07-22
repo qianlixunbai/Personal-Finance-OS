@@ -1053,3 +1053,6 @@ Database.md 后续 Review 应检查以下事项。
 当前 Database.md 第一版草稿记录了 Personal Finance OS 当前数据库实现基线，并明确区分 Current Implementation、Target Design、Known Gaps 和 Future Evolution。
 
 本文档可作为后续数据库 Review、schema 修正、migration 规划和 API 设计的上游依据，但不直接替代 `V1__baseline.sql`，也不代表本文档中提到的 Target Design 已经实现。
+# Phase 2A concurrency note
+
+Account and Transaction locking queries use PostgreSQL `FOR UPDATE` with `user_id`; multi-account locking uses `ORDER BY id ASC`. Balance, metadata, and status are field-level updates. The `lock_timeout` is transaction-local; no migration or version column is required, and negative balances remain valid.

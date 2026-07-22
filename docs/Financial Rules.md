@@ -315,3 +315,6 @@ Financial Rules 是 Personal Finance OS 的金融业务基准。
 任何涉及资金、资产、收益或估值的功能，均应以本文件为唯一依据。
 
 当代码实现与本文档存在冲突时，应以本文档为准，并及时修正文档或代码，确保两者保持一致。
+# Phase 2A balance mutation note
+
+`INCOME` applies `+amount`, `EXPENSE` applies `-amount`, and signed `ADJUSTMENT` applies `amount`; reversal negates the original effect. The transaction fact and balance mutation share one transaction through AccountBalanceService. Negative balances remain valid; inactive accounts may reverse history but cannot receive new effects.

@@ -80,3 +80,6 @@
 - `API.md`、`Database.md`、`Business Rules.md` 需要随实现变化保持同步。
 - Review 文档用于记录阶段性检查、问题判断、修复计划和修复结论。
 - 根目录 `README.md` 负责作品集展示；当前文件只负责文档导航。
+# Phase 2A
+
+See [ADR-008](./ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md) for the account balance locking protocol and [Phase 2A Closing Review](./review/V3.0-Phase2A-Closing-Review.md) for verification evidence.

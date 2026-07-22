@@ -396,3 +396,6 @@ Phase 1 已完成并正式关闭；Phase 2A 尚未开始实施，必须在入口
 - 每个阶段结束时应新增 Closing Review；
 - Roadmap 变更应同步根 README 和 docs 导航；
 - 架构级变化应通过 ADR 记录。
+# Phase 2A — Account Balance Concurrency
+
+Phase 2A adds PostgreSQL pessimistic row locking for ordinary transaction balance mutations. It uses transaction fact → Account (ascending ID) ordering, field-level account writes, a transaction-local lock timeout, and no automatic retry. Transfer, InvestmentTransaction writes, and Opening Migration remain out of scope.

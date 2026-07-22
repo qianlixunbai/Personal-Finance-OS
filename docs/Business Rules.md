@@ -374,3 +374,6 @@ Business Rules 是系统业务行为的统一规范。
 当开发实现、AI 输出或数据库设计与本规则冲突时，应优先遵循本文件。
 
 所有业务模块均应保持统一、稳定、可维护的行为，确保系统在长期迭代过程中保持一致性。
+# Phase 2A transaction concurrency note
+
+Transaction update and delete lock the owned original fact before affected accounts and use the locked latest fact. Concurrent deletes cannot reverse twice. Account metadata and deactivation do not modify balances, and ownership is enforced in the locking SQL so absent and cross-user resources are both 404.
