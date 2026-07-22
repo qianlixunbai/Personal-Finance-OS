@@ -1,15 +1,13 @@
 package com.financeos.module.ledger.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.financeos.common.BusinessException;
-import com.financeos.common.PageResult;
 import com.financeos.module.account.entity.Account;
-import com.financeos.module.account.mapper.AccountMapper;
+import com.financeos.module.account.service.AccountBalanceMutation;
+import com.financeos.module.account.service.AccountBalanceService;
+import com.financeos.module.account.service.LockedAccounts;
 import com.financeos.module.category.entity.Category;
 import com.financeos.module.category.mapper.CategoryMapper;
 import com.financeos.module.ledger.dto.TransactionRequest;
-import com.financeos.module.ledger.dto.TransactionResponse;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.mapper.TransactionMapper;
 import org.junit.jupiter.api.Test;
@@ -19,321 +17,139 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class TransactionServiceTest {
 
     @Test
-    void createIncomeIncreasesAccountBalance() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Category category = category(20L, 1L, "INCOME", false);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
+    void createIncomeLocksAccountInsertsFactThenAppliesPositiveDelta() {
+        Fixture fixture = fixture();
+        LockedAccounts locked = locked(account(10L, "100.00", "ACTIVE"));
+        when(fixture.categories.selectById(20L)).thenReturn(category(20L, "INCOME"));
+        when(fixture.balances.lockOwnedAccounts(1L, List.of(10L))).thenReturn(locked);
+        when(fixture.transactions.insert(any(Transaction.class))).thenReturn(1);
 
-        TransactionResponse response = fixture.service.create(1L,
-                request(10L, 20L, "INCOME", "50.00", null, "salary"));
+        fixture.service.create(1L, request(10L, 20L, "INCOME", "50.00"));
 
-        assertEquals(new BigDecimal("150.00"), account.getBalance());
-        assertEquals("INCOME", response.type());
-        verify(fixture.transactionMapper).insert(any(Transaction.class));
-        verify(fixture.accountMapper).updateById(account);
+        ArgumentCaptor<List<AccountBalanceMutation>> mutations = ArgumentCaptor.forClass(List.class);
+        verify(fixture.balances).applyDeltas(eq(locked), mutations.capture());
+        assertThat(mutations.getValue()).containsExactly(new AccountBalanceMutation(10L, new BigDecimal("50.00"), true));
+        verify(fixture.transactions).insert(any(Transaction.class));
+        verify(fixture.transactions, never()).selectById(any());
     }
 
     @Test
-    void createExpenseDecreasesAccountBalance() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Category category = category(20L, 1L, "EXPENSE", false);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
+    void updateLocksTransactionBeforeAccountsAndMergesSameAccountDelta() {
+        Fixture fixture = fixture();
+        Transaction original = transaction(99L, 10L, "INCOME", "30.00");
+        LockedAccounts locked = locked(account(10L, "100.00", "ACTIVE"));
+        when(fixture.transactions.selectOwnedForUpdate(1L, 99L)).thenReturn(original);
+        when(fixture.categories.selectById(21L)).thenReturn(category(21L, "EXPENSE"));
+        when(fixture.balances.lockOwnedAccounts(1L, List.of(10L, 10L))).thenReturn(locked);
+        when(fixture.transactions.updateById(any(Transaction.class))).thenReturn(1);
 
-        fixture.service.create(1L, request(10L, 20L, "EXPENSE", "30.00", null, "food"));
+        fixture.service.update(1L, 99L, request(10L, 21L, "EXPENSE", "40.00"));
 
-        assertEquals(new BigDecimal("70.00"), account.getBalance());
-        verify(fixture.accountMapper).updateById(account);
+        ArgumentCaptor<List<AccountBalanceMutation>> mutations = ArgumentCaptor.forClass(List.class);
+        verify(fixture.balances).applyDeltas(eq(locked), mutations.capture());
+        assertThat(mutations.getValue()).containsExactly(
+                new AccountBalanceMutation(10L, new BigDecimal("-30.00"), false),
+                new AccountBalanceMutation(10L, new BigDecimal("-40.00"), true));
+        verify(fixture.transactions, never()).selectById(any());
     }
 
     @Test
-    void createAdjustmentRequiresDescriptionAndAppliesSignedAmount() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Category category = category(20L, 1L, "INCOME", false);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
+    void updateAcrossAccountsReversesTheOriginalAccount() {
+        Fixture fixture = fixture();
+        Transaction original = transaction(99L, 10L, "INCOME", "30.00");
+        Account oldAccount = account(10L, "100.00", "ACTIVE");
+        Account newAccount = account(11L, "200.00", "ACTIVE");
+        LockedAccounts locked = mock(LockedAccounts.class);
+        when(locked.account(11L)).thenReturn(newAccount);
+        when(fixture.transactions.selectOwnedForUpdate(1L, 99L)).thenReturn(original);
+        when(fixture.categories.selectById(21L)).thenReturn(category(21L, "EXPENSE"));
+        when(fixture.balances.lockOwnedAccounts(1L, List.of(10L, 11L))).thenReturn(locked);
+        when(fixture.transactions.updateById(any(Transaction.class))).thenReturn(1);
 
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "ADJUSTMENT", "10.00", null, " ")));
+        fixture.service.update(1L, 99L, request(11L, 21L, "EXPENSE", "40.00"));
 
-        fixture.service.create(1L, request(10L, 20L, "ADJUSTMENT", "-15.00", null, "reconcile"));
-
-        assertEquals(new BigDecimal("85.00"), account.getBalance());
+        verify(fixture.balances).applyDeltas(locked, List.of(
+                new AccountBalanceMutation(10L, new BigDecimal("-30.00"), false),
+                new AccountBalanceMutation(11L, new BigDecimal("-40.00"), true)));
     }
 
     @Test
-    void createRejectsTransferAndRefund() {
-        var fixture = fixture();
-
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "TRANSFER", "10.00", null, "move")));
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "REFUND", "10.00", null, "refund")));
-
-        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
-    }
-
-    @Test
-    void getByIdRejectsExistingUnsupportedTransactionType() {
-        var fixture = fixture();
-        when(fixture.transactionMapper.selectById(99L))
-                .thenReturn(transaction(99L, 1L, 10L, 20L, "TRANSFER", "10.00"));
-
-        BusinessException ex = assertThrows(BusinessException.class, () -> fixture.service.getById(1L, 99L));
-
-        assertEquals(400, ex.getCode());
-    }
-
-    @Test
-    void createRejectsInactiveAccount() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        account.setStatus("INACTIVE");
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", null, "salary")));
-
-        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
-    }
-
-    @Test
-    void createRejectsNonCnyCurrency() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Category category = category(20L, 1L, "INCOME", false);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", "USD", "salary")));
-
-        assertEquals(400, ex.getCode());
-        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
-        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
-        verify(fixture.accountMapper, never()).updateById(any(Account.class));
-    }
-
-    @Test
-    void createRejectsCurrencyDifferentFromAccount() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        account.setCurrency("USD");
-        Category category = category(20L, 1L, "INCOME", false);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category);
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", "CNY", "salary")));
-
-        assertEquals(400, ex.getCode());
-        assertEquals("流水币种必须与账户币种一致", ex.getMessage());
-        verify(fixture.transactionMapper, never()).insert(any(Transaction.class));
-        verify(fixture.accountMapper, never()).updateById(any(Account.class));
-    }
-
-    @Test
-    void createRejectsAccountOwnedByAnotherUser() {
-        var fixture = fixture();
-        when(fixture.accountMapper.selectById(10L)).thenReturn(activeAccount(10L, 2L, "100.00"));
-
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", null, "salary")));
-    }
-
-    @Test
-    void createRejectsCategoryOwnedByAnotherUser() {
-        var fixture = fixture();
-        when(fixture.accountMapper.selectById(10L)).thenReturn(activeAccount(10L, 1L, "100.00"));
-        when(fixture.categoryMapper.selectById(20L)).thenReturn(category(20L, 2L, "INCOME", false));
-
-        assertThrows(BusinessException.class,
-                () -> fixture.service.create(1L, request(10L, 20L, "INCOME", "10.00", null, "salary")));
-    }
-
-    @Test
-    void updateRollsBackOldBalanceImpactBeforeApplyingNewImpact() {
-        var fixture = fixture();
-        Account oldAccount = activeAccount(10L, 1L, "100.00");
-        Account newAccount = activeAccount(11L, 1L, "200.00");
-        Transaction oldTx = transaction(99L, 1L, 10L, 20L, "INCOME", "30.00");
-        when(fixture.transactionMapper.selectById(99L)).thenReturn(oldTx);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(oldAccount);
-        when(fixture.accountMapper.selectById(11L)).thenReturn(newAccount);
-        when(fixture.categoryMapper.selectById(21L)).thenReturn(category(21L, 1L, "EXPENSE", false));
-
-        fixture.service.update(1L, 99L, request(11L, 21L, "EXPENSE", "40.00", "CNY", "rent"));
-
-        assertEquals(new BigDecimal("70.00"), oldAccount.getBalance());
-        assertEquals(new BigDecimal("160.00"), newAccount.getBalance());
-        verify(fixture.transactionMapper).updateById(oldTx);
-        verify(fixture.accountMapper).updateById(oldAccount);
-        verify(fixture.accountMapper).updateById(newAccount);
-    }
-
-    @Test
-    void updateRejectsExistingUnsupportedTransactionType() {
-        var fixture = fixture();
-        when(fixture.transactionMapper.selectById(99L))
-                .thenReturn(transaction(99L, 1L, 10L, 20L, "REFUND", "10.00"));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> fixture.service.update(1L, 99L, request(10L, 20L, "INCOME", "10.00", null, "salary")));
-
-        assertEquals(400, ex.getCode());
-        verify(fixture.accountMapper, never()).updateById(any(Account.class));
-        verify(fixture.transactionMapper, never()).updateById(any(Transaction.class));
-    }
-
-    @Test
-    void updateOnSameAccountRollsBackAndAppliesNewImpact() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Account reloadedAccount = activeAccount(10L, 1L, "100.00");
-        Transaction oldTx = transaction(99L, 1L, 10L, 20L, "INCOME", "30.00");
-        when(fixture.transactionMapper.selectById(99L)).thenReturn(oldTx);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account, reloadedAccount);
-        when(fixture.categoryMapper.selectById(21L)).thenReturn(category(21L, 1L, "EXPENSE", false));
-
-        fixture.service.update(1L, 99L, request(10L, 21L, "EXPENSE", "40.00", "CNY", "rent"));
-
-        assertEquals(new BigDecimal("30.00"), account.getBalance());
-        verify(fixture.accountMapper).updateById(account);
-    }
-
-    @Test
-    void deleteRollsBackAccountBalance() {
-        var fixture = fixture();
-        Account account = activeAccount(10L, 1L, "100.00");
-        Transaction tx = transaction(99L, 1L, 10L, 20L, "EXPENSE", "25.00");
-        when(fixture.transactionMapper.selectById(99L)).thenReturn(tx);
-        when(fixture.accountMapper.selectById(10L)).thenReturn(account);
+    void deleteLocksTransactionThenReversesOriginalEffectOnce() {
+        Fixture fixture = fixture();
+        Transaction original = transaction(99L, 10L, "EXPENSE", "25.00");
+        LockedAccounts locked = locked(account(10L, "100.00", "INACTIVE"));
+        when(fixture.transactions.selectOwnedForUpdate(1L, 99L)).thenReturn(original);
+        when(fixture.balances.lockOwnedAccounts(1L, List.of(10L))).thenReturn(locked);
+        when(fixture.transactions.deleteById(99L)).thenReturn(1);
 
         fixture.service.delete(1L, 99L);
 
-        assertEquals(new BigDecimal("125.00"), account.getBalance());
-        verify(fixture.accountMapper).updateById(account);
-        verify(fixture.transactionMapper).deleteById(99L);
+        verify(fixture.balances).applyDeltas(locked,
+                List.of(new AccountBalanceMutation(10L, new BigDecimal("25.00"), false)));
     }
 
     @Test
-    void deleteRejectsExistingUnsupportedTransactionType() {
-        var fixture = fixture();
-        when(fixture.transactionMapper.selectById(99L))
-                .thenReturn(transaction(99L, 1L, 10L, 20L, "TRANSFER", "10.00"));
+    void updateRejectsInactiveNewAccount() {
+        Fixture fixture = fixture();
+        Transaction original = transaction(99L, 10L, "INCOME", "30.00");
+        LockedAccounts locked = locked(account(10L, "100.00", "INACTIVE"));
+        when(fixture.transactions.selectOwnedForUpdate(1L, 99L)).thenReturn(original);
+        when(fixture.categories.selectById(21L)).thenReturn(category(21L, "EXPENSE"));
+        when(fixture.balances.lockOwnedAccounts(1L, List.of(10L, 10L))).thenReturn(locked);
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> fixture.service.delete(1L, 99L));
-
-        assertEquals(400, ex.getCode());
-        verify(fixture.accountMapper, never()).updateById(any(Account.class));
-        verify(fixture.transactionMapper, never()).deleteById(99L);
-    }
-
-    @Test
-    void pageByUserOnlyReturnsCurrentUserDataAndUsesSafePaging() {
-        var fixture = fixture();
-        Transaction tx = transaction(99L, 1L, 10L, 20L, "INCOME", "30.00");
-        Page<Transaction> page = Page.of(1, 100);
-        page.setRecords(List.of(tx));
-        page.setTotal(1);
-        when(fixture.transactionMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenReturn(page);
-
-        PageResult<TransactionResponse> result = fixture.service.pageByUser(
-                1L, 0, 200, 10L, 20L, "INCOME",
-                LocalDateTime.of(2026, 7, 1, 0, 0),
-                LocalDateTime.of(2026, 7, 31, 23, 59));
-
-        assertEquals(1, result.page());
-        assertEquals(100, result.size());
-        assertEquals(1, result.total());
-        assertEquals(99L, result.records().get(0).id());
-
-        ArgumentCaptor<LambdaQueryWrapper<Transaction>> queryCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        verify(fixture.transactionMapper).selectPage(any(Page.class), queryCaptor.capture());
-        assertNotNull(queryCaptor.getValue());
-    }
-
-    @Test
-    void pageByUserRejectsUnsupportedAndUnknownTypeFilter() {
-        var fixture = fixture();
-
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> fixture.service.pageByUser(1L, 1, 20, null, null, "TRANSFER", null, null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> fixture.service.pageByUser(1L, 1, 20, null, null, "REFUND", null, null)).getCode());
-        assertEquals(400, assertThrows(BusinessException.class,
-                () -> fixture.service.pageByUser(1L, 1, 20, null, null, "OTHER", null, null)).getCode());
-
-        verify(fixture.transactionMapper, never()).selectPage(any(Page.class), any(LambdaQueryWrapper.class));
+        assertThatThrownBy(() -> fixture.service.update(1L, 99L, request(10L, 21L, "EXPENSE", "40.00")))
+                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
+        verify(fixture.transactions, never()).updateById(any(Transaction.class));
     }
 
     private Fixture fixture() {
-        TransactionMapper transactionMapper = mock(TransactionMapper.class);
-        AccountMapper accountMapper = mock(AccountMapper.class);
-        CategoryMapper categoryMapper = mock(CategoryMapper.class);
-        return new Fixture(transactionMapper, accountMapper, categoryMapper,
-                new TransactionService(transactionMapper, accountMapper, categoryMapper));
+        TransactionMapper transactions = mock(TransactionMapper.class);
+        CategoryMapper categories = mock(CategoryMapper.class);
+        AccountBalanceService balances = mock(AccountBalanceService.class);
+        return new Fixture(transactions, categories, balances, new TransactionService(transactions, categories, balances));
     }
 
-    private TransactionRequest request(Long accountId, Long categoryId, String type,
-                                       String amount, String currency, String description) {
-        return new TransactionRequest(accountId, categoryId, type, new BigDecimal(amount), currency,
-                description, LocalDateTime.of(2026, 7, 7, 12, 0));
+    private LockedAccounts locked(Account account) {
+        LockedAccounts locked = mock(LockedAccounts.class);
+        when(locked.accounts()).thenReturn(List.of(account));
+        when(locked.account(account.getId())).thenReturn(account);
+        return locked;
     }
 
-    private Account activeAccount(Long id, Long userId, String balance) {
+    private Account account(Long id, String balance, String status) {
         Account account = new Account();
-        account.setId(id);
-        account.setUserId(userId);
-        account.setStatus("ACTIVE");
-        account.setCurrency("CNY");
-        account.setBalance(new BigDecimal(balance));
+        account.setId(id); account.setUserId(1L); account.setCurrency("CNY");
+        account.setBalance(new BigDecimal(balance)); account.setStatus(status);
         return account;
     }
 
-    private Category category(Long id, Long userId, String type, boolean system) {
+    private Category category(Long id, String type) {
         Category category = new Category();
-        category.setId(id);
-        category.setUserId(userId);
-        category.setType(type);
-        category.setIsSystem(system);
+        category.setId(id); category.setUserId(1L); category.setType(type);
         return category;
     }
 
-    private Transaction transaction(Long id, Long userId, Long accountId, Long categoryId,
-                                    String type, String amount) {
-        Transaction tx = new Transaction();
-        tx.setId(id);
-        tx.setUserId(userId);
-        tx.setAccountId(accountId);
-        tx.setCategoryId(categoryId);
-        tx.setType(type);
-        tx.setAmount(new BigDecimal(amount));
-        tx.setCurrency("CNY");
-        tx.setDescription("note");
-        tx.setTransactedAt(LocalDateTime.of(2026, 7, 7, 12, 0));
-        tx.setCreatedAt(LocalDateTime.of(2026, 7, 7, 12, 1));
-        tx.setUpdatedAt(LocalDateTime.of(2026, 7, 7, 12, 2));
-        return tx;
+    private Transaction transaction(Long id, Long accountId, String type, String amount) {
+        Transaction transaction = new Transaction();
+        transaction.setId(id); transaction.setUserId(1L); transaction.setAccountId(accountId);
+        transaction.setCategoryId(20L); transaction.setType(type); transaction.setAmount(new BigDecimal(amount));
+        transaction.setCurrency("CNY"); transaction.setTransactedAt(LocalDateTime.of(2026, 7, 7, 12, 0));
+        return transaction;
     }
 
-    private record Fixture(TransactionMapper transactionMapper, AccountMapper accountMapper,
-                           CategoryMapper categoryMapper, TransactionService service) {
+    private TransactionRequest request(Long accountId, Long categoryId, String type, String amount) {
+        return new TransactionRequest(accountId, categoryId, type, new BigDecimal(amount), "CNY", "note",
+                LocalDateTime.of(2026, 7, 7, 12, 0));
     }
+
+    private record Fixture(TransactionMapper transactions, CategoryMapper categories, AccountBalanceService balances,
+                           TransactionService service) { }
 }

@@ -3,7 +3,6 @@ package com.financeos.module.account.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.financeos.common.BusinessException;
-import com.financeos.common.PageResult;
 import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.entity.Account;
@@ -11,95 +10,83 @@ import com.financeos.module.account.mapper.AccountMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class AccountServiceTest {
 
     @Test
-    void createRejectsNonCnyCurrency() {
-        AccountMapper accountMapper = mock(AccountMapper.class);
-        AccountService service = new AccountService(accountMapper);
+    void updateLocksAccountAndOnlyUpdatesMetadata() {
+        AccountMapper mapper = mock(AccountMapper.class);
+        AccountBalanceService balances = mock(AccountBalanceService.class);
+        Account account = account(10L, "100.00", "ACTIVE");
+        when(balances.lockOwnedAccounts(1L, List.of(10L))).thenReturn(new LockedAccounts(List.of(account)));
+        when(mapper.updateMetadata(1L, 10L, "Cash", "CASH", "CNY")).thenReturn(1);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.create(1L, new AccountRequest("美元账户", "BANK", "USD")));
+        AccountResponse result = new AccountService(mapper, balances)
+                .update(1L, 10L, new AccountRequest("Cash", "CASH", "CNY"));
 
-        assertEquals(400, ex.getCode());
-        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
-        verify(accountMapper, never()).insert(any(Account.class));
+        assertThat(result.balance()).isEqualByComparingTo("100.00");
+        verify(mapper).updateMetadata(1L, 10L, "Cash", "CASH", "CNY");
+        verify(mapper, never()).updateById(any(Account.class));
     }
 
     @Test
-    void updateRejectsNonCnyCurrency() {
-        AccountMapper accountMapper = mock(AccountMapper.class);
-        AccountService service = new AccountService(accountMapper);
-        Account account = new Account();
-        account.setId(10L);
-        account.setUserId(1L);
-        account.setCurrency("CNY");
-        when(accountMapper.selectById(10L)).thenReturn(account);
+    void deactivateLocksAccountAndOnlyUpdatesStatus() {
+        AccountMapper mapper = mock(AccountMapper.class);
+        AccountBalanceService balances = mock(AccountBalanceService.class);
+        when(balances.lockOwnedAccounts(1L, List.of(10L)))
+                .thenReturn(new LockedAccounts(List.of(account(10L, "100.00", "ACTIVE"))));
+        when(mapper.deactivate(1L, 10L)).thenReturn(1);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.update(1L, 10L, new AccountRequest("现金账户", "CASH", "USD")));
+        new AccountService(mapper, balances).deactivate(1L, 10L);
 
-        assertEquals(400, ex.getCode());
-        assertEquals("当前版本仅支持 CNY 币种", ex.getMessage());
-        verify(accountMapper, never()).updateById(any(Account.class));
+        verify(mapper).deactivate(1L, 10L);
+        verify(mapper, never()).updateById(any(Account.class));
     }
 
     @Test
-    void deactivateAllowsAccountWithHistoricalTransactions() {
-        AccountMapper accountMapper = mock(AccountMapper.class);
-        AccountService service = new AccountService(accountMapper);
+    void updateRejectsNonCnyCurrencyAfterLocking() {
+        AccountMapper mapper = mock(AccountMapper.class);
+        AccountBalanceService balances = mock(AccountBalanceService.class);
+        when(balances.lockOwnedAccounts(1L, List.of(10L)))
+                .thenReturn(new LockedAccounts(List.of(account(10L, "100.00", "ACTIVE"))));
 
-        Account account = new Account();
-        account.setId(10L);
-        account.setUserId(1L);
-        account.setStatus("ACTIVE");
-
-        when(accountMapper.selectById(10L)).thenReturn(account);
-
-        assertDoesNotThrow(() -> service.deactivate(1L, 10L));
-
-        verify(accountMapper).updateById(account);
+        assertThatThrownBy(() -> new AccountService(mapper, balances)
+                .update(1L, 10L, new AccountRequest("Cash", "CASH", "USD")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code").isEqualTo(400);
+        verify(mapper, never()).updateMetadata(any(), any(), any(), any(), any());
     }
 
     @Test
-    void pageByUserUsesSafePageSizeAndMapsRecords() {
-        AccountMapper accountMapper = mock(AccountMapper.class);
-        AccountService service = new AccountService(accountMapper);
-
-        Account account = new Account();
-        account.setId(10L);
-        account.setUserId(1L);
-        account.setName("现金账户");
-        account.setType("CASH");
-        account.setCurrency("CNY");
-        account.setBalance(new BigDecimal("100.00"));
-        account.setStatus("ACTIVE");
-        account.setCreatedAt(LocalDateTime.of(2026, 7, 7, 10, 0));
-
+    void pageByUserUsesSafePageSize() {
+        AccountMapper mapper = mock(AccountMapper.class);
+        AccountBalanceService balances = mock(AccountBalanceService.class);
         Page<Account> page = Page.of(1, 100);
-        page.setRecords(List.of(account));
+        page.setRecords(List.of(account(10L, "100.00", "ACTIVE")));
         page.setTotal(1);
+        when(mapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenReturn(page);
 
-        when(accountMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenReturn(page);
+        var result = new AccountService(mapper, balances).pageByUser(1L, 0, 200);
 
-        PageResult<AccountResponse> result = service.pageByUser(1L, 0, 200);
+        assertThat(result.page()).isEqualTo(1);
+        assertThat(result.size()).isEqualTo(100);
+    }
 
-        assertEquals(1, result.page());
-        assertEquals(100, result.size());
-        assertEquals(1, result.total());
-        assertEquals(1, result.records().size());
-        assertEquals("现金账户", result.records().get(0).name());
+    private Account account(Long id, String balance, String status) {
+        Account account = new Account();
+        account.setId(id);
+        account.setUserId(1L);
+        account.setName("Old");
+        account.setType("BANK");
+        account.setCurrency("CNY");
+        account.setBalance(new BigDecimal(balance));
+        account.setStatus(status);
+        return account;
     }
 }

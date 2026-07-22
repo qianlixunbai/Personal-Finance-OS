@@ -12,12 +12,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -29,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@TestPropertySource(properties = "account.balance.lock-timeout=750ms")
 class TransactionApiIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
@@ -36,6 +46,9 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void realHttpCreateUpdateAndDeleteRestoreAccountBalanceAndRemoveTransaction() throws Exception {
@@ -133,6 +146,77 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
         assertThat(records.toString()).doesNotContain(excludedDescription);
     }
 
+    @Test
+    void lockTimeout_returnsHttp409WithoutPartialCommit() throws Exception {
+        LoggedInUser user = registerAndLogin("lock-timeout");
+        Long accountId = createAccount(user.token(), "lock-timeout-account-" + UUID.randomUUID());
+        Long categoryId = createCategory(user.token(), "lt-cat-" + UUID.randomUUID(), "INCOME");
+        Long userId = jdbcTemplate.queryForObject("SELECT user_id FROM accounts WHERE id = ?", Long.class, accountId);
+        Connection heldLock = lockAccountRow(accountId, userId);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<MvcResult> request = executor.submit(() -> mockMvc.perform(post("/api/v1/transactions")
+                            .header("Authorization", "Bearer " + user.token())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new TransactionRequest(
+                                    accountId, categoryId, "INCOME", new BigDecimal("20.00"), "CNY",
+                                    "lock timeout", LocalDateTime.of(2026, 7, 23, 13, 0)))))
+                    .andReturn());
+
+            MvcResult result = request.get(5, TimeUnit.SECONDS);
+            JsonNode response = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+            assertThat(result.getResponse().getStatus()).isEqualTo(409);
+            assertThat(response.path("code").asInt()).isEqualTo(409);
+            assertThat(response.path("message").asText()).isEqualTo("并发操作冲突，请重试");
+            assertThat(result.getResponse().getContentAsString())
+                    .doesNotContain("55P03", "PostgreSQL", "accounts", "SELECT");
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE account_id = ?", Integer.class, accountId))
+                    .isZero();
+            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", BigDecimal.class, accountId))
+                    .isEqualByComparingTo("0.00");
+        } finally {
+            rollbackAndClose(heldLock);
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void lockReleasedBeforeTimeout_allowsRequestToSucceed() throws Exception {
+        LoggedInUser user = registerAndLogin("lock-release");
+        Long accountId = createAccount(user.token(), "lock-release-account-" + UUID.randomUUID());
+        Long categoryId = createCategory(user.token(), "lr-cat-" + UUID.randomUUID(), "INCOME");
+        Long userId = jdbcTemplate.queryForObject("SELECT user_id FROM accounts WHERE id = ?", Long.class, accountId);
+        Connection heldLock = lockAccountRow(accountId, userId);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<MvcResult> request = executor.submit(() -> mockMvc.perform(post("/api/v1/transactions")
+                            .header("Authorization", "Bearer " + user.token())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(new TransactionRequest(
+                                    accountId, categoryId, "INCOME", new BigDecimal("20.00"), "CNY",
+                                    "lock release", LocalDateTime.of(2026, 7, 23, 13, 0)))))
+                    .andReturn());
+
+            awaitHttpRequestLockWait();
+            heldLock.commit();
+            heldLock.close();
+            heldLock = null;
+
+            MvcResult result = request.get(5, TimeUnit.SECONDS);
+            assertThat(result.getResponse().getStatus()).isEqualTo(200);
+            assertThat(objectMapper.readTree(result.getResponse().getContentAsByteArray()).path("code").asInt()).isEqualTo(200);
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE account_id = ?", Integer.class, accountId))
+                    .isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", BigDecimal.class, accountId))
+                    .isEqualByComparingTo("20.00");
+        } finally {
+            rollbackAndClose(heldLock);
+            executor.shutdownNow();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
     private LoggedInUser registerAndLogin(String prefix) throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String username = prefix + suffix;
@@ -151,6 +235,47 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.data.token").isString())
                 .andReturn();
         return new LoggedInUser(objectMapper.readTree(login.getResponse().getContentAsByteArray()).at("/data/token").asText());
+    }
+
+    private Connection lockAccountRow(Long accountId, Long userId) throws Exception {
+        Connection connection = dataSource.getConnection();
+        connection.setAutoCommit(false);
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT id FROM accounts WHERE id = ? AND user_id = ? FOR UPDATE
+                """)) {
+            statement.setLong(1, accountId);
+            statement.setLong(2, userId);
+            try (ResultSet result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+            }
+        }
+        return connection;
+    }
+
+    private void awaitHttpRequestLockWait() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (System.nanoTime() < deadline) {
+            Integer waiting = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM pg_stat_activity
+                    WHERE datname = current_database() AND wait_event_type = 'Lock'
+                    """, Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("HTTP request did not enter a PostgreSQL lock wait");
+    }
+
+    private void rollbackAndClose(Connection connection) throws Exception {
+        if (connection == null || connection.isClosed()) {
+            return;
+        }
+        try {
+            connection.rollback();
+        } finally {
+            connection.close();
+        }
     }
 
     private Long createAccount(String token, String name) throws Exception {
