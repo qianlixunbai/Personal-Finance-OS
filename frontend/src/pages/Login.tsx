@@ -5,7 +5,7 @@ export default function Login() {
     const enterDemo = () => { localStorage.setItem('token', 'demo-static-token'); navigate('/'); };
     return <main className="demo-landing">
         <section className="demo-hero">
-            <p className="demo-eyebrow">PORTFOLIO DEMO · V1.2</p>
+            <p className="demo-eyebrow">PORTFOLIO DEMO · READ-ONLY</p>
             <h1>Personal Finance OS</h1>
             <p className="demo-lede">一个面向个人财务管理的全栈作品集：以账户、资产和交易流水为核心，在 Dashboard 中聚合查看财务概览与趋势。</p>
             <div className="demo-actions"><button type="button" className="primary-action" onClick={enterDemo}>进入静态演示</button><a className="secondary-action" href="https://github.com/qianlixunbai/Personal-Finance-OS" target="_blank" rel="noreferrer">查看 GitHub 仓库</a></div>
