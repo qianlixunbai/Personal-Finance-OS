@@ -1,10 +1,10 @@
 # Roadmap（项目发展路线图）
 
-> **v2.1 Phase 4 Assets UI: implemented, pending independent acceptance.** Assets now displays manual valuation beside a read-only, non-persistent market reference valuation. The UI consumes backend values without financial recomputation, maps freshness/warnings safely, and supports a per-asset manual refresh. Dashboard remains unchanged; real FX providers and production secrets are not started.
+> **v2.1 Market Valuation：已完成并正式关闭。** Assets displays manual valuation beside a read-only, non-persistent market reference valuation. The UI consumes backend values without financial recomputation, maps freshness/warnings safely, and supports a per-asset manual refresh. Dashboard remains unchanged; real FX providers remain disabled by default.
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v2.1 Phase 4 Assets UI 已实现，待独立验收；v2.1 尚未正式关闭。
+**当前阶段：** v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（尚未开始实施；设计分析已完成并获得 `CONDITIONAL GO`）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -236,7 +236,7 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 不包含历史价格、Dashboard 行情估值、自动刷新、多币种估值、汇率、盘前盘后、OHLC 或涨跌幅。
 
-后续阶段：v2.1 等待 Phase 4 独立验收后决定是否关闭；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
+v2.1 Market Valuation 已完成四个阶段并正式关闭，详见 [V2.1 Closing Review](./review/V2.1-Closing-Review.md)。后续阶段为 v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation；v2.2 History / Charts / Scheduled Refresh 仍为候选规划。
 
 ------
 
@@ -253,36 +253,95 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 ### 边界说明
 
-Phase 1 不包含真实 FX Provider、网络请求、Controller/API、Reference Valuation、Dashboard、前端、外币 Account 或外币 Transaction。v2.1 整体尚未完成。
+Phase 1 不包含真实 FX Provider、网络请求、Controller/API、Reference Valuation、Dashboard、前端、外币 Account 或外币 Transaction。上述内容已在 v2.1 后续阶段按范围完成；v2.1 已正式关闭。
 
 ## v2.1 Phase 2 FX Refresh Workflow（已完成）
 
 - FX 缓存以 `fetched_at` 和 60 分钟 TTL 判断 FRESH/STALE/NEVER_FETCHED；
 - 内部刷新支持 CACHE_HIT、UPDATED、STALE_FALLBACK、单货币对 single-flight 与单进程用户/全局额度保护；
-- 默认关闭、无真实 Provider；Phase 2 本身无公开 API、无 Reference Valuation、无 Dashboard 或前端改动。Phase 3 已在后续阶段实现，Phase 4 Assets UI 已实现且待独立验收。
+- 默认关闭，真实 FX Provider 不作为 v2.1 的默认能力；Phase 2 本身无公开 API、无 Reference Valuation、无 Dashboard 或前端改动。Phase 3 Reference Valuation Backend 与 Phase 4 Assets UI 均已完成。
 
 ------
 
-## v3.0 Investment Transaction Model（后续规划）
+## v2.1 Phase 3 Reference Valuation Backend（已完成）
+
+- Reference Valuation Backend 已完成；
+- Quote、FX 和 CNY 参考估值组合已完成；
+- 普通 GET 只读缓存，不调用 Provider；
+- 显式刷新接口已完成；
+- `FRESH`、`STALE`、`PARTIAL`、`UNAVAILABLE` 状态已完成；
+- 结构化 warning 和 list/page 批量查询已完成；
+- 不修改人工估值和 Dashboard；
+- Phase 3 P1 修复已完成。
+
+## v2.1 Phase 4 Assets UI（已完成）
+
+- Assets UI 已完成；
+- 人工估值与市场参考估值已分区展示；
+- Quote、原生市值、FX 和 CNY 参考值已展示；
+- 已支持单 Asset 手动刷新；
+- warning 已安全映射；
+- 前端不重新计算金融金额；
+- 刷新失败时保留旧数据；
+- 已通过 Sol 只读验收，无 P0/P1。
+
+------
+
+## v2.1 Market Valuation 最终状态（已完成并正式关闭）
+
+### 最终边界
+
+- Account 和普通 Transaction 仍只支持 CNY；
+- Asset 人工 `currentPrice`、`marketValue` 仍是账务数据；
+- Market Quote 和 FX 是外部参考输入；
+- Reference Valuation 是只读、非持久化派生结果；
+- 普通 GET 不调用 Provider，只有显式 POST 才可能刷新 Quote 或 FX；
+- Provider 失败不会修改账务真值；Dashboard 未接入市场参考估值；真实 FX Provider 默认关闭；
+- v2.1 不包含历史行情、定时刷新、自动批量刷新或完整投资交易模型。
+
+### 已知 P2
+
+stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成功提示仍为“市场参考估值已更新”。该问题不阻塞 v2.1 关闭。
+
+------
+
+## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（待实施）
 
 ### 定位
 
-完整投资交易模型阶段，目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。
+当前仅完成设计分析并获得 `CONDITIONAL GO`，尚未开始实施。目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。
 
-### 规划能力
+### 入口规划
 
-- `BUY`；
-- `SELL`；
-- `DIVIDEND`；
-- 持仓计算；
-- 实现盈亏；
-- 手续费；
-- 税费；
-- 现金账户联动。
+- ADR；
+- Financial Rules / Business Rules 冻结；
+- BigDecimal 投资计算与 replay 内核；
+- additive V4 migration；
+- Entity / Mapper；
+- PostgreSQL 约束测试。
+
+### 已接受的设计方向 / 后续实施规划
+
+- `InvestmentTransaction` = 投资事实；
+- `Asset` = 当前持仓受控投影；
+- `Account.balance` = 现金余额投影；
+- `Market Quote / FX` = 外部参考输入；
+- `Reference Valuation` = 非持久化参考估值；
+- 独立 `InvestmentTransaction`，第一版采用加权平均成本；
+- 第一版投资账务继续 CNY-only，支持 `BUY`、`SELL`、`DIVIDEND`、`OPENING_POSITION`；
+- `fee`、`tax` 作为交易组成字段，使用必填幂等键、PostgreSQL 行锁和冲正替代物理删除；
+- `Opening Position` 用于旧 Asset 迁移，普通流水与投资交易未来共用统一 `AccountBalanceService`。
+
+### 当前明确不实施
+
+- 创建 v3.0 migration；
+- 编写 v3.0 代码或引入投资交易表；
+- 开放 BUY / SELL API；
+- 修改前端或 Asset 当前行为。
 
 ### 边界说明
 
-该阶段会显著扩大业务复杂度，应在行情、资产快照和文档边界稳定后再设计。
+该阶段会显著扩大业务复杂度，必须在入口规划完成后分阶段实施；本节内容均为已接受的设计方向或后续实施规划，不代表当前已实现能力。
 
 ------
 

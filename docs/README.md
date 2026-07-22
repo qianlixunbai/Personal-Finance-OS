@@ -1,6 +1,6 @@
 # Personal Finance OS 文档中心
 
-> v2.1 Phase 4 Assets UI is implemented: Asset responses display cached, read-only reference valuations beside manual valuations. The UI does not calculate financial values; it maps freshness/warnings safely and provides per-asset `POST /api/v1/assets/{id}/reference-valuation/refresh`. Dashboard remains unchanged, real FX providers remain disabled by default, and v2.1 closure awaits independent review.
+> v2.1 Market Valuation 已完成并正式关闭：Asset 响应展示缓存的只读参考估值，前端不计算金融金额，仅安全映射 freshness/warning 并提供单资产刷新。Dashboard 保持不变，真实 FX Provider 默认关闭。下一阶段为尚未开始实施的 v3.0 Phase 1 Investment Ledger Foundation。
 
 ## 1. 阅读说明
 
@@ -56,6 +56,8 @@
 - [V1.2 Closing Review](./review/V1.2-Closing-Review.md)
 - [V1.3 Closing Review](./review/V1.3-Closing-Review.md)
 - [V1.4 Quality Hardening Closing Review](./review/V1.4-Closing-Review.md)
+- [V2.0 Market Data Foundation Closing Review](./review/V2.0-Closing-Review.md)
+- [V2.1 Market Valuation Closing Review](./review/V2.1-Closing-Review.md)
 
 ## 7. ADR / Logs / 其它
 

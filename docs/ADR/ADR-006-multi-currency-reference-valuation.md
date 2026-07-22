@@ -72,7 +72,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 - 最终 CNY 参考估值不持久化，根据持仓、行情与 FX 快照请求时计算。
 - v2.1 不修改 Dashboard；最早在后续独立 ADR 中增加并列的“市场参考总资产”。
 
-本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。Phase 2 的内部 refresh workflow 已实现并通过最终验证；这表示架构决策生效，不表示 v2.1 的 Reference Valuation、API 或 UI 已完成。
+本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。Phase 2 的内部 refresh workflow 已实现并通过最终验证；随后 Phase 3 Reference Valuation Backend 和 Phase 4 Assets UI 也已完成并通过验收。`Accepted` 表示架构决策生效，v2.1 的最终关闭状态另见 Closing Review。
 
 ## Base Currency
 
@@ -226,6 +226,6 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 
 - 提出时间：2026-07-19
 - 接受日期：2026-07-19
-- 当前完成范围：v2.1 Phase 1 FX Foundation、Phase 2 FX Refresh Workflow 和 Phase 3 Reference Valuation Backend 已实现并完成验证；Phase 3 包含 Reference Valuation API、只读缓存计算、显式 refresh、stale fallback 与结构化 warning。
-- 尚未完成：Phase 4 Assets UI、Dashboard 接入和真实 FX Provider；Dashboard 仍不使用 Reference Valuation。
-- 正式生效：是；`Accepted` 不等于 v2.1 全部完成
+- 当前完成范围：v2.1 Phase 1 FX Foundation、Phase 2 FX Refresh Workflow、Phase 3 Reference Valuation Backend 和 Phase 4 Assets UI 均已实现并完成验证；Phase 3 包含 Reference Valuation API、只读缓存计算、显式 refresh、stale fallback 与结构化 warning，Phase 4 完成 Assets 页面只读验收。
+- 最终边界：Account / Transaction 仍为 CNY-only；Asset 人工估值字段仍是账务数据；Reference Valuation 只读且不持久化；普通 GET 不调用 Provider；Provider 失败不修改账务真值；Dashboard 不接入市场参考估值；真实 FX Provider 默认关闭。
+- 正式生效：是；v2.1 Market Valuation 已完成并正式关闭，关闭记录见 `docs/review/V2.1-Closing-Review.md`。

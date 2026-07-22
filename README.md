@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> v2.1 Phase 4 Assets UI 已实现：Assets 页面并列展示人工估值和只读市场参考估值。前端只格式化后端结果，不计算金融金额；支持 FRESH/STALE/PARTIAL/UNAVAILABLE、固定 warning 映射和单资产手动刷新。参考估值不会修改人工 CNY 字段或 Dashboard，真实 FX Provider 仍默认关闭；v2.1 是否关闭待独立验收决定。
+> v2.1 Market Valuation 已完成并正式关闭：Assets 页面并列展示人工估值和只读市场参考估值。前端只格式化后端结果，不计算金融金额；支持 FRESH/STALE/PARTIAL/UNAVAILABLE、固定 warning 映射和单资产手动刷新。参考估值不会修改人工 CNY 字段或 Dashboard，真实 FX Provider 默认关闭。下一阶段为 v3.0 Phase 1 Investment Ledger Foundation，尚未开始实施。
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 
@@ -21,6 +21,7 @@
 - [Swagger / OpenAPI 本地访问说明](#启动后端)
 - [核心架构文档](docs/03-Architecture/Architecture.md)
 - [v2.0 Market Data Foundation Closing Review](docs/review/V2.0-Closing-Review.md)
+- [v2.1 Market Valuation Closing Review](docs/review/V2.1-Closing-Review.md)
 - 在线 Demo：当前未提供公开后端地址，避免展示不可验证的 API 链接；静态展示不调用真实 Market Data API。
 
 ## 项目亮点
@@ -215,6 +216,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - [v1.3 Engineering Polish Closing Review](docs/review/V1.3-Closing-Review.md)
 - [v1.4 Quality Hardening Closing Review](docs/review/V1.4-Closing-Review.md)
 - [v2.0 Market Data Foundation Closing Review](docs/review/V2.0-Closing-Review.md)
+- [v2.1 Market Valuation Closing Review](docs/review/V2.1-Closing-Review.md)
 
 ## 当前状态
 
@@ -241,12 +243,14 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - 资产清仓只是持仓快照归零，不等于完整卖出交易模型
 - v2.0 Market Data Foundation 已完成：独立最新行情快照、Twelve Data adapter、15 分钟 TTL、`CACHE_HIT` / `UPDATED` / `STALE_FALLBACK`、single-flight 和单进程额度保护；功能默认关闭。
 - 参考行情仅支持 US `STOCK` / `ETF`，不参与 CNY 资产或 Dashboard 估值；Assets 页面只读缓存，刷新为单 Asset 手动操作。公开 `sites-demo` 不调用真实 Market Data API。
-- 启用手动行情刷新需要后端设置 `MARKET_DATA_ENABLED=true` 与 `MARKET_DATA_API_KEY`；当前不支持汇率、多币种估值、历史行情或自动刷新。
+- v2.1 Market Valuation 已完成并正式关闭：Phase 1 FX Foundation、Phase 2 FX Refresh Workflow、Phase 3 Reference Valuation Backend、Phase 4 Assets UI 均已完成；参考估值为只读、非持久化派生结果，不修改账务真值或 Dashboard。
+- v2.1 仍保持 CNY-only Account / Transaction；普通 GET 不调用 Provider，只有显式 POST 才可能刷新 Quote 或 FX；真实 FX Provider 默认关闭。
 
 ## 后续计划
 
-- 资产历史价格、多币种汇率、AI 财务分析和完整生产运维能力仍属于后续版本；当前不支持自动刷新、汇率或多币种估值
-- 完整投资交易模型，包括买入、卖出、股息、手续费、税费、实现盈亏和现金账户联动，仍属于后续版本
+- 当前阶段：`v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation`。
+- v3.0 尚未开始实施；当前仅完成设计分析并获得 `CONDITIONAL GO`。入口为 ADR、Financial Rules / Business Rules 冻结、BigDecimal 投资计算与 replay 内核、additive V4 migration、Entity / Mapper 和 PostgreSQL 约束测试。
+- 资产历史价格、定时或自动刷新、AI 财务分析和完整生产运维能力仍属于后续规划。
 
 ## 项目定位
 
