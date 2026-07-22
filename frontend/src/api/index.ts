@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { MarketQuoteRefreshResponse } from '../types/market-data';
+import type { ReferenceValuationResponse } from '../types/reference-valuation';
 
 const api = axios.create({
     baseURL: '/api/v1',
@@ -40,4 +41,9 @@ export default api;
 export async function refreshAssetQuote(assetId: number): Promise<MarketQuoteRefreshResponse> {
     const response = await api.post(`/assets/${assetId}/quote/refresh`);
     return response.data.data as MarketQuoteRefreshResponse;
+}
+
+export async function refreshAssetReferenceValuation(assetId: number): Promise<ReferenceValuationResponse> {
+    const response = await api.post(`/assets/${assetId}/reference-valuation/refresh`);
+    return response.data.data as ReferenceValuationResponse;
 }

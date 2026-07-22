@@ -1,10 +1,10 @@
 # Roadmap（项目发展路线图）
 
-> **v2.1 Phase 3 Reference Valuation Backend: implemented.** Asset APIs provide a read-only, non-persistent cached CNY reference valuation; ordinary GET requests do not call providers and Dashboard remains unchanged. Phase 4 Assets UI, real FX providers, and production secrets are not started.
+> **v2.1 Phase 4 Assets UI: implemented, pending independent acceptance.** Assets now displays manual valuation beside a read-only, non-persistent market reference valuation. The UI consumes backend values without financial recomputation, maps freshness/warnings safely, and supports a per-asset manual refresh. Dashboard remains unchanged; real FX providers and production secrets are not started.
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v2.1 Phase 3 Reference Valuation Backend 已完成并通过本次修复验证；Phase 4 Assets UI 尚未开始。
+**当前阶段：** v2.1 Phase 4 Assets UI 已实现，待独立验收；v2.1 尚未正式关闭。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -236,7 +236,7 @@ v1.5 不包含 Kubernetes、微服务、Redis、MQ、云厂商、HTTPS、Registr
 
 不包含历史价格、Dashboard 行情估值、自动刷新、多币种估值、汇率、盘前盘后、OHLC 或涨跌幅。
 
-后续阶段：v2.1 Phase 4（Assets UI）尚未开始；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
+后续阶段：v2.1 等待 Phase 4 独立验收后决定是否关闭；v2.2 为 History / Charts / Scheduled Refresh（候选规划）。
 
 ------
 
@@ -259,7 +259,7 @@ Phase 1 不包含真实 FX Provider、网络请求、Controller/API、Reference 
 
 - FX 缓存以 `fetched_at` 和 60 分钟 TTL 判断 FRESH/STALE/NEVER_FETCHED；
 - 内部刷新支持 CACHE_HIT、UPDATED、STALE_FALLBACK、单货币对 single-flight 与单进程用户/全局额度保护；
-- 默认关闭、无真实 Provider；Phase 2 本身无公开 API、无 Reference Valuation、无 Dashboard 或前端改动。Phase 3 已在后续阶段实现，Phase 4 仍未开始。
+- 默认关闭、无真实 Provider；Phase 2 本身无公开 API、无 Reference Valuation、无 Dashboard 或前端改动。Phase 3 已在后续阶段实现，Phase 4 Assets UI 已实现且待独立验收。
 
 ------
 

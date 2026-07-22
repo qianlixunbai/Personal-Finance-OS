@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> v2.1 Phase 3 adds read-only, non-persistent CNY reference valuation to Asset APIs. It never changes manual CNY Asset values or Dashboard totals; normal GET requests do not call providers. Phase 4 Assets UI and real FX provider secrets remain future work.
+> v2.1 Phase 4 Assets UI 已实现：Assets 页面并列展示人工估值和只读市场参考估值。前端只格式化后端结果，不计算金融金额；支持 FRESH/STALE/PARTIAL/UNAVAILABLE、固定 warning 映射和单资产手动刷新。参考估值不会修改人工 CNY 字段或 Dashboard，真实 FX Provider 仍默认关闭；v2.1 是否关闭待独立验收决定。
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 

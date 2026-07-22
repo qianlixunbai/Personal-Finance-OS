@@ -321,6 +321,7 @@ Authorization: Bearer <token>
 - `AssetResponse.referenceValuation` 是 nullable 的只读派生字段：不支持的资产或没有可用输入时可为 `null`；非 null 时包含 quote、FX、原生市值、CNY 参考市值、`FRESH`/`STALE`/`PARTIAL`/`UNAVAILABLE` freshness 与结构化 `warnings`。最终参考估值不持久化。
 - Reference Valuation refresh 需要 JWT，先校验 ownership；非本人或不存在资产返回 `404`，不支持的资产返回 `400`，且两者均不会调用 provider 或消费额度。FX 限额、无效 provider 响应和临时不可用分别使用 `429`、`502`、`503` 的统一安全错误体。
 - 若 quote 或 FX 刷新失败但已有旧快照，refresh 返回成功的 `STALE` 响应和固定的 `FEATURE_DISABLED` 或 `REFRESH_FAILED` warning；warning 不包含 provider 原始响应、URL、密钥或堆栈。Quote 为 `CNY` 时使用 `CNY/CNY`、rate `1` 和 `SYSTEM_IDENTITY`，不会刷新 FX。
+- Assets UI 只消费 `referenceValuation` 的后端字段并格式化展示：人工 Asset 估值与市场参考估值并列；FRESH、STALE、PARTIAL、UNAVAILABLE 和公开 warning code 映射为固定中文。单资产 refresh 的成功响应只替换当前行 `referenceValuation`，不会写入 `currentPrice`、`marketValue` 或 Dashboard。
 
 ## 9.5 Dashboard APIs
 
