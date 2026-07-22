@@ -65,6 +65,22 @@ class ExchangeRateServiceTest {
         verifyNoInteractions(fixture.provider, fixture.persistence);
     }
 
+    @Test
+    void returnsStaleFallbackWhenRefreshIsDisabledAndAnOldSnapshotExists() {
+        Fixture fixture = fixture();
+        fixture.properties.setEnabled(false);
+        ExchangeRate old = rate(NOW.minusSeconds(3600));
+        when(fixture.mapper.findByBaseCurrencyAndQuoteCurrency("USD", "CNY")).thenReturn(old);
+
+        ExchangeRateRefreshResult result = fixture.service.refreshRate(1L, "USD", "CNY");
+
+        assertThat(result.status()).isEqualTo(ExchangeRateRefreshStatus.STALE_FALLBACK);
+        assertThat(result.freshness()).isEqualTo(ExchangeRateFreshness.STALE);
+        assertThat(result.warningCode()).isEqualTo("FEATURE_DISABLED");
+        assertThat(result.rate()).isEqualByComparingTo(old.getRate());
+        verifyNoInteractions(fixture.provider, fixture.persistence);
+    }
+
     private Fixture fixture() {
         FxDataProperties properties = new FxDataProperties(); properties.setEnabled(true); properties.setCacheTtl(java.time.Duration.ofMinutes(60));
         ExchangeRateMapper mapper = mock(ExchangeRateMapper.class); ExchangeRateProvider provider = mock(ExchangeRateProvider.class);

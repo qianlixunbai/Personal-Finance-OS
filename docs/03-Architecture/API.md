@@ -298,6 +298,7 @@ Authorization: Bearer <token>
 | `GET` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 查询当前用户指定资产。非当前用户资产返回 `404`。 |
 | `POST` | `/api/v1/assets` | 是 | Body: `AssetRequest(name, symbol, type, market, currency, quantity, avgCost)` | `ApiResponse<AssetResponse>` | 创建资产持仓记录。 |
 | `POST` | `/api/v1/assets/{id}/quote/refresh` | 是 | Path: `id` | `ApiResponse<MarketQuoteResponse>` | 刷新本人 US `STOCK` 或 `ETF` 的独立参考行情；不修改资产估值或 Dashboard。 |
+| `POST` | `/api/v1/assets/{id}/reference-valuation/refresh` | 是 | Path: `id` | `ApiResponse<ReferenceValuationResponse>` | 刷新本人资产的参考估值输入；只读派生最终估值，不修改人工资产字段或 Dashboard。 |
 | `PUT` | `/api/v1/assets/{id}/price` | 是 | Path: `id`; Query: `price` | `ApiResponse<AssetResponse>` | 更新当前价格，并计算 `marketValue`。 |
 | `PUT` | `/api/v1/assets/{id}/close` | 是 | Path: `id` | `ApiResponse<AssetResponse>` | 将当前用户资产持仓快照清仓，`quantity` 归零。 |
 | `DELETE` | `/api/v1/assets/{id}` | 是 | Path: `id` | `ApiResponse<Void>` | 删除资产。当前有持仓数量时拒绝删除。 |
@@ -317,6 +318,9 @@ Authorization: Bearer <token>
 - 行情刷新仅以 US `STOCK` / `ETF` 资产自身的合法 `symbol` 为输入；缺失、空白或非 US `market` 返回 HTTP `400`。不会提供任意 symbol、批量刷新或 provider 状态接口。缓存命中不请求 provider；过期数据在 provider 失败时返回最近一次成功的参考行情和 warning。
 - `GET /assets`、`GET /assets/page` 和 `GET /assets/{id}` 的 `AssetResponse` 可包含 `marketQuote`。该字段为 `null` 或只读快照：`symbol`、`market`、`currency`、`price`、`quoteTime`、`fetchedAt`、`provider`、`freshness`；不包含仅属于刷新操作的 `refreshResult` 和 `warning`。
 - 普通 Asset 查询只为 US `STOCK` / `ETF` 批量读取 `market_quotes` 缓存；非 US Asset 的 `marketQuote` 始终为 `null`。查询不调用 provider，也不修改 `assets.current_price`、`assets.market_value` 或行情快照。缓存的新鲜度按读取时的 15 分钟 TTL 动态返回 `FRESH` 或 `STALE`。
+- `AssetResponse.referenceValuation` 是 nullable 的只读派生字段：不支持的资产或没有可用输入时可为 `null`；非 null 时包含 quote、FX、原生市值、CNY 参考市值、`FRESH`/`STALE`/`PARTIAL`/`UNAVAILABLE` freshness 与结构化 `warnings`。最终参考估值不持久化。
+- Reference Valuation refresh 需要 JWT，先校验 ownership；非本人或不存在资产返回 `404`，不支持的资产返回 `400`，且两者均不会调用 provider 或消费额度。FX 限额、无效 provider 响应和临时不可用分别使用 `429`、`502`、`503` 的统一安全错误体。
+- 若 quote 或 FX 刷新失败但已有旧快照，refresh 返回成功的 `STALE` 响应和固定的 `FEATURE_DISABLED` 或 `REFRESH_FAILED` warning；warning 不包含 provider 原始响应、URL、密钥或堆栈。Quote 为 `CNY` 时使用 `CNY/CNY`、rate `1` 和 `SYSTEM_IDENTITY`，不会刷新 FX。
 
 ## 9.5 Dashboard APIs
 

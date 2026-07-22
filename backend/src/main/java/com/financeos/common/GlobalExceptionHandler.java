@@ -1,5 +1,6 @@
 package com.financeos.common;
 
+import com.financeos.module.asset.marketdata.fx.provider.ExchangeRateProviderException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ExchangeRateProviderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleExchangeRateProviderException(ExchangeRateProviderException exception) {
+        int status = switch (exception.getErrorType()) {
+            case RATE_LIMITED -> 429;
+            case RESPONSE_FORMAT, UNSUPPORTED_PAIR, INVALID_RATE, INVALID_TIME, CURRENCY_MISMATCH -> 502;
+            default -> 503;
+        };
+        String message = switch (status) {
+            case 429 -> "FX refresh limit has been reached";
+            case 502 -> "FX provider returned an invalid response";
+            default -> "FX data is temporarily unavailable";
+        };
+        return ResponseEntity.status(resolveHttpStatus(status)).body(ApiResponse.error(status, message));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {

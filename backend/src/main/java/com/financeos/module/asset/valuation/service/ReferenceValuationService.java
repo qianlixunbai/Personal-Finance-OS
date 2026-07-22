@@ -118,7 +118,7 @@ public class ReferenceValuationService {
                 quoteFreshness, fxFreshness);
 
         return response(asset, quote, fxRequired,
-                rateAvailable ? rate.getBaseCurrency() : (quoteAvailable ? BASE_CURRENCY : null),
+                rateAvailable ? rate.getBaseCurrency() : (quoteAvailable ? (fxRequired ? quote.currency() : BASE_CURRENCY) : null),
                 rateAvailable ? rate.getQuoteCurrency() : (quoteAvailable ? BASE_CURRENCY : null),
                 fxRate,
                 rateAvailable ? rate.getRateTime() : null,
@@ -164,6 +164,26 @@ public class ReferenceValuationService {
 
     private ReferenceValuationWarning warning(String code, String component, String message) {
         return new ReferenceValuationWarning(code, component, message);
+    }
+
+    public ReferenceValuationResponse withRefreshWarning(ReferenceValuationResponse response, String warningCode) {
+        if (warningCode == null) {
+            return response;
+        }
+        String message = switch (warningCode) {
+            case "FEATURE_DISABLED" -> "The FX refresh service is disabled; a stale rate is shown.";
+            case "REFRESH_FAILED" -> "The FX refresh failed; a stale rate is shown.";
+            default -> "The FX refresh did not complete; a stale rate is shown.";
+        };
+        List<ReferenceValuationWarning> warnings = new ArrayList<>(response.warnings());
+        warnings.add(warning(warningCode, "FX", message));
+        return new ReferenceValuationResponse(response.assetId(), response.symbol(), response.quantity(),
+                response.quoteCurrency(), response.quotePrice(), response.quoteTime(), response.quoteFetchedAt(),
+                response.quoteProvider(), response.quoteFreshness(), response.fxRequired(), response.fxBaseCurrency(),
+                response.fxQuoteCurrency(), response.fxRate(), response.fxRateTime(), response.fxFetchedAt(),
+                response.fxProvider(), response.fxFreshness(), response.nativeMarketValue(), response.baseCurrency(),
+                response.baseCurrencyMarketValue(), response.valuationFreshness(), response.calculatedAt(),
+                response.formulaVersion(), List.copyOf(warnings));
     }
 
     private String normalizedSymbol(String symbol) {

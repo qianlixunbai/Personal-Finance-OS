@@ -44,9 +44,12 @@ public class ExchangeRateService {
     public ExchangeRateRefreshResult refreshRate(Long userId, String baseCurrency, String quoteCurrency) {
         String base = queryService.normalize(baseCurrency); String quote = queryService.normalize(quoteCurrency);
         if (base.equals("CNY") && quote.equals("CNY")) return result(queryService.syntheticCnyRate(), ExchangeRateFreshness.FRESH, ExchangeRateRefreshStatus.CACHE_HIT, null);
-        if (!properties.isEnabled() || provider == null) throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.DISABLED);
         ExchangeRate cached = queryService.find(base, quote);
         if (queryService.freshnessOf(cached) == ExchangeRateFreshness.FRESH) return result(cached, ExchangeRateFreshness.FRESH, ExchangeRateRefreshStatus.CACHE_HIT, null);
+        if (!properties.isEnabled() || provider == null) {
+            if (cached != null) return result(cached, ExchangeRateFreshness.STALE, ExchangeRateRefreshStatus.STALE_FALLBACK, "FEATURE_DISABLED");
+            throw new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.DISABLED);
+        }
         String key = base + ":" + quote; CompletableFuture<ExchangeRateRefreshResult> created = new CompletableFuture<>();
         CompletableFuture<ExchangeRateRefreshResult> current = inFlight.putIfAbsent(key, created);
         if (current != null) {

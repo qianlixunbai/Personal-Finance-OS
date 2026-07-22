@@ -56,6 +56,9 @@ class ReferenceValuationServiceTest {
 
         assertThat(result.nativeMarketValue()).isEqualByComparingTo("20.0000000000000000");
         assertThat(result.baseCurrencyMarketValue()).isNull();
+        assertThat(result.fxBaseCurrency()).isEqualTo("USD");
+        assertThat(result.fxQuoteCurrency()).isEqualTo("CNY");
+        assertThat(result.fxRate()).isNull();
         assertThat(result.valuationFreshness()).isEqualTo(ReferenceValuationFreshness.PARTIAL);
         assertThat(result.warnings()).extracting(warning -> warning.code()).contains("FX_MISSING");
     }

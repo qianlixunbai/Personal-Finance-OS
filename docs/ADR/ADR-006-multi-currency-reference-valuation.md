@@ -226,6 +226,6 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 
 - 提出时间：2026-07-19
 - 接受日期：2026-07-19
-- 当前完成范围：v2.1 Phase 1 FX Foundation 已关闭；Phase 2 FX Refresh Workflow 已实现并完成验证（60 分钟 TTL、缓存 freshness、single-flight、单进程额度保护与 stale fallback）。
-- 尚未完成：Phase 3 Reference Valuation、公开 API、Dashboard 接入和 UI；仍无真实 Provider。
+- 当前完成范围：v2.1 Phase 1 FX Foundation、Phase 2 FX Refresh Workflow 和 Phase 3 Reference Valuation Backend 已实现并完成验证；Phase 3 包含 Reference Valuation API、只读缓存计算、显式 refresh、stale fallback 与结构化 warning。
+- 尚未完成：Phase 4 Assets UI、Dashboard 接入和真实 FX Provider；Dashboard 仍不使用 Reference Valuation。
 - 正式生效：是；`Accepted` 不等于 v2.1 全部完成

@@ -8,7 +8,7 @@
 
 | 工程指标 | 当前状态 |
 | --- | --- |
-| Backend tests | 178 |
+| Backend tests | automated; run `backend\\mvnw.cmd test` for the current count |
 | Frontend tests | 14 |
 | Java | 21 |
 | PostgreSQL | 17 |
@@ -39,7 +39,7 @@
 - Testcontainers 在空 PostgreSQL 17 容器中验证 V1 migration
 - v2.0 Market Data Foundation 已完成：仅支持 US `STOCK` / `ETF` 的独立参考行情快照
 - 行情只可手动刷新；页面加载仅读取缓存，不参与 CNY 资产或 Dashboard 估值
-- 后端 178 项、前端 14 项测试覆盖关键业务与展示边界，并通过 lint 和生产构建验证
+- 后端自动化测试与前端 14 项测试覆盖关键业务与展示边界，并通过 lint 和生产构建验证
 - 保留 Review / Fix Plan 记录，体现设计、实现、评审、修复闭环
 
 ## 技术栈
@@ -92,7 +92,7 @@
 - 真实 API 集成测试覆盖 JWT、安全链、用户隔离和交易余额联动
 - 已接入 OpenAPI 3 与 Swagger UI，六个 Controller 的 24 个接口已生成运行时 API 文档
 - 注册和登录为公开接口，其余业务接口在运行时文档中显示 JWT 安全要求
-- 后端当前 178 项测试通过：`.\mvnw.cmd clean test`
+- 后端测试数量以 `.\mvnw.cmd test` 的当前结果为准
 - 前端当前 14 项测试通过，并通过 `npm run lint` 和 `npm run build`
 
 当前 Transaction / Ledger 支持：
@@ -229,7 +229,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - GitHub Actions CI 已完成，自动执行后端测试、前端测试、lint 和构建
 - Controller / API 测试里程碑已完成：六个 Controller 的核心 HTTP 契约已覆盖
 - OpenAPI 3 与 Swagger UI 已接入，六个 Controller 的 24 个接口已生成运行时 API 文档
-- 后端当前 178 项测试，前端当前 14 项测试
+- 后端测试数量以 `.\mvnw.cmd test` 的当前结果为准；前端当前 14 项测试
 - `Architecture.md` 已完成 Review 并冻结
 - `Database.md`、`API.md` 已同步当前实现状态
 - Accounts 已接入账户编辑入口

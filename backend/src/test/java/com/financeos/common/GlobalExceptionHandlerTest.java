@@ -1,5 +1,6 @@
 package com.financeos.common;
 
+import com.financeos.module.asset.marketdata.fx.provider.ExchangeRateProviderException;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,6 +45,17 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(expectedStatus);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo(code);
+    }
+
+    @Test
+    void disabledFxProviderReturnsSanitizedServiceUnavailableResponse() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleExchangeRateProviderException(
+                new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.DISABLED));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo(503);
+        assertThat(response.getBody().message()).isEqualTo("FX data is temporarily unavailable");
     }
 
     @Test

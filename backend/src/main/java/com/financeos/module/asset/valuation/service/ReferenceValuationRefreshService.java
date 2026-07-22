@@ -11,6 +11,7 @@ import com.financeos.module.asset.marketdata.service.MarketQuoteService;
 import com.financeos.module.asset.marketdata.fx.entity.ExchangeRate;
 import com.financeos.module.asset.marketdata.fx.service.ExchangeRateFreshness;
 import com.financeos.module.asset.marketdata.fx.service.ExchangeRateQueryService;
+import com.financeos.module.asset.marketdata.fx.service.ExchangeRateRefreshResult;
 import com.financeos.module.asset.marketdata.fx.service.ExchangeRateService;
 import com.financeos.module.asset.valuation.dto.ReferenceValuationResponse;
 import org.springframework.stereotype.Service;
@@ -58,11 +59,13 @@ public class ReferenceValuationRefreshService {
             return valuationService.calculate(asset, quote, null);
         }
         ExchangeRate rate = exchangeRateQueryService.find(quote.currency(), ReferenceValuationService.BASE_CURRENCY);
+        ExchangeRateRefreshResult refreshResult = null;
         if (exchangeRateQueryService.freshnessOf(rate) != ExchangeRateFreshness.FRESH) {
-            exchangeRateService.refreshRate(userId, quote.currency(), ReferenceValuationService.BASE_CURRENCY);
+            refreshResult = exchangeRateService.refreshRate(userId, quote.currency(), ReferenceValuationService.BASE_CURRENCY);
             rate = exchangeRateQueryService.find(quote.currency(), ReferenceValuationService.BASE_CURRENCY);
         }
-        return valuationService.calculate(asset, quote, rate);
+        return valuationService.withRefreshWarning(valuationService.calculate(asset, quote, rate),
+                refreshResult == null ? null : publicWarningCode(refreshResult.warningCode()));
     }
 
     private Asset ownedRefreshableAsset(Long userId, Long assetId) {
@@ -81,5 +84,9 @@ public class ReferenceValuationRefreshService {
     private MarketQuoteSnapshotResponse snapshot(MarketQuote quote, MarketQuoteFreshness freshness) {
         return new MarketQuoteSnapshotResponse(quote.getSymbol(), quote.getMarket(), quote.getCurrency(), quote.getPrice(),
                 quote.getQuoteTime(), quote.getFetchedAt(), quote.getProvider(), freshness);
+    }
+
+    private String publicWarningCode(String warningCode) {
+        return "FX_REFRESH_FAILED".equals(warningCode) ? "REFRESH_FAILED" : warningCode;
     }
 }
