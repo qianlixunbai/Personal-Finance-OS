@@ -37,12 +37,12 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionThree() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionFour() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions')
                 """, Integer.class);
         Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -58,6 +58,11 @@ class FlywayMigrationIntegrationTest {
                 SELECT count(*)
                 FROM flyway_schema_history
                 WHERE version = '3' AND description = 'exchange rates' AND success = true
+                """, Integer.class);
+        Integer versionFourMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '4' AND description = 'investment ledger foundation' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -83,11 +88,50 @@ class FlywayMigrationIntegrationTest {
                 FROM pg_constraint
                 WHERE conrelid = 'exchange_rates'::regclass
                 """, String.class);
+        Integer quantityPrecision = jdbcTemplate.queryForObject("""
+                SELECT numeric_precision FROM information_schema.columns
+                WHERE table_name = 'investment_transactions' AND column_name = 'quantity'
+                """, Integer.class);
+        Integer quantityScale = jdbcTemplate.queryForObject("""
+                SELECT numeric_scale FROM information_schema.columns
+                WHERE table_name = 'investment_transactions' AND column_name = 'quantity'
+                """, Integer.class);
+        Integer amountPrecision = jdbcTemplate.queryForObject("""
+                SELECT numeric_precision FROM information_schema.columns
+                WHERE table_name = 'investment_transactions' AND column_name = 'gross_amount'
+                """, Integer.class);
+        Integer amountScale = jdbcTemplate.queryForObject("""
+                SELECT numeric_scale FROM information_schema.columns
+                WHERE table_name = 'investment_transactions' AND column_name = 'gross_amount'
+                """, Integer.class);
+        Map<String, String> investmentColumns = jdbcTemplate.query("""
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = 'investment_transactions'
+                """, resultSet -> {
+            Map<String, String> result = new java.util.HashMap<>();
+            while (resultSet.next()) {
+                result.put(resultSet.getString("column_name"), resultSet.getString("data_type"));
+            }
+            return result;
+        });
+        List<String> investmentConstraints = jdbcTemplate.queryForList("""
+                SELECT conname
+                FROM pg_constraint
+                WHERE conrelid = 'investment_transactions'::regclass
+                """, String.class);
+        List<String> investmentIndexes = jdbcTemplate.queryForList("""
+                SELECT index_class.relname
+                FROM pg_index index_definition
+                JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
+                WHERE index_definition.indrelid = 'investment_transactions'::regclass
+                """, String.class);
 
-        assertThat(applicationTableCount).isEqualTo(8);
+        assertThat(applicationTableCount).isEqualTo(9);
         assertThat(versionOneMigrationCount).isEqualTo(1);
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);
+        assertThat(versionFourMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -106,5 +150,36 @@ class FlywayMigrationIntegrationTest {
                 "ck_exchange_rates_quote_currency_format",
                 "ck_exchange_rates_rate_positive",
                 "ck_exchange_rates_distinct_currencies");
+        assertThat(quantityPrecision).isEqualTo(28);
+        assertThat(quantityScale).isEqualTo(8);
+        assertThat(amountPrecision).isEqualTo(28);
+        assertThat(amountScale).isEqualTo(2);
+        assertThat(investmentColumns).containsEntry("id", "bigint")
+                .containsEntry("user_id", "bigint")
+                .containsEntry("asset_id", "bigint")
+                .containsEntry("account_id", "bigint")
+                .containsEntry("quantity", "numeric")
+                .containsEntry("unit_price", "numeric")
+                .containsEntry("gross_amount", "numeric")
+                .containsEntry("trade_time", "timestamp with time zone")
+                .containsEntry("settlement_time", "timestamp with time zone")
+                .containsEntry("idempotency_key", "character varying");
+        assertThat(investmentConstraints).contains(
+                "investment_transactions_pkey",
+                "uk_investment_transactions_user_idempotency",
+                "fk_investment_transactions_user_asset",
+                "fk_investment_transactions_user_account",
+                "ck_investment_transactions_type",
+                "ck_investment_transactions_status",
+                "ck_investment_transactions_currency_format",
+                "ck_investment_transactions_settlement_time",
+                "ck_investment_transactions_reversal_state",
+                "ck_investment_transactions_type_fields",
+                "ck_investment_transactions_opening_source");
+        assertThat(investmentIndexes).contains(
+                "idx_investment_transactions_user_trade_time_desc",
+                "idx_investment_transactions_user_asset_trade_time",
+                "idx_investment_transactions_user_account_trade_time_desc",
+                "idx_investment_transactions_user_type_trade_time_desc");
     }
 }

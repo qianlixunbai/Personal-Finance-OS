@@ -1,6 +1,6 @@
 # Personal Finance OS 文档中心
 
-> v2.1 Market Valuation 已完成并正式关闭：Asset 响应展示缓存的只读参考估值，前端不计算金融金额，仅安全映射 freshness/warning 并提供单资产刷新。Dashboard 保持不变，真实 FX Provider 默认关闭。下一阶段为尚未开始实施的 v3.0 Phase 1 Investment Ledger Foundation。
+> v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：InvestmentTransaction 事实模型、纯 BigDecimal 计算/replay 内核、V4 migration、Entity/Mapper 与 PostgreSQL 约束测试已完成；没有公开 API、真实交易写入、余额联动或前端改动。
 
 ## 1. 阅读说明
 
@@ -26,6 +26,7 @@
 - [API](./03-Architecture/API.md)：当前 API 基线、统一响应、分页规则、认证规则和前端接入状态。
 - [Business Rules](./Business%20Rules.md)：账户、分类、资产、流水等核心业务规则。
 - [Financial Rules](./Financial%20Rules.md)：金额、余额、资产估值、收益率等金融计算规则。
+- [V3.0 Investment Ledger Foundation Design](./design/V3.0-Investment-Ledger-Foundation-Design.md)：Phase 1 领域、计算和持久化边界。
 
 ## 4. 需求与项目规划
 
@@ -65,6 +66,8 @@
 - [ADR Template](./ADR/ADR-000-Template.md)：ADR 模板。
 - [ADR-001：为什么选择 Java 21](./ADR/ADR-001：为什么选择%20Java%2021.md)
 - [ADR-005：采用 Flyway 管理数据库迁移](./ADR/ADR-005：采用%20Flyway%20管理数据库迁移.md)
+- [ADR-006：多币种参考估值与汇率快照](./ADR/ADR-006-multi-currency-reference-valuation.md)
+- [ADR-007：投资账本基础与持仓受控投影](./ADR/ADR-007-investment-ledger-foundation.md)
 - [logs/](./logs/)：开发过程日志。
 - [decisions/](./decisions/)：决策相关文档入口。
 - [meeting/](./meeting/)：会议记录入口。

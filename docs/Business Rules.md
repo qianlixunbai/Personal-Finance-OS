@@ -355,7 +355,17 @@ V1 不支持：
 
 ------
 
-# 十六、最终原则
+# 十六、v3.0 投资交易边界（Phase 1 已实施，待独立验收）
+
+- `InvestmentTransaction` 独立于普通 `Transaction`；普通流水、现有 Asset API、清仓语义和 Dashboard 不变。
+- 领域层定义 `BUY`、`SELL`、`DIVIDEND`、`OPENING_POSITION`，但没有 Controller、公开 API、真实写入 Service 或前端入口。
+- 事实不物理删除；未来不得通过 PUT 直接覆盖数量、金额或价格，而应使用冲正和 replacement。`REVERSED` 事实在 replay 中跳过。
+- `OPENING_POSITION` 只能由后续受控迁移或内部流程创建，不能作为普通客户端接口。
+- Phase 1 不执行账户余额联动、行锁、幂等写入服务、旧 Asset Opening Position 迁移或自动绑定券商账户。
+
+------
+
+# 十七、最终原则
 
 Business Rules 是系统业务行为的统一规范。
 

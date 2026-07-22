@@ -4,7 +4,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（尚未开始实施；设计分析已完成并获得 `CONDITIONAL GO`）。
+**当前阶段：** v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（已实施，待独立验收）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -305,20 +305,19 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 ------
 
-## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（待实施）
+## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（已实施，待独立验收）
 
 ### 定位
 
-当前仅完成设计分析并获得 `CONDITIONAL GO`，尚未开始实施。目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。
+已完成领域、规则、纯计算/replay 与持久化基础，目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。最终关闭结论留给独立只读验收。
 
-### 入口规划
+### 已实施范围
 
-- ADR；
-- Financial Rules / Business Rules 冻结；
+- ADR-007 与 Financial Rules / Business Rules 冻结；
 - BigDecimal 投资计算与 replay 内核；
-- additive V4 migration；
-- Entity / Mapper；
-- PostgreSQL 约束测试。
+- additive V4 migration、InvestmentTransaction Entity / Mapper；
+- Asset 兼容投影字段、PostgreSQL 17 Testcontainers migration / Mapper 约束测试；
+- 没有 Controller、公开 API、真实交易写入、账户余额联动或前端改动。
 
 ### 已接受的设计方向 / 后续实施规划
 
@@ -332,10 +331,8 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 - `fee`、`tax` 作为交易组成字段，使用必填幂等键、PostgreSQL 行锁和冲正替代物理删除；
 - `Opening Position` 用于旧 Asset 迁移，普通流水与投资交易未来共用统一 `AccountBalanceService`。
 
-### 当前明确不实施
+### Phase 2 后续范围，当前明确不实施
 
-- 创建 v3.0 migration；
-- 编写 v3.0 代码或引入投资交易表；
 - 开放 BUY / SELL API；
 - 修改前端或 Asset 当前行为。
 

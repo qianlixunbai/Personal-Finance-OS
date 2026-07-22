@@ -292,7 +292,21 @@ AI 不允许：
 
 ------
 
-# 十五、最终原则
+# 十五、v3.0 投资账本基础规则（Phase 1 已实施，待独立验收）
+
+`InvestmentTransaction` 是投资事实，`Asset` 是当前持仓受控投影；Market Quote、FX 和 Reference Valuation 都不是交易、成本或现金余额真值。投资账务第一版为 CNY-only，数据库保留三位 `currency` 字段。
+
+- `quantity`、`unitPrice`、`avgCost` 使用 `NUMERIC(28,8)` / `BigDecimal`；`fee`、`tax`、`gross`、`net`、`totalCost`、已实现盈亏使用 `NUMERIC(28,2)` / `BigDecimal`。
+- 输入 scale 超限必须拒绝，禁止静默截断、`float`、`double` 与 `new BigDecimal(double)`；现金金额最终 scale 为 2，平均成本最终 scale 为 8，除法显式 `HALF_UP`。
+- BUY：`gross = round(quantity × unitPrice, 2)`，`acquiredCost = gross + fee + tax`，成本和数量增加，`cashDelta = -acquiredCost`。
+- SELL：`net = gross - fee - tax`；部分卖出按 `round(totalCost × sellQuantity / currentQuantity, 2)` 释放成本，全部卖出释放全部剩余成本，不留下舍入残值；`realizedProfitLoss = net - releasedCost`。
+- DIVIDEND 不改变数量、总成本或平均成本，不生成普通 `INCOME` 流水；`cashDelta = gross - tax - fee` 仅由后续写入阶段处理。
+- OPENING_POSITION 仅用于受控迁移或内部流程；`totalCost = round(quantity × unitCost, 2)`、`cashDelta = 0`，本阶段不迁移旧数据。
+- Phase 1 只计算和 replay，不修改 `Account.balance`、Asset 旧字段、普通 Transaction 或 Dashboard。
+
+------
+
+# 十六、最终原则
 
 Financial Rules 是 Personal Finance OS 的金融业务基准。
 

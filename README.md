@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> v2.1 Market Valuation 已完成并正式关闭：Assets 页面并列展示人工估值和只读市场参考估值。前端只格式化后端结果，不计算金融金额；支持 FRESH/STALE/PARTIAL/UNAVAILABLE、固定 warning 映射和单资产手动刷新。参考估值不会修改人工 CNY 字段或 Dashboard，真实 FX Provider 默认关闭。下一阶段为 v3.0 Phase 1 Investment Ledger Foundation，尚未开始实施。
+> v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：已建立 InvestmentTransaction 事实模型、加权平均成本 BigDecimal 计算/replay 内核、V4 additive migration、Entity/Mapper 与 PostgreSQL 约束测试。没有公开投资交易 API、真实 BUY/SELL 写入、账户余额联动或前端改动。
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 
@@ -245,11 +245,12 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - 参考行情仅支持 US `STOCK` / `ETF`，不参与 CNY 资产或 Dashboard 估值；Assets 页面只读缓存，刷新为单 Asset 手动操作。公开 `sites-demo` 不调用真实 Market Data API。
 - v2.1 Market Valuation 已完成并正式关闭：Phase 1 FX Foundation、Phase 2 FX Refresh Workflow、Phase 3 Reference Valuation Backend、Phase 4 Assets UI 均已完成；参考估值为只读、非持久化派生结果，不修改账务真值或 Dashboard。
 - v2.1 仍保持 CNY-only Account / Transaction；普通 GET 不调用 Provider，只有显式 POST 才可能刷新 Quote 或 FX；真实 FX Provider 默认关闭。
+- v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：InvestmentTransaction 是事实、Asset 是受控投影；纯计算和 replay 内核、V4 migration、Entity/Mapper 与测试已具备，但没有开放任何投资交易入口或改变现有余额、Asset / Dashboard 行为。
 
 ## 后续计划
 
-- 当前阶段：`v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation`。
-- v3.0 尚未开始实施；当前仅完成设计分析并获得 `CONDITIONAL GO`。入口为 ADR、Financial Rules / Business Rules 冻结、BigDecimal 投资计算与 replay 内核、additive V4 migration、Entity / Mapper 和 PostgreSQL 约束测试。
+- 当前阶段：`v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation`（已实施，待独立验收）。
+- 后续 Phase 2 才处理 Account Concurrency、受控 Opening Position 迁移、幂等写入与账户余额联动；这些能力当前未实施。
 - 资产历史价格、定时或自动刷新、AI 财务分析和完整生产运维能力仍属于后续规划。
 
 ## 项目定位

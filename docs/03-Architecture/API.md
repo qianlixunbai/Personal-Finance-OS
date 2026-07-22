@@ -322,6 +322,7 @@ Authorization: Bearer <token>
 - Reference Valuation refresh 需要 JWT，先校验 ownership；非本人或不存在资产返回 `404`，不支持的资产返回 `400`，且两者均不会调用 provider 或消费额度。FX 限额、无效 provider 响应和临时不可用分别使用 `429`、`502`、`503` 的统一安全错误体。
 - 若 quote 或 FX 刷新失败但已有旧快照，refresh 返回成功的 `STALE` 响应和固定的 `FEATURE_DISABLED` 或 `REFRESH_FAILED` warning；warning 不包含 provider 原始响应、URL、密钥或堆栈。Quote 为 `CNY` 时使用 `CNY/CNY`、rate `1` 和 `SYSTEM_IDENTITY`，不会刷新 FX。
 - Assets UI 只消费 `referenceValuation` 的后端字段并格式化展示：人工 Asset 估值与市场参考估值并列；FRESH、STALE、PARTIAL、UNAVAILABLE 和公开 warning code 映射为固定中文。单资产 refresh 的成功响应只替换当前行 `referenceValuation`，不会写入 `currentPrice`、`marketValue` 或 Dashboard。
+- v3.0 Phase 1 已建立 InvestmentTransaction 领域、计算/replay 内核和持久化基础，但**没有公开 Investment Transaction API**；现有 Asset、Transaction、Account 与 Dashboard API 行为不变。
 
 ## 9.5 Dashboard APIs
 
@@ -610,7 +611,7 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 3. Asset API 缺少 `accountId`，与 `Database.md` 中 `assets.account_id` Known Gap 一致。
 4. 无 AssetPrice API，且后端无 `AssetPrice` Entity / Mapper。
 5. 完整 `TRANSFER` / `REFUND` 模型暂未实现。
-6. 投资交易流水暂未实现。
+6. v3.0 Phase 1 已实现 InvestmentTransaction 基础模型、V4 persistence 和纯计算/replay 内核，但尚无公开 API、真实写入、账户余额联动或 Opening Position 迁移。
 7. 并发下账户余额更新仍需后续评估行锁、乐观锁或原子 SQL。
 8. 参数校验、请求参数缺失、参数类型错误、请求体格式错误、Spring Security `401` / `403`、未知异常均已统一返回 `ApiResponse`。
 9. 业务错误码体系较简单，暂无稳定 `ErrorCode` 枚举。

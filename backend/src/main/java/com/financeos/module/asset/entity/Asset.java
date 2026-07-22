@@ -35,6 +35,27 @@ public class Asset {
     @TableField("market_value")
     private BigDecimal marketValue;
 
+    @TableField("account_id")
+    private Long accountId;
+
+    @TableField("total_cost")
+    private BigDecimal totalCost;
+
+    @TableField("realized_profit_loss")
+    private BigDecimal realizedProfitLoss;
+
+    @TableField("position_status")
+    private String positionStatus;
+
+    @TableField("last_transaction_id")
+    private Long lastTransactionId;
+
+    @TableField("projection_version")
+    private Integer projectionVersion;
+
+    @TableField("position_mode")
+    private String positionMode;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt = LocalDateTime.now();
 
