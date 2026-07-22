@@ -292,7 +292,7 @@ AI 不允许：
 
 ------
 
-# 十五、v3.0 投资账本基础规则（Phase 1 已实施，待独立验收）
+# 十五、v3.0 投资账本基础规则（Phase 1 已完成并正式关闭）
 
 `InvestmentTransaction` 是投资事实，`Asset` 是当前持仓受控投影；Market Quote、FX 和 Reference Valuation 都不是交易、成本或现金余额真值。投资账务第一版为 CNY-only，数据库保留三位 `currency` 字段。
 
@@ -304,7 +304,7 @@ AI 不允许：
 - OPENING_POSITION 仅用于受控迁移或内部流程；`totalCost = round(quantity × unitCost, 2)`、`cashDelta = 0`，本阶段不迁移旧数据。
 - Phase 1 只计算和 replay，不修改 `Account.balance`、Asset 旧字段、普通 Transaction 或 Dashboard。
 
-首次独立验收为 NO-GO 的 4 项 P1 已定向修复，V4 保持不变，V5 以 fail-fast 前向迁移加入数据库约束：BUY `net = gross + fee + tax` 且成本/已实现盈亏为零；SELL、DIVIDEND `net = gross - fee - tax`；SELL `releasedCost > 0` 且 `realizedProfitLoss = net - releasedCost`；Opening 的 fee、tax、net、released cost 和已实现盈亏均为零。有效序列中 Opening 只能一次且必须第一个；`quantity > 0` 当且仅当 `totalCost > 0`，无法以 CNY 两位小数表达的低名义 BUY、SELL、Opening 以及会留下正数量零成本的部分 SELL 必须拒绝。Phase 1 仍待独立复验，Phase 2 未开始，仍无公开 API、余额联动或实际 Opening 迁移。
+首次独立验收为 NO-GO，发现的 4 项 P1 已通过定向修复和独立聚焦复验全部关闭，最终结论为 GO。V4 保持不变，V5 以 fail-fast 前向迁移加入数据库约束：BUY `net = gross + fee + tax` 且成本/已实现盈亏为零；SELL、DIVIDEND `net = gross - fee - tax`；SELL `releasedCost > 0` 且 `realizedProfitLoss = net - releasedCost`；Opening 的 fee、tax、net、released cost 和已实现盈亏均为零。有效序列中 Opening 只能一次且必须第一个；`quantity > 0` 当且仅当 `totalCost > 0`，无法以 CNY 两位小数表达的低名义 BUY、SELL、Opening 以及会留下正数量零成本的部分 SELL 必须拒绝。Phase 1 已正式关闭，Phase 2A 尚未开始实施，仍无公开 API、余额联动或实际 Opening 迁移。
 
 ------
 

@@ -968,7 +968,7 @@ V4 新增 `investment_transactions`，用于保存投资事实；当前没有写
 - `assets` 以 additive 方式增加 `account_id`、`total_cost`、`realized_profit_loss`、`position_status`、`last_transaction_id`、`projection_version`、`position_mode`。旧 Asset 保持 `LEGACY`，不自动生成 Opening Position，也不改变旧字段或 API。
   - 索引覆盖用户时间线、用户/资产 replay、用户/账户时间线和用户/交易类型时间线。
 
-V5 保持 V1-V4 不变，先 fail-fast 检查既有矛盾事实，再增加各交易类型的金额 CHECK、`(user_id, asset_id, id)` 唯一键、replacement 复合外键和自引用 CHECK。首次独立验收的 4 项 P1 已定向修复但仍待独立复验：Opening 只能是唯一的首个有效事实，正持仓必须有正成本，不能以 CNY 两位小数表达的低名义金额会被拒绝。Phase 1 未正式关闭，Phase 2 未开始；仍无公开交易 API、余额联动或实际 Opening 迁移。
+V5 保持 V1-V4 不变，先 fail-fast 检查既有矛盾事实，再增加各交易类型的金额 CHECK、`(user_id, asset_id, id)` 唯一键、replacement 复合外键和自引用 CHECK。首次独立验收发现的 4 项 P1 已通过定向修复和独立聚焦复验全部关闭，最终结论为 GO：Opening 只能是唯一的首个有效事实，正持仓必须有正成本，不能以 CNY 两位小数表达的低名义金额会被拒绝。Phase 1 已正式关闭，Phase 2A 尚未开始实施；仍无公开交易 API、余额联动或实际 Opening 迁移。
 
 ## 16.9 更完整的转账模型
 

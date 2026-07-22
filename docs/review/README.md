@@ -12,3 +12,4 @@
 当前报告：
 
 - [2026-07-06-architecture-review.md](2026-07-06-architecture-review.md)
+- [v3.0 Phase 1 Closing Review](V3.0-Phase1-Closing-Review.md)

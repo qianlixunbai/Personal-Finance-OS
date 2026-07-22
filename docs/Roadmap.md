@@ -4,7 +4,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（已实施，待独立验收）。
+**当前阶段：** v3.0 Phase 2A — Account Balance Concurrency Foundation（尚未开始实施）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -305,11 +305,11 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 ------
 
-## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（P1 已定向修复，仍待独立复验）
+## v3.0 Phase 1 Investment Ledger Foundation（已完成并正式关闭）
 
 ### 定位
 
-已完成领域、规则、纯计算/replay 与持久化基础，目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。最终关闭结论留给独立只读验收。
+已完成领域、规则、纯计算/replay 与持久化基础，目标是从“资产持仓快照”演进到可表达交易、成本和实现收益的投资管理模型。首次独立验收发现问题后完成定向修复，并经独立聚焦复验确认最终结论为 GO；P0、P1 均为零。
 
 ### 已实施范围
 
@@ -319,9 +319,9 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 - Asset 兼容投影字段、PostgreSQL 17 Testcontainers migration / Mapper 约束测试；
 - 没有 Controller、公开 API、真实交易写入、账户余额联动或前端改动。
 
-### P1 定向修复状态
+### 首次验收与定向修复
 
-首次独立验收为 NO-GO，4 项 P1 已定向修复：V4 保持不变，V5 对分类型金额恒等式、replacement 同用户同 Asset 隔离和自引用施加前向数据库约束，并对旧矛盾事实 fail-fast；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，低至不能以 CNY 两位小数表达的金额会被拒绝。上述修复不等同于 Phase 1 正式关闭，仍须独立复验；Phase 2 未开始，仍无公开 InvestmentTransaction API、Account.balance 联动或实际 Opening 迁移。
+首次独立验收为 NO-GO，发现 4 项 P1，随后使用定向修复提交完成修复：V4 保持不变，V5 对分类型金额恒等式、replacement 同用户同 Asset 隔离和自引用施加前向数据库约束，并对旧矛盾事实 fail-fast；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，低至不能以 CNY 两位小数表达的金额会被拒绝。独立聚焦复验结果为 GO，四项 P1 均已 CLOSED，Phase 1 正式关闭。Phase 2A 尚未开始实施，仍无公开 InvestmentTransaction API、Account.balance 联动或实际 Opening 迁移。
 
 ### 已接受的设计方向 / 后续实施规划
 
@@ -335,14 +335,24 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 - `fee`、`tax` 作为交易组成字段，使用必填幂等键、PostgreSQL 行锁和冲正替代物理删除；
 - `Opening Position` 用于旧 Asset 迁移，普通流水与投资交易未来共用统一 `AccountBalanceService`。
 
-### Phase 2 后续范围，当前明确不实施
+### Phase 2A 后续范围，当前明确不实施
 
-- 开放 BUY / SELL API；
-- 修改前端或 Asset 当前行为。
+- 统一 `AccountBalanceService`；
+- 使用 PostgreSQL `SELECT FOR UPDATE`；
+- 让普通 Transaction 使用统一余额更新路径；
+- 保证并发收入/支出不丢失更新、固定账户锁顺序并在事务失败时全部回滚；
+- 暂不接入 InvestmentTransaction，不做 Opening Position 迁移，不实现 BUY / SELL，不新增前端。
+
+### Phase 2B 后续范围
+
+- Opening Position Migration；
+- Legacy Asset Preflight；
+- Projection Rebuild；
+- Consistency Check。
 
 ### 边界说明
 
-该阶段会显著扩大业务复杂度，必须在入口规划完成后分阶段实施；本节内容均为已接受的设计方向或后续实施规划，不代表当前已实现能力。
+Phase 1 已完成并正式关闭；Phase 2A 尚未开始实施，必须在入口规划完成后分阶段实施。本节后续内容均不代表当前已实现能力。
 
 ------
 

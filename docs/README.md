@@ -1,6 +1,6 @@
 # Personal Finance OS 文档中心
 
-> v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：InvestmentTransaction 事实模型、纯 BigDecimal 计算/replay 内核、V4 migration、Entity/Mapper 与 PostgreSQL 约束测试已完成；没有公开 API、真实交易写入、余额联动或前端改动。
+> v3.0 Phase 1 Investment Ledger Foundation 已完成并正式关闭，最终结论为 GO：InvestmentTransaction 事实模型、纯 BigDecimal 计算/replay 内核、V4/V5 migration、Entity/Mapper 与 PostgreSQL 约束验证已完成；没有公开 API、真实交易写入、余额联动或前端改动。详见 [Phase 1 Closing Review](review/V3.0-Phase1-Closing-Review.md)。
 
 ## 1. 阅读说明
 

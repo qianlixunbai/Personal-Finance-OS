@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> v3.0 Phase 1 Investment Ledger Foundation 已实施。首次独立验收为 NO-GO 的 4 项 P1 已定向修复，仍待独立复验：V4 保持不变，V5 加固金额恒等式和 replacement 隔离；没有公开投资交易 API、真实 BUY/SELL 写入、账户余额联动或前端改动。
+> v3.0 Phase 1 Investment Ledger Foundation 已完成并正式关闭，最终结论为 GO。首次独立验收发现的 4 项 P1 已通过定向修复和独立聚焦复验全部关闭；V4 保持不变，V5 加固金额恒等式和 replacement 隔离。没有公开投资交易 API、真实 BUY/SELL 写入、账户余额联动或前端改动。
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 
@@ -9,9 +9,9 @@
 | 工程指标 | 当前状态 |
 | --- | --- |
 | Backend tests | automated; run `backend\\mvnw.cmd test` for the current count |
-| Frontend tests | 14 |
+| Frontend tests | 19/19 |
 | Java | 21 |
-| PostgreSQL | 17 |
+| PostgreSQL | 17.10 |
 | Market Data | US `STOCK` / `ETF` 独立参考行情 |
 | 项目规模 | 约 8.7k 行有效代码（不含文档、依赖与构建产物） |
 
@@ -245,12 +245,12 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - 参考行情仅支持 US `STOCK` / `ETF`，不参与 CNY 资产或 Dashboard 估值；Assets 页面只读缓存，刷新为单 Asset 手动操作。公开 `sites-demo` 不调用真实 Market Data API。
 - v2.1 Market Valuation 已完成并正式关闭：Phase 1 FX Foundation、Phase 2 FX Refresh Workflow、Phase 3 Reference Valuation Backend、Phase 4 Assets UI 均已完成；参考估值为只读、非持久化派生结果，不修改账务真值或 Dashboard。
 - v2.1 仍保持 CNY-only Account / Transaction；普通 GET 不调用 Provider，只有显式 POST 才可能刷新 Quote 或 FX；真实 FX Provider 默认关闭。
-- v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：InvestmentTransaction 是事实、Asset 是受控投影；纯计算和 replay 内核、V4 migration、Entity/Mapper 与测试已具备，但没有开放任何投资交易入口或改变现有余额、Asset / Dashboard 行为。
+- v3.0 Phase 1 Investment Ledger Foundation 已完成并正式关闭：InvestmentTransaction 是事实、Asset 是受控投影；纯计算和 replay 内核、V4/V5 migration、Entity/Mapper 与测试已具备，但没有开放任何投资交易入口或改变现有余额、Asset / Dashboard 行为。首次 NO-GO、4 项 P1 定向修复和最终 GO 详见 [Phase 1 Closing Review](docs/review/V3.0-Phase1-Closing-Review.md)。
 
 ## 后续计划
 
-- 当前阶段：`v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation`（已实施，待独立验收）。
-- 后续 Phase 2 才处理 Account Concurrency、受控 Opening Position 迁移、幂等写入与账户余额联动；这些能力当前未实施。
+- 当前阶段：`v3.0 Phase 2A — Account Balance Concurrency Foundation`（尚未开始实施）。
+- v3.0 Phase 1 已正式关闭；后续 Phase 2A 先处理 Account Concurrency，Phase 2B 再处理受控 Opening Position 迁移、幂等写入与账户余额联动；这些能力当前未实施。
 - 资产历史价格、定时或自动刷新、AI 财务分析和完整生产运维能力仍属于后续规划。
 
 ## 项目定位
