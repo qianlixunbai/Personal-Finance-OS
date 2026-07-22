@@ -148,6 +148,66 @@ class InvestmentLedgerCalculatorTest {
         assertThat(result.grossAmount()).isEqualByComparingTo("24691357802469135780.25");
     }
 
+    @Test
+    void rejectsPositionStatesWhoseQuantityAndCostDoNotMoveTogether() {
+        assertThatThrownBy(() -> state("1.00000000", "0.00", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Open position must retain positive total cost");
+        assertThatThrownBy(() -> state("0.00000000", "0.01", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Empty position cannot retain total cost");
+    }
+
+    @Test
+    void rejectsInvalidPositionStateNullNegativeAndScaleOverflowValues() {
+        assertThatThrownBy(() -> new InvestmentPositionState(null, decimal("0.00"), decimal("0.00")))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+        assertThatThrownBy(() -> state("-0.00000001", "0.00", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+        assertThatThrownBy(() -> state("1.000000001", "1.00", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+        assertThatThrownBy(() -> state("1.00000000", "1.001", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+        assertThatThrownBy(() -> new InvestmentPositionState(decimal("1.00000000"), decimal("1.00"), null))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+        assertThatThrownBy(() -> state("1.00000000", "-0.01", "0.00"))
+                .isInstanceOf(InvestmentLedgerValidationException.class);
+    }
+
+    @Test
+    void rejectsBuySellAndOpeningWhenMoneyRoundsToZero() {
+        assertThatThrownBy(() -> calculator.calculate(InvestmentPositionState.empty(),
+                InvestmentLedgerCommand.buy(decimal("0.00000001"), decimal("0.00000001"), decimal("0.00"), decimal("0.00"))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Buy gross amount must be positive after CNY rounding");
+        assertThatThrownBy(() -> calculator.calculate(InvestmentPositionState.empty(),
+                InvestmentLedgerCommand.openingPosition(decimal("0.00000001"), decimal("0.00000001"))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Opening position total cost must be positive after CNY rounding");
+        assertThatThrownBy(() -> calculator.calculate(state("1.00000000", "1.00", "0.00"),
+                InvestmentLedgerCommand.sell(decimal("0.00000001"), decimal("0.00000001"), decimal("0.00"), decimal("0.00"))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Sell gross amount must be positive after CNY rounding");
+    }
+
+    @Test
+    void rejectsPartialSellThatWouldLeavePositiveQuantityWithZeroCost() {
+        assertThatThrownBy(() -> calculator.calculate(
+                state("100000000.00000000", "0.01", "0.00"),
+                InvestmentLedgerCommand.sell(decimal("99999999.00000000"), decimal("1.00000000"), decimal("0.00"), decimal("0.00"))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Partial sell cannot leave positive quantity with zero total cost");
+    }
+
+    @Test
+    void acceptsTheLowestExpressibleCnyTradeAmount() {
+        InvestmentCalculationResult result = calculator.calculate(InvestmentPositionState.empty(),
+                InvestmentLedgerCommand.buy(decimal("0.01000000"), decimal("1.00000000"), decimal("0.00"), decimal("0.00")));
+
+        assertThat(result.grossAmount()).isEqualByComparingTo("0.01");
+        assertThat(result.newTotalCost()).isEqualByComparingTo("0.01");
+    }
+
     private InvestmentPositionState state(String quantity, String totalCost, String cumulativeProfitLoss) {
         return new InvestmentPositionState(decimal(quantity), decimal(totalCost), decimal(cumulativeProfitLoss));
     }

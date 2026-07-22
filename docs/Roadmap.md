@@ -305,7 +305,7 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 ------
 
-## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（已实施，待独立验收）
+## v3.0 Investment Transaction Model — Phase 1 Investment Ledger Foundation（P1 已定向修复，仍待独立复验）
 
 ### 定位
 
@@ -315,9 +315,13 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 - ADR-007 与 Financial Rules / Business Rules 冻结；
 - BigDecimal 投资计算与 replay 内核；
-- additive V4 migration、InvestmentTransaction Entity / Mapper；
+- additive V4 migration、V5 约束加固、InvestmentTransaction Entity / Mapper；
 - Asset 兼容投影字段、PostgreSQL 17 Testcontainers migration / Mapper 约束测试；
 - 没有 Controller、公开 API、真实交易写入、账户余额联动或前端改动。
+
+### P1 定向修复状态
+
+首次独立验收为 NO-GO，4 项 P1 已定向修复：V4 保持不变，V5 对分类型金额恒等式、replacement 同用户同 Asset 隔离和自引用施加前向数据库约束，并对旧矛盾事实 fail-fast；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，低至不能以 CNY 两位小数表达的金额会被拒绝。上述修复不等同于 Phase 1 正式关闭，仍须独立复验；Phase 2 未开始，仍无公开 InvestmentTransaction API、Account.balance 联动或实际 Opening 迁移。
 
 ### 已接受的设计方向 / 后续实施规划
 

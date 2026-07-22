@@ -1,6 +1,6 @@
 # Personal Finance OS
 
-> v3.0 Phase 1 Investment Ledger Foundation 已实施，待独立验收：已建立 InvestmentTransaction 事实模型、加权平均成本 BigDecimal 计算/replay 内核、V4 additive migration、Entity/Mapper 与 PostgreSQL 约束测试。没有公开投资交易 API、真实 BUY/SELL 写入、账户余额联动或前端改动。
+> v3.0 Phase 1 Investment Ledger Foundation 已实施。首次独立验收为 NO-GO 的 4 项 P1 已定向修复，仍待独立复验：V4 保持不变，V5 加固金额恒等式和 replacement 隔离；没有公开投资交易 API、真实 BUY/SELL 写入、账户余额联动或前端改动。
 
 [![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
 

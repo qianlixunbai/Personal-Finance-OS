@@ -28,6 +28,7 @@ public final class InvestmentLedgerCalculator {
         BigDecimal feeAmount = requireNonNegativeMoney(command.feeAmount(), "Fee amount");
         BigDecimal taxAmount = requireNonNegativeMoney(command.taxAmount(), "Tax amount");
         BigDecimal grossAmount = money(command.quantity().multiply(command.unitPrice()));
+        requirePositiveRoundedMoney(grossAmount, "Buy gross amount");
         BigDecimal acquiredCost = grossAmount.add(feeAmount).add(taxAmount);
         BigDecimal newQuantity = current.quantity().add(command.quantity());
         BigDecimal newTotalCost = current.totalCost().add(acquiredCost);
@@ -53,6 +54,7 @@ public final class InvestmentLedgerCalculator {
         BigDecimal feeAmount = requireNonNegativeMoney(command.feeAmount(), "Fee amount");
         BigDecimal taxAmount = requireNonNegativeMoney(command.taxAmount(), "Tax amount");
         BigDecimal grossAmount = money(command.quantity().multiply(command.unitPrice()));
+        requirePositiveRoundedMoney(grossAmount, "Sell gross amount");
         if (feeAmount.add(taxAmount).compareTo(grossAmount) > 0) {
             throw new InvestmentLedgerValidationException("Fee plus tax must not exceed sell gross amount");
         }
@@ -63,6 +65,9 @@ public final class InvestmentLedgerCalculator {
                 : current.totalCost().multiply(command.quantity()).divide(current.quantity(), 2, RoundingMode.HALF_UP);
         BigDecimal newQuantity = fullSell ? ZERO_QUANTITY : current.quantity().subtract(command.quantity());
         BigDecimal newTotalCost = fullSell ? ZERO_MONEY : current.totalCost().subtract(releasedCost);
+        if (!fullSell && newTotalCost.signum() == 0) {
+            throw new InvestmentLedgerValidationException("Partial sell cannot leave positive quantity with zero total cost");
+        }
         BigDecimal realizedProfitLoss = netAmount.subtract(releasedCost);
         BigDecimal newCumulativeProfitLoss = current.cumulativeRealizedProfitLoss().add(realizedProfitLoss);
         BigDecimal newAverageCost = fullSell ? ZERO_QUANTITY : newTotalCost.divide(newQuantity, 8, RoundingMode.HALF_UP);
@@ -105,6 +110,7 @@ public final class InvestmentLedgerCalculator {
         }
         validateQuantityAndUnitPrice(command);
         BigDecimal totalCost = money(command.quantity().multiply(command.unitPrice()));
+        requirePositiveRoundedMoney(totalCost, "Opening position total cost");
         return new InvestmentCalculationResult(
                 totalCost,
                 ZERO_MONEY,
@@ -138,6 +144,12 @@ public final class InvestmentLedgerCalculator {
 
     private BigDecimal requirePositiveMoney(BigDecimal value, String name) {
         return requirePositive(value, 2, name).setScale(2);
+    }
+
+    private void requirePositiveRoundedMoney(BigDecimal value, String name) {
+        if (value.signum() <= 0) {
+            throw new InvestmentLedgerValidationException(name + " must be positive after CNY rounding");
+        }
     }
 
     private BigDecimal requireNonNegativeMoney(BigDecimal value, String name) {

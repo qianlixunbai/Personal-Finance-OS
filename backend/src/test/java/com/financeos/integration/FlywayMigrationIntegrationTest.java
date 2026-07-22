@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionFour() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionFive() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -63,6 +63,11 @@ class FlywayMigrationIntegrationTest {
                 SELECT count(*)
                 FROM flyway_schema_history
                 WHERE version = '4' AND description = 'investment ledger foundation' AND success = true
+                """, Integer.class);
+        Integer versionFiveMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '5' AND description = 'harden investment ledger constraints' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -132,6 +137,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);
         assertThat(versionFourMigrationCount).isEqualTo(1);
+        assertThat(versionFiveMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -175,7 +181,13 @@ class FlywayMigrationIntegrationTest {
                 "ck_investment_transactions_settlement_time",
                 "ck_investment_transactions_reversal_state",
                 "ck_investment_transactions_type_fields",
-                "ck_investment_transactions_opening_source");
+                "ck_investment_transactions_opening_source",
+                "ck_investment_transactions_buy_amounts",
+                "ck_investment_transactions_sell_amounts",
+                "ck_investment_transactions_dividend_amounts",
+                "ck_investment_transactions_opening_position_amounts_v5",
+                "ck_investment_transactions_replacement_not_self",
+                "fk_investment_transactions_replacement_user_asset");
         assertThat(investmentIndexes).contains(
                 "idx_investment_transactions_user_trade_time_desc",
                 "idx_investment_transactions_user_asset_trade_time",

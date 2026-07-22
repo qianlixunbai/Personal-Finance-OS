@@ -16,7 +16,7 @@
 
 本文档用于记录 Personal Finance OS 当前数据库实现基线、目标数据库设计、约束策略、索引策略、已知差距和后续演进方向。
 
-本文档不是 migration 文件的替代品，不直接修改数据库结构。当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/` 下的版本化 V1、V2、V3、V4 migration。
+本文档不是 migration 文件的替代品，不直接修改数据库结构。当前唯一数据库结构来源为 `backend/src/main/resources/db/migration/` 下的版本化 V1、V2、V3、V4、V5 migration。
 
 本文档的作用是：
 
@@ -64,7 +64,7 @@
 
 - Database：PostgreSQL 17；
 - Flyway：10.20.0（`flyway-core`、`flyway-database-postgresql`）；
-- 当前 schema migration：`V1__baseline.sql`、`V2__market_quotes.sql`、`V3__exchange_rates.sql`、`V4__investment_ledger_foundation.sql`；
+- 当前 schema migration：`V1__baseline.sql`、`V2__market_quotes.sql`、`V3__exchange_rates.sql`、`V4__investment_ledger_foundation.sql`、`V5__harden_investment_ledger_constraints.sql`；
 - 迁移验证：`FlywayMigrationIntegrationTest` 使用 PostgreSQL 17 Testcontainers 验证空数据库迁移、`flyway_schema_history` 和当前 9 张业务表；
 - ORM / Data Access：MyBatis-Plus；
 - Java 金额类型：`BigDecimal`；
@@ -160,7 +160,7 @@ mybatis-plus:
 
 # 7. Current Implementation Baseline
 
-当前 V1-V4 migration 实际定义 9 张表：
+当前 V1-V5 migration 实际定义 9 张表：
 
 | 表名 | 当前用途 |
 |---|---|
@@ -966,7 +966,9 @@ V4 新增 `investment_transactions`，用于保存投资事实；当前没有写
 - 数量和单价为 `NUMERIC(28,8)`；金额、成本和已实现盈亏为 `NUMERIC(28,2)`；交易和结算时间为 `TIMESTAMPTZ`。
 - `(user_id, idempotency_key)` 唯一；`(user_id, asset_id)`、`(user_id, account_id)` 组合外键保证交易不能跨用户引用资产或账户。
 - `assets` 以 additive 方式增加 `account_id`、`total_cost`、`realized_profit_loss`、`position_status`、`last_transaction_id`、`projection_version`、`position_mode`。旧 Asset 保持 `LEGACY`，不自动生成 Opening Position，也不改变旧字段或 API。
-- 索引覆盖用户时间线、用户/资产 replay、用户/账户时间线和用户/交易类型时间线。
+  - 索引覆盖用户时间线、用户/资产 replay、用户/账户时间线和用户/交易类型时间线。
+
+V5 保持 V1-V4 不变，先 fail-fast 检查既有矛盾事实，再增加各交易类型的金额 CHECK、`(user_id, asset_id, id)` 唯一键、replacement 复合外键和自引用 CHECK。首次独立验收的 4 项 P1 已定向修复但仍待独立复验：Opening 只能是唯一的首个有效事实，正持仓必须有正成本，不能以 CNY 两位小数表达的低名义金额会被拒绝。Phase 1 未正式关闭，Phase 2 未开始；仍无公开交易 API、余额联动或实际 Opening 迁移。
 
 ## 16.9 更完整的转账模型
 

@@ -27,6 +27,8 @@
 - 金融事实不物理删除，也不允许未来通过 PUT 覆盖金额、数量或价格；后续使用冲正和 replacement。`OPENING_POSITION` 只允许受控迁移或内部流程创建。
 - V4 只建立 schema、领域类型、纯计算/replay 内核、Entity/Mapper 与测试；不开放 Controller、公开 API、真实写入服务、余额联动、行锁或旧数据 Opening Position 迁移。
 
+首次独立验收为 NO-GO 的 4 项 P1 已定向修复，仍待独立复验，不能宣布 Phase 1 关闭。V4 保持不变；V5 fail-fast 拒绝旧矛盾事实，并新增分类型金额恒等式及 replacement 同用户、同 Asset 隔离约束。Opening 只能是唯一首个有效事实；正持仓必须有正成本，无法用 CNY 两位小数表达的低名义金额必须拒绝。仍不开放 API、不联动 `Account.balance`、不迁移 Opening，Phase 2 未开始。
+
 ## Data Integrity and Future Write Boundary
 
 - `investment_transactions` 使用 `(user_id, idempotency_key)` 唯一约束，并以 `(user_id, asset_id)`、`(user_id, account_id)` 组合外键保持用户隔离。

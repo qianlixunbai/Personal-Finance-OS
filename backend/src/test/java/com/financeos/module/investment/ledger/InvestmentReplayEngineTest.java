@@ -95,6 +95,61 @@ class InvestmentReplayEngineTest {
         assertThat(result.position()).isEqualTo(stateOf(sell));
     }
 
+    @Test
+    void rejectsOpeningAfterAFullSellInsteadOfResettingThePosition() {
+        assertThatThrownBy(() -> replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))),
+                entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.sell(decimal("1.00000000"), decimal("10.00000000"), decimal("0.00"), decimal("0.00"))),
+                entry(3, "2026-01-03T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Opening position must be the first effective investment transaction");
+    }
+
+    @Test
+    void rejectsOpeningAfterBuyDividendOrAnotherOpening() {
+        assertThatThrownBy(() -> replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.buy(decimal("1.00000000"), decimal("10.00000000"), decimal("0.00"), decimal("0.00"))),
+                entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Opening position must be the first effective investment transaction");
+        assertThatThrownBy(() -> replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.dividend(decimal("1.00"), decimal("0.00"), decimal("0.00"))),
+                entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Opening position must be the first effective investment transaction");
+        assertThatThrownBy(() -> replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))),
+                entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Opening position must be the first effective investment transaction");
+    }
+
+    @Test
+    void allowsOpeningWhenEarlierOpeningWasReversedAndReturnsEmptyForAllReversedEntries() {
+        InvestmentReplayResult result = replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.REVERSED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))),
+                entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))),
+                entry(3, "2026-01-03T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.buy(decimal("1.00000000"), decimal("10.00000000"), decimal("0.00"), decimal("0.00")))));
+
+        assertThat(result.position().quantity()).isEqualByComparingTo("2.00000000");
+        assertThat(replayEngine.replay(List.of(
+                entry(4, "2026-01-04T09:00:00", InvestmentTransactionStatus.REVERSED,
+                        InvestmentLedgerCommand.buy(decimal("1.00000000"), decimal("10.00000000"), decimal("0.00"), decimal("0.00"))))))
+                .isEqualTo(new InvestmentReplayResult(InvestmentPositionState.empty(), List.of()));
+    }
+
     private InvestmentReplayEntry entry(long id, String tradeTime, InvestmentTransactionStatus status, InvestmentLedgerCommand command) {
         return new InvestmentReplayEntry(id, LocalDateTime.parse(tradeTime), status, command);
     }

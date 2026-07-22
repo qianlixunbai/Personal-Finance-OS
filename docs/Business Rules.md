@@ -363,6 +363,8 @@ V1 不支持：
 - `OPENING_POSITION` 只能由后续受控迁移或内部流程创建，不能作为普通客户端接口。
 - Phase 1 不执行账户余额联动、行锁、幂等写入服务、旧 Asset Opening Position 迁移或自动绑定券商账户。
 
+首次独立验收为 NO-GO 的 4 项 P1 已定向修复，仍待独立复验。V4 保持不变，V5 对金额恒等式、replacement 的同用户同 Asset 关系和自引用施加 fail-fast 数据库约束；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，CNY 两位小数不能表达的低名义金额会被拒绝。Phase 1 未正式关闭，Phase 2 未开始；没有新增公开 InvestmentTransaction API、`Account.balance` 联动或实际 Opening 迁移。
+
 ------
 
 # 十七、最终原则

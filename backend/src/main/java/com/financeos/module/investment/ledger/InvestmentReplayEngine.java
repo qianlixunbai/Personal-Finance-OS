@@ -28,9 +28,13 @@ public final class InvestmentReplayEngine {
                 .toList();
         InvestmentPositionState position = InvestmentPositionState.empty();
         List<InvestmentCalculationResult> calculations = new ArrayList<>();
+        boolean hasEffectiveEntry = false;
         for (InvestmentReplayEntry entry : orderedEntries) {
             if (entry.status() == InvestmentTransactionStatus.REVERSED) {
                 continue;
+            }
+            if (entry.command().transactionType() == InvestmentTransactionType.OPENING_POSITION && hasEffectiveEntry) {
+                throw new InvestmentLedgerValidationException("Opening position must be the first effective investment transaction");
             }
             InvestmentCalculationResult result = calculator.calculate(position, entry.command());
             position = new InvestmentPositionState(
@@ -38,6 +42,7 @@ public final class InvestmentReplayEngine {
                     result.newTotalCost(),
                     result.newCumulativeRealizedProfitLoss());
             calculations.add(result);
+            hasEffectiveEntry = true;
         }
         return new InvestmentReplayResult(position, calculations);
     }

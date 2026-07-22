@@ -14,6 +14,9 @@ public record InvestmentPositionState(
         if (quantity.signum() == 0 && totalCost.signum() != 0) {
             throw new InvestmentLedgerValidationException("Empty position cannot retain total cost");
         }
+        if (quantity.signum() > 0 && totalCost.signum() == 0) {
+            throw new InvestmentLedgerValidationException("Open position must retain positive total cost");
+        }
     }
 
     public static InvestmentPositionState empty() {
