@@ -17,6 +17,10 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+account:
+  balance:
+    lock-timeout: ${ACCOUNT_BALANCE_LOCK_TIMEOUT:4s}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000

@@ -20,9 +20,11 @@ public class AccountService {
     private static final String BASE_CURRENCY = "CNY";
 
     private final AccountMapper accountMapper;
+    private final AccountBalanceService accountBalanceService;
 
-    public AccountService(AccountMapper accountMapper) {
+    public AccountService(AccountMapper accountMapper, AccountBalanceService accountBalanceService) {
         this.accountMapper = accountMapper;
+        this.accountBalanceService = accountBalanceService;
     }
 
     public List<AccountResponse> listByUser(Long userId) {
@@ -68,33 +70,34 @@ public class AccountService {
 
     @Transactional
     public AccountResponse update(Long userId, Long accountId, AccountRequest req) {
-        Account account = accountMapper.selectById(accountId);
-        if (account == null || !account.getUserId().equals(userId)) {
-            throw new BusinessException(404, "账户不存在");
-        }
+        Account account = lockOwnedAccount(userId, accountId);
         String currency = req.currency() != null ? req.currency() : account.getCurrency();
         validateCurrency(currency);
+        if (accountMapper.updateMetadata(userId, accountId, req.name(), req.type(), currency) != 1) {
+            throw new IllegalStateException("account metadata update did not affect exactly one row");
+        }
         account.setName(req.name());
         account.setType(req.type());
         account.setCurrency(currency);
-        accountMapper.updateById(account);
         return toResponse(account);
     }
 
     @Transactional
     public void deactivate(Long userId, Long accountId) {
-        Account account = accountMapper.selectById(accountId);
-        if (account == null || !account.getUserId().equals(userId)) {
-            throw new BusinessException(404, "账户不存在");
+        lockOwnedAccount(userId, accountId);
+        if (accountMapper.deactivate(userId, accountId) != 1) {
+            throw new IllegalStateException("account status update did not affect exactly one row");
         }
-        account.setStatus("INACTIVE");
-        accountMapper.updateById(account);
     }
 
     private void validateCurrency(String currency) {
         if (!BASE_CURRENCY.equals(currency)) {
             throw new BusinessException(400, "当前版本仅支持 CNY 币种");
         }
+    }
+
+    private Account lockOwnedAccount(Long userId, Long accountId) {
+        return accountBalanceService.lockOwnedAccounts(userId, List.of(accountId)).accounts().getFirst();
     }
 
     private AccountResponse toResponse(Account a) {

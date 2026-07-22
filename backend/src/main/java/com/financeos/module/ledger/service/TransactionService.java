@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.financeos.common.BusinessException;
 import com.financeos.common.PageResult;
 import com.financeos.module.account.entity.Account;
-import com.financeos.module.account.mapper.AccountMapper;
+import com.financeos.module.account.service.AccountBalanceMutation;
+import com.financeos.module.account.service.AccountBalanceService;
+import com.financeos.module.account.service.LockedAccounts;
 import com.financeos.module.category.entity.Category;
 import com.financeos.module.category.mapper.CategoryMapper;
 import com.financeos.module.ledger.dto.TransactionRequest;
@@ -30,15 +32,14 @@ public class TransactionService {
     private static final String TYPE_REFUND = "REFUND";
 
     private final TransactionMapper transactionMapper;
-    private final AccountMapper accountMapper;
     private final CategoryMapper categoryMapper;
+    private final AccountBalanceService accountBalanceService;
 
-    public TransactionService(TransactionMapper transactionMapper,
-                              AccountMapper accountMapper,
-                              CategoryMapper categoryMapper) {
+    public TransactionService(TransactionMapper transactionMapper, CategoryMapper categoryMapper,
+                              AccountBalanceService accountBalanceService) {
         this.transactionMapper = transactionMapper;
-        this.accountMapper = accountMapper;
         this.categoryMapper = categoryMapper;
+        this.accountBalanceService = accountBalanceService;
     }
 
     public PageResult<TransactionResponse> pageByUser(Long userId, int page, int size,
@@ -49,30 +50,18 @@ public class TransactionService {
         if (type != null && !type.isBlank()) {
             ensureSupportedType(type);
         }
-
         LambdaQueryWrapper<Transaction> query = new LambdaQueryWrapper<Transaction>()
                 .eq(Transaction::getUserId, userId)
                 .orderByDesc(Transaction::getTransactedAt)
                 .orderByDesc(Transaction::getId);
-        if (accountId != null) {
-            query.eq(Transaction::getAccountId, accountId);
-        }
-        if (categoryId != null) {
-            query.eq(Transaction::getCategoryId, categoryId);
-        }
-        if (type != null && !type.isBlank()) {
-            query.eq(Transaction::getType, type);
-        }
-        if (start != null) {
-            query.ge(Transaction::getTransactedAt, start);
-        }
-        if (end != null) {
-            query.le(Transaction::getTransactedAt, end);
-        }
-
+        if (accountId != null) query.eq(Transaction::getAccountId, accountId);
+        if (categoryId != null) query.eq(Transaction::getCategoryId, categoryId);
+        if (type != null && !type.isBlank()) query.eq(Transaction::getType, type);
+        if (start != null) query.ge(Transaction::getTransactedAt, start);
+        if (end != null) query.le(Transaction::getTransactedAt, end);
         Page<Transaction> result = transactionMapper.selectPage(Page.of(safePage, safeSize), query);
-        List<TransactionResponse> records = result.getRecords().stream().map(this::toResponse).toList();
-        return new PageResult<>(records, result.getTotal(), safePage, safeSize);
+        return new PageResult<>(result.getRecords().stream().map(this::toResponse).toList(),
+                result.getTotal(), safePage, safeSize);
     }
 
     public TransactionResponse getById(Long userId, Long id) {
@@ -84,57 +73,58 @@ public class TransactionService {
     @Transactional
     public TransactionResponse create(Long userId, TransactionRequest req) {
         ensureSupportedType(req.type());
-        Account account = validateAccount(userId, req.accountId(), true);
-        String currency = validateCurrency(req.currency(), account);
         validateCategory(userId, req.categoryId(), req.type());
         validateAmountAndDescription(req);
-
+        LockedAccounts lockedAccounts = accountBalanceService.lockOwnedAccounts(userId, List.of(req.accountId()));
+        Account account = lockedAccounts.accounts().getFirst();
+        requireActive(account);
+        String currency = validateCurrency(req.currency(), account);
         Transaction transaction = new Transaction();
         transaction.setUserId(userId);
         applyRequest(transaction, req, currency);
-
-        applyBalance(account, req.type(), req.amount());
-        transactionMapper.insert(transaction);
-        accountMapper.updateById(account);
+        requireExactlyOne(transactionMapper.insert(transaction), "transaction insert");
+        accountBalanceService.applyDeltas(lockedAccounts,
+                List.of(new AccountBalanceMutation(account.getId(), effect(req.type(), req.amount()), true)));
         return toResponse(transaction);
     }
 
     @Transactional
     public TransactionResponse update(Long userId, Long id, TransactionRequest req) {
         ensureSupportedType(req.type());
-        Transaction transaction = findOwnedTransaction(userId, id);
+        Transaction transaction = lockOwnedTransaction(userId, id);
         ensureSupportedType(transaction.getType());
-        Account oldAccount = validateAccount(userId, transaction.getAccountId(), false);
-        Account newAccount = oldAccount.getId().equals(req.accountId())
-                ? oldAccount
-                : validateAccount(userId, req.accountId(), true);
-        if (!"ACTIVE".equals(newAccount.getStatus())) {
-            throw new BusinessException(400, "停用账户不允许新增流水");
-        }
-        String currency = validateCurrency(req.currency(), newAccount);
         validateCategory(userId, req.categoryId(), req.type());
         validateAmountAndDescription(req);
-
-        reverseBalance(oldAccount, transaction.getType(), transaction.getAmount());
-        applyBalance(newAccount, req.type(), req.amount());
+        Long oldAccountId = transaction.getAccountId();
+        LockedAccounts lockedAccounts = accountBalanceService.lockOwnedAccounts(
+                userId, List.of(oldAccountId, req.accountId()));
+        Account newAccount = lockedAccounts.account(req.accountId());
+        requireActive(newAccount);
+        String currency = validateCurrency(req.currency(), newAccount);
+        BigDecimal reverseOldEffect = effect(transaction.getType(), transaction.getAmount()).negate();
+        BigDecimal newEffect = effect(req.type(), req.amount());
         applyRequest(transaction, req, currency);
-
-        transactionMapper.updateById(transaction);
-        accountMapper.updateById(oldAccount);
-        if (!oldAccount.getId().equals(newAccount.getId())) {
-            accountMapper.updateById(newAccount);
-        }
+        requireExactlyOne(transactionMapper.updateById(transaction), "transaction update");
+        accountBalanceService.applyDeltas(lockedAccounts, List.of(
+                new AccountBalanceMutation(oldAccountId, reverseOldEffect, false),
+                new AccountBalanceMutation(req.accountId(), newEffect, true)));
         return toResponse(transaction);
     }
 
     @Transactional
     public void delete(Long userId, Long id) {
-        Transaction transaction = findOwnedTransaction(userId, id);
+        Transaction transaction = lockOwnedTransaction(userId, id);
         ensureSupportedType(transaction.getType());
-        Account account = validateAccount(userId, transaction.getAccountId(), false);
-        reverseBalance(account, transaction.getType(), transaction.getAmount());
-        accountMapper.updateById(account);
-        transactionMapper.deleteById(id);
+        LockedAccounts lockedAccounts = accountBalanceService.lockOwnedAccounts(userId, List.of(transaction.getAccountId()));
+        requireExactlyOne(transactionMapper.deleteById(id), "transaction delete");
+        accountBalanceService.applyDeltas(lockedAccounts, List.of(new AccountBalanceMutation(
+                transaction.getAccountId(), effect(transaction.getType(), transaction.getAmount()).negate(), false)));
+    }
+
+    private Transaction lockOwnedTransaction(Long userId, Long id) {
+        Transaction transaction = transactionMapper.selectOwnedForUpdate(userId, id);
+        if (transaction == null) throw new BusinessException(404, "流水不存在");
+        return transaction;
     }
 
     private Transaction findOwnedTransaction(Long userId, Long id) {
@@ -143,17 +133,6 @@ public class TransactionService {
             throw new BusinessException(404, "流水不存在");
         }
         return transaction;
-    }
-
-    private Account validateAccount(Long userId, Long accountId, boolean requireActive) {
-        Account account = accountMapper.selectById(accountId);
-        if (account == null || !userId.equals(account.getUserId())) {
-            throw new BusinessException(404, "账户不存在");
-        }
-        if (requireActive && !"ACTIVE".equals(account.getStatus())) {
-            throw new BusinessException(400, "停用账户不允许新增流水");
-        }
-        return account;
     }
 
     private void validateCategory(Long userId, Long categoryId, String type) {
@@ -171,19 +150,17 @@ public class TransactionService {
 
     private String validateCurrency(String requestedCurrency, Account account) {
         String currency = requestedCurrency != null ? requestedCurrency : BASE_CURRENCY;
-        if (!BASE_CURRENCY.equals(currency)) {
-            throw new BusinessException(400, "当前版本仅支持 CNY 币种");
-        }
-        if (!currency.equals(account.getCurrency())) {
-            throw new BusinessException(400, "流水币种必须与账户币种一致");
-        }
+        if (!BASE_CURRENCY.equals(currency)) throw new BusinessException(400, "当前版本仅支持 CNY 币种");
+        if (!currency.equals(account.getCurrency())) throw new BusinessException(400, "流水币种必须与账户币种一致");
         return currency;
     }
 
+    private void requireActive(Account account) {
+        if (!"ACTIVE".equals(account.getStatus())) throw new BusinessException(400, "停用账户不允许新增流水");
+    }
+
     private void ensureSupportedType(String type) {
-        if (TYPE_TRANSFER.equals(type) || TYPE_REFUND.equals(type)) {
-            throw new BusinessException(400, "当前版本暂不支持该流水类型");
-        }
+        if (TYPE_TRANSFER.equals(type) || TYPE_REFUND.equals(type)) throw new BusinessException(400, "当前版本暂不支持该流水类型");
         if (!TYPE_INCOME.equals(type) && !TYPE_EXPENSE.equals(type) && !TYPE_ADJUSTMENT.equals(type)) {
             throw new BusinessException(400, "非法流水类型");
         }
@@ -191,40 +168,16 @@ public class TransactionService {
 
     private void validateAmountAndDescription(TransactionRequest req) {
         BigDecimal amount = req.amount();
-        if (TYPE_INCOME.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(400, "收入金额必须大于 0");
-        }
-        if (TYPE_EXPENSE.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(400, "支出金额必须大于 0");
-        }
-        if (TYPE_ADJUSTMENT.equals(req.type())) {
-            if (amount.compareTo(BigDecimal.ZERO) == 0) {
-                throw new BusinessException(400, "余额调整金额不能为 0");
-            }
-            if (req.description() == null || req.description().isBlank()) {
-                throw new BusinessException(400, "余额调整必须填写原因");
-            }
+        if (TYPE_INCOME.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(400, "收入金额必须大于 0");
+        if (TYPE_EXPENSE.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(400, "支出金额必须大于 0");
+        if (TYPE_ADJUSTMENT.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) == 0) throw new BusinessException(400, "余额调整金额不能为 0");
+        if (TYPE_ADJUSTMENT.equals(req.type()) && (req.description() == null || req.description().isBlank())) {
+            throw new BusinessException(400, "余额调整必须填写原因");
         }
     }
 
-    private void applyBalance(Account account, String type, BigDecimal amount) {
-        if (TYPE_INCOME.equals(type) || TYPE_ADJUSTMENT.equals(type)) {
-            account.setBalance(account.getBalance().add(amount));
-            return;
-        }
-        if (TYPE_EXPENSE.equals(type)) {
-            account.setBalance(account.getBalance().subtract(amount));
-        }
-    }
-
-    private void reverseBalance(Account account, String type, BigDecimal amount) {
-        if (TYPE_INCOME.equals(type) || TYPE_ADJUSTMENT.equals(type)) {
-            account.setBalance(account.getBalance().subtract(amount));
-            return;
-        }
-        if (TYPE_EXPENSE.equals(type)) {
-            account.setBalance(account.getBalance().add(amount));
-        }
+    private BigDecimal effect(String type, BigDecimal amount) {
+        return TYPE_EXPENSE.equals(type) ? amount.negate() : amount;
     }
 
     private void applyRequest(Transaction transaction, TransactionRequest req, String currency) {
@@ -237,18 +190,13 @@ public class TransactionService {
         transaction.setTransactedAt(req.transactedAt());
     }
 
+    private void requireExactlyOne(int updatedRows, String operation) {
+        if (updatedRows != 1) throw new IllegalStateException(operation + " did not affect exactly one row");
+    }
+
     private TransactionResponse toResponse(Transaction transaction) {
-        return new TransactionResponse(
-                transaction.getId(),
-                transaction.getAccountId(),
-                transaction.getCategoryId(),
-                transaction.getType(),
-                transaction.getAmount(),
-                transaction.getCurrency(),
-                transaction.getDescription(),
-                transaction.getTransactedAt(),
-                transaction.getCreatedAt(),
-                transaction.getUpdatedAt()
-        );
+        return new TransactionResponse(transaction.getId(), transaction.getAccountId(), transaction.getCategoryId(),
+                transaction.getType(), transaction.getAmount(), transaction.getCurrency(), transaction.getDescription(),
+                transaction.getTransactedAt(), transaction.getCreatedAt(), transaction.getUpdatedAt());
     }
 }

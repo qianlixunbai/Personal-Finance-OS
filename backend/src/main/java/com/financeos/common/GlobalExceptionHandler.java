@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -16,6 +17,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ConcurrencyConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConcurrencyConflict(ConcurrencyConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(409, "并发操作冲突，请重试"));
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataAccessException(DataAccessException e) {
+        if (hasConcurrencySqlState(e)) {
+            return handleConcurrencyConflict(new ConcurrencyConflictException());
+        }
+        log.error("Database operation failed", e);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(503, "数据库服务暂时不可用"));
+    }
 
     @ExceptionHandler(ExchangeRateProviderException.class)
     public ResponseEntity<ApiResponse<Void>> handleExchangeRateProviderException(ExchangeRateProviderException exception) {
@@ -90,10 +106,21 @@ public class GlobalExceptionHandler {
             case 401 -> HttpStatus.UNAUTHORIZED;
             case 403 -> HttpStatus.FORBIDDEN;
             case 404 -> HttpStatus.NOT_FOUND;
+            case 409 -> HttpStatus.CONFLICT;
             case 429 -> HttpStatus.TOO_MANY_REQUESTS;
             case 502 -> HttpStatus.BAD_GATEWAY;
             case 503 -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
+    }
+
+    private boolean hasConcurrencySqlState(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof java.sql.SQLException sqlException
+                    && ("55P03".equals(sqlException.getSQLState()) || "40P01".equals(sqlException.getSQLState()))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

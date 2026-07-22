@@ -13,6 +13,15 @@ import java.util.List;
 @Mapper
 public interface TransactionMapper extends BaseMapper<Transaction> {
 
+    @Select("""
+            SELECT id, user_id, account_id, category_id, type, amount, currency, description,
+                   transacted_at, created_at, updated_at
+            FROM transactions
+            WHERE id = #{transactionId} AND user_id = #{userId}
+            FOR UPDATE
+            """)
+    Transaction selectOwnedForUpdate(@Param("userId") Long userId, @Param("transactionId") Long transactionId);
+
     @Select("SELECT COALESCE(SUM(amount), 0) FROM transactions " +
             "WHERE user_id = #{userId} AND type = #{type} AND currency = 'CNY'")
     BigDecimal sumByType(@Param("userId") Long userId, @Param("type") String type);
