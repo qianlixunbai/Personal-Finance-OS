@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts/core';
 import type { EChartsOption, EChartsType } from 'echarts';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
@@ -16,6 +16,16 @@ interface EChartProps {
 export function EChart({ option, height = 300, ariaLabel }: EChartProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const chartRef = useRef<EChartsType | null>(null);
+    const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        if (!mediaQuery) return;
+        const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+        updatePreference();
+        mediaQuery.addEventListener?.('change', updatePreference);
+        return () => mediaQuery.removeEventListener?.('change', updatePreference);
+    }, []);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -49,9 +59,14 @@ export function EChart({ option, height = 300, ariaLabel }: EChartProps) {
     useEffect(() => {
         const chart = chartRef.current;
         if (chart && !chart.isDisposed()) {
-            chart.setOption(option, { notMerge: true, lazyUpdate: true });
+            chart.setOption({
+                ...option,
+                animation: !prefersReducedMotion,
+                animationDuration: prefersReducedMotion ? 0 : 260,
+                animationDurationUpdate: prefersReducedMotion ? 0 : 180,
+            }, { notMerge: true, lazyUpdate: true });
         }
-    }, [option]);
+    }, [option, prefersReducedMotion]);
 
     return <div ref={containerRef} role="img" aria-label={ariaLabel} style={{ height, width: '100%' }} />;
 }

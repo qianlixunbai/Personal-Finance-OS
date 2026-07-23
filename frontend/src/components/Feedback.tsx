@@ -1,35 +1,8 @@
 import type { ReactNode } from 'react';
+import { Icon } from './Visual';
 
-type AlertType = 'error' | 'success';
-
-const alertStyles: Record<AlertType, { background: string; color: string }> = {
-    error: { background: '#f8d7da', color: '#721c24' },
-    success: { background: '#d4edda', color: '#155724' },
-};
-
-export function AlertMessage({ type, children }: { type: AlertType; children: ReactNode }) {
-    const colors = alertStyles[type];
-    return (
-        <div style={{ ...colors, padding: 12, borderRadius: 8, marginBottom: 16 }}>
-            {children}
-        </div>
-    );
-}
-
-export function EmptyState({ message }: { message: string }) {
-    return (
-        <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>
-            {message}
-        </div>
-    );
-}
-
-export function EmptyTableRow({ colSpan, message }: { colSpan: number; message: string }) {
-    return (
-        <tr>
-            <td colSpan={colSpan}>
-                <EmptyState message={message} />
-            </td>
-        </tr>
-    );
-}
+type AlertType = 'error' | 'success' | 'warning';
+const iconByType = { error: 'alert', success: 'check', warning: 'alert' } as const;
+export function AlertMessage({ type, children }: { type: AlertType; children: ReactNode }) { return <div className={`alert alert--${type}`} role="alert"><Icon name={iconByType[type]} size={18} /><div>{children}</div></div>; }
+export function EmptyState({ message, compact = false, action }: { message: string; compact?: boolean; action?: ReactNode }) { return <div className={`empty-state${compact ? ' empty-state--compact' : ''}`}><p>{message}</p>{action}</div>; }
+export function EmptyTableRow({ colSpan, message }: { colSpan: number; message: string }) { return <tr><td colSpan={colSpan}><EmptyState message={message} /></td></tr>; }
