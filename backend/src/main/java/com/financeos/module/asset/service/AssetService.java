@@ -87,6 +87,7 @@ public class AssetService {
         asset.setCurrency(currency);
         asset.setQuantity(req.quantity());
         asset.setAvgCost(req.avgCost());
+        asset.setPositionMode("LEGACY");
         assetMapper.insert(asset);
         return toResponse(asset, null, null);
     }

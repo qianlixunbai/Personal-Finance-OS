@@ -42,4 +42,10 @@ public class AccountQueryService {
                         .in(Account::getId, accountIds)
         ).stream().collect(Collectors.toMap(Account::getId, Account::getName, (first, second) -> first));
     }
+
+    public Account findAccessibleAccount(Long userId, Long accountId) {
+        return accountMapper.selectOne(new LambdaQueryWrapper<Account>()
+                .eq(Account::getUserId, userId)
+                .eq(Account::getId, accountId));
+    }
 }
