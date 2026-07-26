@@ -4,7 +4,7 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Phase 2A — Account Balance Concurrency Foundation（尚未开始实施）。
+**当前阶段：** v3.0 Phase 2B-1 — Investment Projection Safety and Precision（已完成，等待后续阶段规划）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -352,9 +352,17 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 ### 边界说明
 
-Phase 1 已完成并正式关闭；Phase 2A 尚未开始实施，必须在入口规划完成后分阶段实施。本节后续内容均不代表当前已实现能力。
+Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migration、InvestmentTransaction 写入链路和 Portfolio 仍属于后续阶段，不代表当前已实现能力。
 
 ------
+
+## v3.0 Phase 2B-1 Investment Projection Safety and Precision（已完成）
+
+- V6 将 `assets.quantity` 和 `assets.avg_cost` 对齐为 `NUMERIC(28,8)`，而投资账本金额字段继续保持 CNY 两位小数。
+- Asset API 保持 LEGACY 资产的原有行为，并拒绝 close 或 delete transaction-driven 的受控投影；参考价格更新仍不受影响。
+- 投资 replay 统一使用 `Instant` / `TIMESTAMPTZ`，并按 `trade_time ASC, id ASC` 稳定排序；投资查询始终携带 `user_id` 边界。
+- 未新增 InvestmentTransaction 写 API、Opening Migration、Account.balance 联动、Portfolio 前端或历史快照。
+- 详见 [Phase 2B-1 Closing Review](./review/V3.0-Phase2B-1-Closing-Review.md)。
 
 ## Future（长期规划）
 
