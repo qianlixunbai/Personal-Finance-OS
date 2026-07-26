@@ -48,7 +48,7 @@ class AssetServiceTest {
         AssetMapper assetMapper = mock(AssetMapper.class);
         AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.TEN);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         AssetResponse response = service.close(1L, 10L);
 
@@ -64,7 +64,7 @@ class AssetServiceTest {
         AssetMapper assetMapper = mock(AssetMapper.class);
         AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.ZERO);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         AssetResponse response = service.close(1L, 10L);
 
@@ -84,7 +84,7 @@ class AssetServiceTest {
         asset.setPositionStatus("OPEN");
         asset.setLastTransactionId(99L);
         asset.setProjectionVersion(4);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L, 10L));
 
@@ -108,7 +108,7 @@ class AssetServiceTest {
         asset.setTotalCost(BigDecimal.ZERO);
         asset.setPositionStatus("CLOSED");
         asset.setProjectionVersion(4);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(1L, 10L));
 
@@ -126,7 +126,7 @@ class AssetServiceTest {
         AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "基金", "FUND", BigDecimal.ZERO);
         asset.setPositionMode("LEGACY");
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         service.delete(1L, 10L);
 
@@ -146,6 +146,8 @@ class AssetServiceTest {
         asset.setLastTransactionId(99L);
         asset.setProjectionVersion(4);
         when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.updateReferencePrice(1L, 10L, new BigDecimal("12.34"),
+                new BigDecimal("149.6034566652"))).thenReturn(1);
 
         service.updatePrice(1L, 10L, new BigDecimal("12.34"));
 
@@ -156,7 +158,8 @@ class AssetServiceTest {
         assertEquals("OPEN", asset.getPositionStatus());
         assertEquals(99L, asset.getLastTransactionId());
         assertEquals(4, asset.getProjectionVersion());
-        verify(assetMapper).updateById(asset);
+        verify(assetMapper).updateReferencePrice(1L, 10L, new BigDecimal("12.34"),
+                new BigDecimal("149.6034566652"));
     }
 
     @Test
@@ -164,7 +167,7 @@ class AssetServiceTest {
         AssetMapper assetMapper = mock(AssetMapper.class);
         AssetService service = service(assetMapper);
         Asset asset = asset(10L, 2L, "其他用户基金", "FUND", BigDecimal.ONE);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(null);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L, 10L));
 
@@ -178,7 +181,7 @@ class AssetServiceTest {
         AssetMapper assetMapper = mock(AssetMapper.class);
         AssetService service = service(assetMapper);
         Asset asset = asset(10L, 1L, "招商银行", "600036", BigDecimal.ONE);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(1L, 10L));
 

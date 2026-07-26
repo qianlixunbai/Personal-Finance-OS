@@ -103,16 +103,15 @@ public class AssetService {
         }
         asset.setCurrentPrice(currentPrice);
         asset.setMarketValue(currentPrice.multiply(asset.getQuantity()));
-        assetMapper.updateById(asset);
+        if (assetMapper.updateReferencePrice(userId, id, asset.getCurrentPrice(), asset.getMarketValue()) != 1) {
+            throw new IllegalStateException("asset reference price update did not affect exactly one row");
+        }
         return toResponse(asset, null, null);
     }
 
     @Transactional
     public AssetResponse close(Long userId, Long id) {
-        Asset asset = assetMapper.selectById(id);
-        if (asset == null || !asset.getUserId().equals(userId)) {
-            throw new BusinessException(404, "资产不存在");
-        }
+        Asset asset = lockOwnedAsset(userId, id);
         rejectTransactionDrivenProjectionWrite(asset);
         if (asset.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
             asset.setQuantity(BigDecimal.ZERO);
@@ -124,10 +123,7 @@ public class AssetService {
 
     @Transactional
     public void delete(Long userId, Long id) {
-        Asset asset = assetMapper.selectById(id);
-        if (asset == null || !asset.getUserId().equals(userId)) {
-            throw new BusinessException(404, "资产不存在");
-        }
+        Asset asset = lockOwnedAsset(userId, id);
         rejectTransactionDrivenProjectionWrite(asset);
         if (asset.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
             throw new BusinessException(400, "该资产仍有持仓，无法删除");
@@ -146,6 +142,14 @@ public class AssetService {
             throw new BusinessException(409,
                     "Transaction-driven asset projections cannot be modified or deleted through the Asset API");
         }
+    }
+
+    private Asset lockOwnedAsset(Long userId, Long assetId) {
+        Asset asset = assetMapper.selectOwnedForUpdate(userId, assetId);
+        if (asset == null) {
+            throw new BusinessException(404, "资产不存在");
+        }
+        return asset;
     }
 
     private List<AssetResponse> toResponses(List<Asset> assets) {
