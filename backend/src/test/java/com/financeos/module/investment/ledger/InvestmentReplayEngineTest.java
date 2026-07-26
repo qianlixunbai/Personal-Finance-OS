@@ -3,7 +3,8 @@ package com.financeos.module.investment.ledger;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.TimeZone;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,8 +151,28 @@ class InvestmentReplayEngineTest {
                 .isEqualTo(new InvestmentReplayResult(InvestmentPositionState.empty(), List.of()));
     }
 
+    @Test
+    void replaysTheSameInstantsIndependentlyOfJvmDefaultTimeZone() {
+        List<InvestmentReplayEntry> entries = List.of(
+                entry(2, "2026-01-01T00:00:00Z", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.sell(decimal("1.00000000"), decimal("11.00000000"), decimal("0.00"), decimal("0.00"))),
+                entry(1, "2026-01-01T00:00:00Z", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.buy(decimal("1.00000000"), decimal("10.00000000"), decimal("0.00"), decimal("0.00"))));
+        TimeZone originalTimeZone = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+            InvestmentReplayResult shanghaiResult = replayEngine.replay(entries);
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
+            InvestmentReplayResult losAngelesResult = replayEngine.replay(entries);
+
+            assertThat(losAngelesResult).isEqualTo(shanghaiResult);
+        } finally {
+            TimeZone.setDefault(originalTimeZone);
+        }
+    }
+
     private InvestmentReplayEntry entry(long id, String tradeTime, InvestmentTransactionStatus status, InvestmentLedgerCommand command) {
-        return new InvestmentReplayEntry(id, LocalDateTime.parse(tradeTime), status, command);
+        return new InvestmentReplayEntry(id, Instant.parse(tradeTime.endsWith("Z") ? tradeTime : tradeTime + "Z"), status, command);
     }
 
     private BigDecimal decimal(String value) {

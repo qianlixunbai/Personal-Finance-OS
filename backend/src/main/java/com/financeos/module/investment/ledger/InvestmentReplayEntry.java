@@ -1,10 +1,10 @@
 package com.financeos.module.investment.ledger;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record InvestmentReplayEntry(
         long id,
-        LocalDateTime tradeTime,
+        Instant tradeTime,
         InvestmentTransactionStatus status,
         InvestmentLedgerCommand command) {
 

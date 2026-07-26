@@ -105,6 +105,30 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
     }
 
     @Test
+    void scopesReplayQueriesToTheUserAndOrdersSameTimeTransactionsById() {
+        Long firstUserId = insertUser("replay-first");
+        Long secondUserId = insertUser("replay-second");
+        Long firstAccountId = insertAccount(firstUserId, "First brokerage");
+        Long secondAccountId = insertAccount(secondUserId, "Second brokerage");
+        Long firstAssetId = insertAsset(firstUserId, firstAccountId, "First fund");
+        Long secondAssetId = insertAsset(secondUserId, secondAccountId, "Second fund");
+        String tradeTime = "2026-01-01T10:00:00Z";
+
+        InvestmentTransaction first = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", tradeTime, "replay-first");
+        InvestmentTransaction second = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", tradeTime, "replay-second");
+        InvestmentTransaction foreign = transaction(secondUserId, secondAssetId, secondAccountId, "BUY", tradeTime, "replay-foreign");
+        investmentTransactionMapper.insert(first);
+        investmentTransactionMapper.insert(second);
+        investmentTransactionMapper.insert(foreign);
+
+        assertThat(investmentTransactionMapper.selectPostedByUserIdAndAssetId(firstUserId, firstAssetId))
+                .extracting(InvestmentTransaction::getId)
+                .containsExactly(first.getId(), second.getId());
+        assertThat(investmentTransactionMapper.findByUserIdAndId(secondUserId, first.getId())).isNull();
+        assertThat(investmentTransactionMapper.findByUserIdAndIdempotencyKey(secondUserId, "replay-first")).isNull();
+    }
+
+    @Test
     void enforcesTransactionAmountEquationsWithPostgresChecks() {
         Long userId = insertUser("amount-investor");
         Long accountId = insertAccount(userId, "Brokerage");
