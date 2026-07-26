@@ -74,6 +74,27 @@ public class InvestmentTransaction {
     @TableField("request_hash")
     private String requestHash;
 
+    @TableField("account_balance_after")
+    private BigDecimal accountBalanceAfter;
+
+    @TableField("position_quantity_after")
+    private BigDecimal positionQuantityAfter;
+
+    @TableField("position_avg_cost_after")
+    private BigDecimal positionAvgCostAfter;
+
+    @TableField("position_total_cost_after")
+    private BigDecimal positionTotalCostAfter;
+
+    @TableField("position_realized_profit_loss_after")
+    private BigDecimal positionRealizedProfitLossAfter;
+
+    @TableField("position_status_after")
+    private String positionStatusAfter;
+
+    @TableField("projection_version_after")
+    private Integer projectionVersionAfter;
+
     @TableField("replaces_transaction_id")
     private Long replacesTransactionId;
 

@@ -28,11 +28,13 @@ class FlywayVersionFourUpgradeIntegrationTest {
     }
 
     @Test
-    void upgradesValidVersionFourInvestmentFactsWithoutChangingThem() throws Exception {
+    void rejectsHistoricalNonOpeningFactsWithoutChangingThem() throws Exception {
         flyway(MigrationVersion.fromVersion("4")).migrate();
         insertVersionFourBuy("20.00");
 
-        flyway(null).migrate();
+        assertThatThrownBy(() -> flyway(null).migrate())
+                .isInstanceOf(FlywayException.class)
+                .hasMessageContaining("existing non-opening investment facts");
 
         try (Connection connection = connection();
              ResultSet row = connection.createStatement().executeQuery("""

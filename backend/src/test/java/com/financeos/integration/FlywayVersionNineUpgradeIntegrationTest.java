@@ -44,7 +44,7 @@ class FlywayVersionNineUpgradeIntegrationTest {
         flyway(null).migrate();
 
         try (Connection connection = connection()) {
-            assertThat(appliedVersion(connection)).isEqualTo("9");
+            assertThat(appliedVersion(connection)).isEqualTo("10");
             assertThat(constraintExists(connection, "uk_assets_user_id_id_account_id")).isTrue();
             assertThat(constraintExists(connection, "fk_investment_transactions_user_asset_account")).isTrue();
             assertThat(indexExists(connection, "uk_investment_transactions_posted_opening_asset")).isTrue();
@@ -54,7 +54,7 @@ class FlywayVersionNineUpgradeIntegrationTest {
                      fee_amount, tax_amount, net_amount, released_cost_amount, realized_profit_loss, currency,
                      trade_time, settlement_time, source, idempotency_key, request_hash)
                     VALUES (1, 1, 1, 'OPENING_POSITION', 'POSTED', 1, 10, 10, 0, 0, 0, 0, 0, 'CNY',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'MIGRATION', 'opening-one', 'hash-one')
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'MIGRATION', 'opening-one', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
                     """);
             assertThatThrownBy(() -> connection.createStatement().execute("""
                     INSERT INTO investment_transactions
@@ -62,7 +62,7 @@ class FlywayVersionNineUpgradeIntegrationTest {
                      fee_amount, tax_amount, net_amount, released_cost_amount, realized_profit_loss, currency,
                      trade_time, settlement_time, source, idempotency_key, request_hash)
                     VALUES (1, 1, 1, 'OPENING_POSITION', 'POSTED', 1, 10, 10, 0, 0, 0, 0, 0, 'CNY',
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'MIGRATION', 'opening-two', 'hash-two')
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'MIGRATION', 'opening-two', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
                     """)).isInstanceOf(SQLException.class);
             connection.createStatement().execute("INSERT INTO accounts (user_id, name, type, currency, balance) VALUES (1, 'Second', 'BROKERAGE', 'CNY', 0)");
             assertThatThrownBy(() -> connection.createStatement().execute("""
