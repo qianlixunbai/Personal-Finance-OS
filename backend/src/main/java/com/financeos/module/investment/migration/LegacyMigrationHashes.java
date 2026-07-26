@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 import java.util.HexFormat;
 
 final class LegacyMigrationHashes {
@@ -27,8 +26,7 @@ final class LegacyMigrationHashes {
                 "instrumentId=" + value(asset.getInstrumentId()),
                 "positionMode=" + value(asset.getPositionMode()),
                 "positionStatus=" + value(asset.getPositionStatus()),
-                "projectionVersion=" + value(asset.getProjectionVersion()),
-                "updatedAt=" + timestamp(asset.getUpdatedAt())));
+                "projectionVersion=" + value(asset.getProjectionVersion())));
     }
 
     static String requestHash(long userId, Asset asset, long accountId, long instrumentId,
@@ -45,10 +43,6 @@ final class LegacyMigrationHashes {
                 "totalCost=" + decimal(cost.totalCost(), 2),
                 "unitPrice=" + decimal(cost.unitPrice(), 8),
                 "totalCostSource=" + value(cost.totalCostSource())));
-    }
-
-    private static String timestamp(LocalDateTime value) {
-        return value == null ? "<null>" : value.toString();
     }
 
     private static String decimal(BigDecimal value, int scale) {
