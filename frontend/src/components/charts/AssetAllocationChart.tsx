@@ -5,10 +5,13 @@ import { formatCurrency } from '../../utils/format';
 import { buildAssetAllocationData, type AssetAllocation, type AssetAllocationChartData } from './assetAllocationData';
 import { ChartCard } from './ChartCard';
 import { EChart } from './EChart';
+import { useWideViewport } from './useWideViewport';
 
 const allocationColors = ['#22d3ee', '#3b82f6', '#8b5cf6', '#10b981', '#64748b'];
 
 export function AssetAllocationChart({ assetAllocation }: { assetAllocation: AssetAllocation[] }) {
+    const isWideViewport = useWideViewport();
+    const chartFontSize = isWideViewport ? 13 : 12;
     const entries = useMemo(() => assetAllocation.filter(item => item.value > 0), [assetAllocation]);
     const chartData = useMemo(() => buildAssetAllocationData(entries), [entries]);
     const { visibleEntries, remainingEntries, chartEntries } = useMemo(() => {
@@ -27,7 +30,7 @@ export function AssetAllocationChart({ assetAllocation }: { assetAllocation: Ass
                 backgroundColor: '#0e131b',
                 borderColor: '#2a3746',
                 borderWidth: 1,
-                textStyle: { color: '#f7fafc', fontSize: 12 },
+                textStyle: { color: '#f7fafc', fontSize: chartFontSize },
                 extraCssText: 'box-shadow: 0 12px 28px rgba(0, 0, 0, .35);',
                 formatter: (params) => {
                     const item = params as unknown as { marker?: string; data: AssetAllocationChartData };
@@ -43,11 +46,11 @@ export function AssetAllocationChart({ assetAllocation }: { assetAllocation: Ass
                 avoidLabelOverlap: true,
                 label: { show: false },
                 labelLine: { show: false },
-                emphasis: { label: { show: true, fontWeight: 'bold', color: '#f7fafc' }, itemStyle: { shadowBlur: 14, shadowColor: 'rgba(34, 211, 238, .22)' } },
+                emphasis: { label: { show: true, fontWeight: 'bold', color: '#f7fafc', ...(isWideViewport ? { fontSize: chartFontSize } : {}) }, itemStyle: { shadowBlur: 14, shadowColor: 'rgba(34, 211, 238, .22)' } },
                 data: chartEntries,
             }],
         };
-    }, [chartEntries]);
+    }, [chartEntries, chartFontSize, isWideViewport]);
 
     return (
         <ChartCard title="投资资产分布" className="chart-card--allocation" meta="按人工市值" emptyMessage={entries.length === 0 ? '添加资产后，这里将显示投资配置。' : undefined} emptyAction={<Link to="/assets" className="button button--secondary button--small">前往资产</Link>}>
