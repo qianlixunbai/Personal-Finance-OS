@@ -27,6 +27,7 @@ public class AssetService {
 
     private static final String BASE_CURRENCY = "CNY";
     private static final String MARKET = "US";
+    private static final String TRANSACTION_DRIVEN = "TRANSACTION_DRIVEN";
 
     private final AssetMapper assetMapper;
     private final MarketQuoteQueryService marketQuoteQueryService;
@@ -111,6 +112,7 @@ public class AssetService {
         if (asset == null || !asset.getUserId().equals(userId)) {
             throw new BusinessException(404, "资产不存在");
         }
+        rejectTransactionDrivenProjectionWrite(asset);
         if (asset.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
             asset.setQuantity(BigDecimal.ZERO);
             asset.setMarketValue(BigDecimal.ZERO);
@@ -125,6 +127,7 @@ public class AssetService {
         if (asset == null || !asset.getUserId().equals(userId)) {
             throw new BusinessException(404, "资产不存在");
         }
+        rejectTransactionDrivenProjectionWrite(asset);
         if (asset.getQuantity().compareTo(BigDecimal.ZERO) > 0) {
             throw new BusinessException(400, "该资产仍有持仓，无法删除");
         }
@@ -134,6 +137,13 @@ public class AssetService {
     private void validateCurrency(String currency) {
         if (!BASE_CURRENCY.equals(currency)) {
             throw new BusinessException(400, "当前版本仅支持 CNY 币种");
+        }
+    }
+
+    private void rejectTransactionDrivenProjectionWrite(Asset asset) {
+        if (TRANSACTION_DRIVEN.equals(asset.getPositionMode())) {
+            throw new BusinessException(409,
+                    "Transaction-driven asset projections cannot be modified or deleted through the Asset API");
         }
     }
 

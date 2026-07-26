@@ -73,6 +73,107 @@ class AssetServiceTest {
     }
 
     @Test
+    void closeRejectsTransactionDrivenPositionWithoutMutatingItsProjection() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = service(assetMapper);
+        Asset asset = asset(10L, 1L, "基金", "FUND", new BigDecimal("12.12345678"));
+        asset.setPositionMode("TRANSACTION_DRIVEN");
+        asset.setAvgCost(new BigDecimal("10.12345678"));
+        asset.setTotalCost(new BigDecimal("122.34"));
+        asset.setRealizedProfitLoss(new BigDecimal("5.67"));
+        asset.setPositionStatus("OPEN");
+        asset.setLastTransactionId(99L);
+        asset.setProjectionVersion(4);
+        when(assetMapper.selectById(10L)).thenReturn(asset);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L, 10L));
+
+        assertEquals(409, ex.getCode());
+        assertEquals(new BigDecimal("12.12345678"), asset.getQuantity());
+        assertEquals(new BigDecimal("10.12345678"), asset.getAvgCost());
+        assertEquals(new BigDecimal("122.34"), asset.getTotalCost());
+        assertEquals(new BigDecimal("5.67"), asset.getRealizedProfitLoss());
+        assertEquals("OPEN", asset.getPositionStatus());
+        assertEquals(99L, asset.getLastTransactionId());
+        assertEquals(4, asset.getProjectionVersion());
+        verify(assetMapper, never()).updateById(asset);
+    }
+
+    @Test
+    void deleteRejectsTransactionDrivenPositionWithoutDeletingIt() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = service(assetMapper);
+        Asset asset = asset(10L, 1L, "基金", "FUND", BigDecimal.ZERO);
+        asset.setPositionMode("TRANSACTION_DRIVEN");
+        asset.setTotalCost(BigDecimal.ZERO);
+        asset.setPositionStatus("CLOSED");
+        asset.setProjectionVersion(4);
+        when(assetMapper.selectById(10L)).thenReturn(asset);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(1L, 10L));
+
+        assertEquals(409, ex.getCode());
+        assertEquals(BigDecimal.ZERO, asset.getQuantity());
+        assertEquals(BigDecimal.ZERO, asset.getTotalCost());
+        assertEquals("CLOSED", asset.getPositionStatus());
+        assertEquals(4, asset.getProjectionVersion());
+        verify(assetMapper, never()).deleteById(10L);
+    }
+
+    @Test
+    void legacyZeroQuantityAssetCanStillBeDeleted() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = service(assetMapper);
+        Asset asset = asset(10L, 1L, "基金", "FUND", BigDecimal.ZERO);
+        asset.setPositionMode("LEGACY");
+        when(assetMapper.selectById(10L)).thenReturn(asset);
+
+        service.delete(1L, 10L);
+
+        verify(assetMapper).deleteById(10L);
+    }
+
+    @Test
+    void transactionDrivenAssetStillAllowsReferencePriceUpdatesWithoutChangingProjectionFields() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = service(assetMapper);
+        Asset asset = asset(10L, 1L, "基金", "FUND", new BigDecimal("12.12345678"));
+        asset.setPositionMode("TRANSACTION_DRIVEN");
+        asset.setAvgCost(new BigDecimal("10.12345678"));
+        asset.setTotalCost(new BigDecimal("122.34"));
+        asset.setRealizedProfitLoss(new BigDecimal("5.67"));
+        asset.setPositionStatus("OPEN");
+        asset.setLastTransactionId(99L);
+        asset.setProjectionVersion(4);
+        when(assetMapper.selectById(10L)).thenReturn(asset);
+
+        service.updatePrice(1L, 10L, new BigDecimal("12.34"));
+
+        assertEquals(new BigDecimal("12.12345678"), asset.getQuantity());
+        assertEquals(new BigDecimal("10.12345678"), asset.getAvgCost());
+        assertEquals(new BigDecimal("122.34"), asset.getTotalCost());
+        assertEquals(new BigDecimal("5.67"), asset.getRealizedProfitLoss());
+        assertEquals("OPEN", asset.getPositionStatus());
+        assertEquals(99L, asset.getLastTransactionId());
+        assertEquals(4, asset.getProjectionVersion());
+        verify(assetMapper).updateById(asset);
+    }
+
+    @Test
+    void closeDoesNotModifyAnAssetOwnedByAnotherUser() {
+        AssetMapper assetMapper = mock(AssetMapper.class);
+        AssetService service = service(assetMapper);
+        Asset asset = asset(10L, 2L, "其他用户基金", "FUND", BigDecimal.ONE);
+        when(assetMapper.selectById(10L)).thenReturn(asset);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L, 10L));
+
+        assertEquals(404, ex.getCode());
+        assertEquals(BigDecimal.ONE, asset.getQuantity());
+        verify(assetMapper, never()).updateById(asset);
+    }
+
+    @Test
     void deleteStillRejectsAssetWithPositiveQuantity() {
         AssetMapper assetMapper = mock(AssetMapper.class);
         AssetService service = service(assetMapper);

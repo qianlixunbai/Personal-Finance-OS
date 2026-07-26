@@ -258,6 +258,21 @@ class AssetControllerWebMvcTest {
     }
 
     @Test
+    void closeMapsTransactionDrivenProjectionProtectionToConflict() throws Exception {
+        when(assetService.close(USER_ID, 7L)).thenThrow(new BusinessException(409,
+                "Transaction-driven asset projections cannot be modified or deleted through the Asset API"));
+
+        mockMvc.perform(put("/api/v1/assets/{id}/close", 7L).with(authentication(currentUser())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409))
+                .andExpect(jsonPath("$.message").value(
+                        "Transaction-driven asset projections cannot be modified or deleted through the Asset API"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(assetService).close(USER_ID, 7L);
+    }
+
+    @Test
     void refreshesOneOwnedAssetQuoteThroughTheDedicatedEndpoint() throws Exception {
         when(marketQuoteService.refresh(USER_ID, 7L)).thenReturn(quoteResponse());
 
