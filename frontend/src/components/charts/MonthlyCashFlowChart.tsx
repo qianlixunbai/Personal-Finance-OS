@@ -3,6 +3,7 @@ import type { EChartsOption } from 'echarts';
 import { formatCurrency } from '../../utils/format';
 import { ChartCard } from './ChartCard';
 import { EChart } from './EChart';
+import { useWideViewport } from './useWideViewport';
 
 interface MonthlyCashFlowChartProps {
     monthIncome: number;
@@ -10,13 +11,15 @@ interface MonthlyCashFlowChartProps {
 }
 
 export function MonthlyCashFlowChart({ monthIncome, monthExpense }: MonthlyCashFlowChartProps) {
+    const isWideViewport = useWideViewport();
+    const chartFontSize = isWideViewport ? 13 : 12;
     const option = useMemo<EChartsOption>(() => ({
         tooltip: {
             trigger: 'axis',
             backgroundColor: '#0e131b',
             borderColor: '#2a3746',
             borderWidth: 1,
-            textStyle: { color: '#f7fafc', fontSize: 12 },
+            textStyle: { color: '#f7fafc', fontSize: chartFontSize },
             extraCssText: 'box-shadow: 0 12px 28px rgba(0, 0, 0, .35);',
             axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(34, 211, 238, .08)' } },
             formatter: (params) => {
@@ -30,13 +33,13 @@ export function MonthlyCashFlowChart({ monthIncome, monthExpense }: MonthlyCashF
             data: ['本月收入', '本月支出'],
             axisTick: { alignWithLabel: true, lineStyle: { color: '#2a3746' } },
             axisLine: { lineStyle: { color: '#2a3746' } },
-            axisLabel: { color: '#94a3b8' },
+            axisLabel: { color: '#94a3b8', ...(isWideViewport ? { fontSize: chartFontSize } : {}) },
         },
         yAxis: {
             type: 'value',
             axisLine: { lineStyle: { color: '#2a3746' } },
             axisTick: { lineStyle: { color: '#2a3746' } },
-            axisLabel: { color: '#94a3b8', formatter: value => formatCurrency(Number(value)) },
+            axisLabel: { color: '#94a3b8', formatter: value => formatCurrency(Number(value)), ...(isWideViewport ? { fontSize: chartFontSize } : {}) },
             splitLine: { lineStyle: { color: '#1d2733' } },
         },
         series: [{
@@ -47,7 +50,7 @@ export function MonthlyCashFlowChart({ monthIncome, monthExpense }: MonthlyCashF
                 { value: monthExpense, itemStyle: { color: '#f43f5e', borderRadius: [6, 6, 0, 0] } },
             ],
         }],
-    }), [monthIncome, monthExpense]);
+    }), [chartFontSize, isWideViewport, monthIncome, monthExpense]);
 
     return (
         <ChartCard title="本月收支对比" emptyMessage={monthIncome === 0 && monthExpense === 0 ? '本月暂无收支数据' : undefined}>
