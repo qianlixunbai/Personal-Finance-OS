@@ -4,9 +4,9 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Phase 2B-1 — Investment Projection Safety and Precision（已完成，GO）。
+**当前阶段：** v3.0 Phase 2B-2 — Investment Instrument and Account Binding（已完成，GO）。
 
-**下一阶段：** v3.0 Phase 2B-2 — Investment Instrument and Account Binding（只读设计）。
+**下一阶段：** v3.0 Phase 2B-3 — Legacy Preflight / Opening Migration（未开始）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -406,3 +406,6 @@ Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migratio
 - 每个阶段结束时应新增 Closing Review；
 - Roadmap 变更应同步根 README 和 docs 导航；
 - 架构级变化应通过 ADR 记录。
+# v3.0 Phase 2B-2 — completed
+
+Investment Instrument and Account Binding is closed: V7/V8 add user-scoped Instrument master data and immutable Asset schema binding, with no Opening Migration and no investment write path. The next planned phase remains 2B-3 Legacy Preflight / Opening Migration; it is not started by this delivery.

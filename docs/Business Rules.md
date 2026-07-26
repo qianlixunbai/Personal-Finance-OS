@@ -377,3 +377,10 @@ Business Rules 是系统业务行为的统一规范。
 # Phase 2A transaction concurrency note
 
 Transaction update and delete lock the owned original fact before affected accounts and use the locked latest fact. Concurrent deletes cannot reverse twice. Account metadata and deactivation do not modify balances, and ownership is enforced in the locking SQL so absent and cross-user resources are both 404.
+# Phase 2B-2: Instrument and Position Binding
+
+- An InvestmentInstrument belongs to exactly one user. Its canonical identity is `userId + market + symbol`.
+- `market` is one of `US`, `HK`, `CN`, `JP`, `KR`, `CRYPTO`, `OTC`, `FUND`, `OTHER`, or `UNKNOWN`; it is a market-data namespace, not a stock exchange identifier.
+- A transaction-driven Position must bind an ACTIVE Account and ACTIVE Instrument. BROKERAGE permits STOCK, ETF, FUND, and BOND; CRYPTO_WALLET permits CRYPTO. Every other Account type is rejected.
+- LEGACY Assets retain their original create, update, manual price, close, and delete behavior and are never automatically bound or migrated.
+- Transaction-driven projection identity is immutable and cannot be created, closed, or deleted through the existing Asset API.

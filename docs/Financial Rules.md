@@ -318,3 +318,6 @@ Financial Rules 是 Personal Finance OS 的金融业务基准。
 # Phase 2A balance mutation note
 
 `INCOME` applies `+amount`, `EXPENSE` applies `-amount`, and signed `ADJUSTMENT` applies `amount`; reversal negates the original effect. The transaction fact and balance mutation share one transaction through AccountBalanceService. Negative balances remain valid; inactive accounts may reverse history but cannot receive new effects.
+# Phase 2B-2 financial boundary
+
+InvestmentInstrument `quoteCurrency` may be an uppercase three-letter code such as USD, while the current Account currency remains CNY. A quote currency is market metadata; it does not create a foreign-currency cash balance or exchange gain/loss. This phase changes neither investment calculations nor `Account.balance`.

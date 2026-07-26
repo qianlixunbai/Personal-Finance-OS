@@ -719,7 +719,7 @@ Personal Finance OS 是个人财务管理系统。所有业务数据必须围绕
 - `transactions(user_id, type, transacted_at)`；
 - `accounts(user_id, status)`；
 - `assets(user_id, type)`；
-- `assets(user_id, account_id)`，前提是补齐 `account_id`；
+- `assets(user_id, account_id)` is available from V4; `(user_id, instrument_id)` is indexed from V8 for user-scoped instrument bindings.
 - `asset_prices(symbol, price_date)` 已有唯一约束，通常可支持相关查询。
 
 `asset_prices` 的 `UNIQUE(symbol, price_date)` 通常已经可以支持 `symbol + price_date` 查询，不需要额外重复创建相同组合的普通索引。
@@ -782,17 +782,11 @@ market_value = quantity * current_price
 
 当前已知差距如下。
 
-## 15.1 assets 缺少 account_id
+## 15.1 Investment Instrument and Asset Binding
 
-当前 `assets` 表没有 `account_id` 字段。
+`assets.account_id` has existed since V4 and is intentionally nullable for LEGACY Assets. V8 adds nullable `instrument_id` and a composite foreign key `(user_id, instrument_id)` to `investment_instruments(user_id, id)`. A transaction-driven projection must bind both Account and Instrument; LEGACY Assets remain unbound and keep their existing compatibility behavior.
 
-这与业务规则中“每项资产必须属于一个用户、一个投资账户、一个币种”的要求不完全一致。
-
-目标设计中：
-
-- `assets.account_id` 应关联 `accounts.id`；
-- `assets.account_id` 对应账户应属于同一 `user_id`；
-- 投资账户类型可优先使用 `BROKERAGE`、`CRYPTO_WALLET` 或其他后续明确的账户类型。
+`investment_instruments` is user-scoped master data. It uses `UNIQUE(user_id, market, symbol)`, canonical market and symbol checks, and a partial unique index on `assets(user_id, account_id, instrument_id)` for transaction-driven positions. Market is a quote namespace, not an exchange code.
 
 ## 15.2 asset_prices 有表但无 Entity / Mapper
 

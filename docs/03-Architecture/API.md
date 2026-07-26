@@ -722,3 +722,6 @@ OpenAPI / Swagger 已在 v1.3 完成，当前 API 基线已经包含运行时接
 # Phase 2A concurrency note
 
 Missing or cross-user locked resources return 404. An inactive new target returns 400. Lock timeout and deadlock-victim errors return a sanitized 409; normal lock waits that complete in time remain successful. Success payloads are unchanged and clients choose whether to retry.
+# Phase 2B-2 API boundary
+
+Phase 2B-2 deliberately exposes no public Instrument API, Position API, or InvestmentTransaction write API. Its Instrument command and Account/Instrument binding validation are internal services only. Opening Migration and Account.balance coupling are also not exposed or implemented.
