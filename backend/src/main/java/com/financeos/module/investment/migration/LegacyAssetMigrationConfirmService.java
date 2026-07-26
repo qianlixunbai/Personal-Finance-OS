@@ -38,6 +38,12 @@ public class LegacyAssetMigrationConfirmService {
             LegacyAssetMigrationTransactionalService.MigrationSuccess success = transactionalService.confirm(userId, token, key);
             return new LegacyAssetMigrationConfirmResponse(success.assetId(), success.transactionId(), success.accountId(),
                     success.instrumentId(), success.requestHash(), false);
+        } catch (BusinessException exception) {
+            InvestmentTransaction concurrent = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+            if (concurrent != null) {
+                return replayOrConflict(concurrent, token);
+            }
+            throw exception;
         } catch (DataIntegrityViolationException exception) {
             InvestmentTransaction concurrent = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
             if (concurrent != null) {
