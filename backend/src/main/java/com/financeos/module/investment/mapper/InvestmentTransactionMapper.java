@@ -21,6 +21,21 @@ public interface InvestmentTransactionMapper extends BaseMapper<InvestmentTransa
             """)
     List<InvestmentTransaction> selectPostedByUserIdAndAssetId(@Param("userId") Long userId, @Param("assetId") Long assetId);
 
+    @Select("""
+            SELECT * FROM investment_transactions
+            WHERE user_id = #{userId} AND asset_id = #{assetId}
+            ORDER BY trade_time ASC, id ASC
+            """)
+    List<InvestmentTransaction> selectAllByUserIdAndAssetId(@Param("userId") Long userId, @Param("assetId") Long assetId);
+
+    @Select("""
+            SELECT EXISTS(
+                SELECT 1 FROM investment_transactions
+                WHERE user_id = #{userId} AND asset_id = #{assetId}
+            )
+            """)
+    boolean existsAnyByUserIdAndAssetId(@Param("userId") Long userId, @Param("assetId") Long assetId);
+
     @Select("SELECT * FROM investment_transactions WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey}")
     InvestmentTransaction findByUserIdAndIdempotencyKey(
             @Param("userId") Long userId,

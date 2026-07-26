@@ -1,2 +1,7 @@
 jwt:
   secret: integration-test-secret-with-at-least-thirty-two-characters
+
+migration:
+  preview:
+    secret: integration-test-migration-preview-secret-at-least-32-chars
+    ttl: 10m

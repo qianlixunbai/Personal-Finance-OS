@@ -21,6 +21,11 @@ account:
   balance:
     lock-timeout: ${ACCOUNT_BALANCE_LOCK_TIMEOUT:4s}
 
+migration:
+  preview:
+    secret: ${MIGRATION_PREVIEW_SECRET:}
+    ttl: ${MIGRATION_PREVIEW_TTL:10m}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
