@@ -85,3 +85,6 @@
 - Phase 2A Account Balance Concurrency is closed; see [ADR-008](./ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md) and the [Phase 2A Closing Review](./review/V3.0-Phase2A-Closing-Review.md).
 - Phase 2B-1 Investment Projection Safety and Precision is closed with GO; see the [Phase 2B-1 Closing Review](./review/V3.0-Phase2B-1-Closing-Review.md).
 - Phase 2B-2 Investment Instrument and Account Binding is closed; see [ADR-009](./ADR/ADR-009-investment-instrument-and-account-binding.md) and the [Phase 2B-2 Closing Review](./review/V3.0-Phase2B-2-Closing-Review.md). Opening Migration and all investment write-path work remain future phases.
+# Phase 2B-3
+
+See [ADR-010](ADR/ADR-010-legacy-opening-position-migration.md) and the [Phase 2B-3 closing review](review/V3.0-Phase2B-3-Closing-Review.md) for the explicit Legacy opening migration boundary.

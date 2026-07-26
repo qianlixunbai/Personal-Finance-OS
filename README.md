@@ -261,3 +261,6 @@ Personal Finance OS 不是简单 CRUD Demo，而是面向求职作品集的工�
 # Phase 2A Account Balance Concurrency
 
 Ordinary transaction balance mutations now use PostgreSQL pessimistic locks and the protocol defined in [ADR-008](docs/ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md). This does not add Transfer, investment writes, multi-currency, Redis, MQ, or automatic retries.
+# v3.0 Phase 2B-3
+
+Legacy opening migration is now an explicit, JWT-protected backend workflow: create/list a user-owned Instrument, preview one Legacy Asset against a selected Account and Instrument, then confirm with a signed expiring token plus `X-Idempotency-Key`. It creates only `OPENING_POSITION`, does not alter Account cash, and does not add BUY/SELL/DIVIDEND, Portfolio, or frontend migration features. Set `MIGRATION_PREVIEW_SECRET` to a unique value of at least 32 characters.

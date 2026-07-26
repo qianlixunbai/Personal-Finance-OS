@@ -321,3 +321,6 @@ Financial Rules 是 Personal Finance OS 的金融业务基准。
 # Phase 2B-2 financial boundary
 
 InvestmentInstrument `quoteCurrency` may be an uppercase three-letter code such as USD, while the current Account currency remains CNY. A quote currency is market metadata; it does not create a foreign-currency cash balance or exchange gain/loss. This phase changes neither investment calculations nor `Account.balance`.
+# Phase 2B-3 financial-rule update
+
+When present, Legacy `totalCost` is authoritative. Otherwise the backend derives `round(quantity * avgCost, 2, HALF_UP)`. The scale-8 opening unit price must reproduce the CNY total exactly through the existing calculator; confirmation has no rounding tolerance and never changes `Account.balance`.

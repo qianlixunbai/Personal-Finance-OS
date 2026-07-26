@@ -1050,3 +1050,6 @@ Database.md 后续 Review 应检查以下事项。
 # Phase 2A concurrency note
 
 Account and Transaction locking queries use PostgreSQL `FOR UPDATE` with `user_id`; multi-account locking uses `ORDER BY id ASC`. Balance, metadata, and status are field-level updates. The `lock_timeout` is transaction-local; no migration or version column is required, and negative balances remain valid.
+# Phase 2B-3 database update
+
+V9 fails before DDL on duplicate posted openings or comparable historical Account mismatches. It adds the named Asset composite unique constraint, Account-consistency foreign key, and posted-opening partial unique index. Existing source, external-reference, idempotency-key, and request-hash columns are reused.

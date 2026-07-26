@@ -725,3 +725,6 @@ Missing or cross-user locked resources return 404. An inactive new target return
 # Phase 2B-2 API boundary
 
 Phase 2B-2 deliberately exposes no public Instrument API, Position API, or InvestmentTransaction write API. Its Instrument command and Account/Instrument binding validation are internal services only. Opening Migration and Account.balance coupling are also not exposed or implemented.
+# Phase 2B-3 API update
+
+JWT-protected `GET/POST /api/v1/investment/instruments` provides explicit Instrument selection. `POST /api/v1/investment/legacy-assets/{assetId}/migration-preview` is read-only and accepts `instrumentId` and `accountId`. `POST /api/v1/investment/legacy-assets/{assetId}/migration-confirm` accepts a signed preview token and requires `X-Idempotency-Key`. It is the only public opening write path; no public BUY/SELL/DIVIDEND API is introduced.

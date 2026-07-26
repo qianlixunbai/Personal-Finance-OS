@@ -384,3 +384,6 @@ Transaction update and delete lock the owned original fact before affected accou
 - A transaction-driven Position must bind an ACTIVE Account and ACTIVE Instrument. BROKERAGE permits STOCK, ETF, FUND, and BOND; CRYPTO_WALLET permits CRYPTO. Every other Account type is rejected.
 - LEGACY Assets retain their original create, update, manual price, close, and delete behavior and are never automatically bound or migrated.
 - Transaction-driven projection identity is immutable and cannot be created, closed, or deleted through the existing Asset API.
+# Phase 2B-3 business-rule update
+
+Legacy opening migration is explicit and single-Asset. A candidate must be an open CNY `LEGACY` holding with no investment facts and a compatible active Account/Instrument chosen by the user. Zero holdings are not migrated; a successful projection remains transaction-driven.

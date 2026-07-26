@@ -409,3 +409,6 @@ Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migratio
 # v3.0 Phase 2B-2 — completed
 
 Investment Instrument and Account Binding is closed: V7/V8 add user-scoped Instrument master data and immutable Asset schema binding, with no Opening Migration and no investment write path. The next planned phase remains 2B-3 Legacy Preflight / Opening Migration; it is not started by this delivery.
+# v3.0 Phase 2B-3 status
+
+Phase 2B-2 is closed. Phase 2B-3 now provides explicit Legacy preflight, signed preview, and confirmed opening migration. Phase 2B-4 (general investment write, reversal/replacement, and related workflows) remains future scope.
