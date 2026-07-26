@@ -37,12 +37,12 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionSix() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionEight() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments')
                 """, Integer.class);
         Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -73,6 +73,16 @@ class FlywayMigrationIntegrationTest {
                 SELECT count(*)
                 FROM flyway_schema_history
                 WHERE version = '6' AND description = 'align asset projection precision' AND success = true
+                """, Integer.class);
+        Integer versionSevenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '7' AND description = 'create investment instruments' AND success = true
+                """, Integer.class);
+        Integer versionEightMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '8' AND description = 'bind asset positions to instruments' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -153,13 +163,15 @@ class FlywayMigrationIntegrationTest {
                 WHERE index_definition.indrelid = 'investment_transactions'::regclass
                 """, String.class);
 
-        assertThat(applicationTableCount).isEqualTo(9);
+        assertThat(applicationTableCount).isEqualTo(10);
         assertThat(versionOneMigrationCount).isEqualTo(1);
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);
         assertThat(versionFourMigrationCount).isEqualTo(1);
         assertThat(versionFiveMigrationCount).isEqualTo(1);
         assertThat(versionSixMigrationCount).isEqualTo(1);
+        assertThat(versionSevenMigrationCount).isEqualTo(1);
+        assertThat(versionEightMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")

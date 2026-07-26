@@ -38,6 +38,9 @@ public class Asset {
     @TableField("account_id")
     private Long accountId;
 
+    @TableField("instrument_id")
+    private Long instrumentId;
+
     @TableField("total_cost")
     private BigDecimal totalCost;
 
