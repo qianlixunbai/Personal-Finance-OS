@@ -104,7 +104,7 @@ a { color: inherit; }
 .icon-bubble { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; border: 1px solid rgba(34, 211, 238, .18); border-radius: 6px; color: var(--icon-color, var(--color-primary)); background: var(--icon-background, var(--color-primary-subtle)); }
 .summary-card__value { margin-top: 13px; color: var(--summary-accent, var(--color-primary)); font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-size: 23px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.045em; }
 
-.dashboard-workspace { display: grid; gap: 16px; width: min(100%, 1380px); margin: 0 auto; }
+.dashboard-workspace { display: grid; gap: 16px; width: 100%; max-width: 1680px; margin: 0 auto; }
 .dashboard-context { display: flex; align-items: flex-end; justify-content: space-between; min-height: 36px; }
 .dashboard-context p { margin: 0; color: var(--color-text-primary); font-size: 19px; font-weight: 720; letter-spacing: -.025em; }
 .dashboard-context span { display: block; margin-top: 3px; color: var(--color-text-tertiary); font-size: 12px; }
