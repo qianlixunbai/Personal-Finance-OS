@@ -1,0 +1,3 @@
+ALTER TABLE assets
+    ALTER COLUMN quantity TYPE NUMERIC(28, 8),
+    ALTER COLUMN avg_cost TYPE NUMERIC(28, 8);

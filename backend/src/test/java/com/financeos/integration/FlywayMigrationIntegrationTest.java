@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionFive() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionSix() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -68,6 +68,11 @@ class FlywayMigrationIntegrationTest {
                 SELECT count(*)
                 FROM flyway_schema_history
                 WHERE version = '5' AND description = 'harden investment ledger constraints' AND success = true
+                """, Integer.class);
+        Integer versionSixMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM flyway_schema_history
+                WHERE version = '6' AND description = 'align asset projection precision' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -109,6 +114,22 @@ class FlywayMigrationIntegrationTest {
                 SELECT numeric_scale FROM information_schema.columns
                 WHERE table_name = 'investment_transactions' AND column_name = 'gross_amount'
                 """, Integer.class);
+        Integer assetQuantityPrecision = jdbcTemplate.queryForObject("""
+                SELECT numeric_precision FROM information_schema.columns
+                WHERE table_name = 'assets' AND column_name = 'quantity'
+                """, Integer.class);
+        Integer assetQuantityScale = jdbcTemplate.queryForObject("""
+                SELECT numeric_scale FROM information_schema.columns
+                WHERE table_name = 'assets' AND column_name = 'quantity'
+                """, Integer.class);
+        Integer assetAverageCostPrecision = jdbcTemplate.queryForObject("""
+                SELECT numeric_precision FROM information_schema.columns
+                WHERE table_name = 'assets' AND column_name = 'avg_cost'
+                """, Integer.class);
+        Integer assetAverageCostScale = jdbcTemplate.queryForObject("""
+                SELECT numeric_scale FROM information_schema.columns
+                WHERE table_name = 'assets' AND column_name = 'avg_cost'
+                """, Integer.class);
         Map<String, String> investmentColumns = jdbcTemplate.query("""
                 SELECT column_name, data_type
                 FROM information_schema.columns
@@ -138,6 +159,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionThreeMigrationCount).isEqualTo(1);
         assertThat(versionFourMigrationCount).isEqualTo(1);
         assertThat(versionFiveMigrationCount).isEqualTo(1);
+        assertThat(versionSixMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -160,6 +182,10 @@ class FlywayMigrationIntegrationTest {
         assertThat(quantityScale).isEqualTo(8);
         assertThat(amountPrecision).isEqualTo(28);
         assertThat(amountScale).isEqualTo(2);
+        assertThat(assetQuantityPrecision).isEqualTo(28);
+        assertThat(assetQuantityScale).isEqualTo(8);
+        assertThat(assetAverageCostPrecision).isEqualTo(28);
+        assertThat(assetAverageCostScale).isEqualTo(8);
         assertThat(investmentColumns).containsEntry("id", "bigint")
                 .containsEntry("user_id", "bigint")
                 .containsEntry("asset_id", "bigint")
