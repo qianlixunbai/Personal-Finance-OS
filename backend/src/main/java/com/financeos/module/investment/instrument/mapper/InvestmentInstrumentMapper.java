@@ -19,6 +19,14 @@ public interface InvestmentInstrumentMapper extends BaseMapper<InvestmentInstrum
 
     @Select("""
             SELECT * FROM investment_instruments
+            WHERE user_id = #{userId} AND id = #{instrumentId}
+            FOR UPDATE
+            """)
+    InvestmentInstrument findByUserIdAndIdForUpdate(@Param("userId") Long userId,
+                                                     @Param("instrumentId") Long instrumentId);
+
+    @Select("""
+            SELECT * FROM investment_instruments
             WHERE user_id = #{userId} AND market = #{market} AND symbol = #{symbol}
             """)
     InvestmentInstrument findByUserIdAndMarketAndSymbol(@Param("userId") Long userId,
