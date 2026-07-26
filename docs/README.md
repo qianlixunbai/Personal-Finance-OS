@@ -80,6 +80,8 @@
 - `API.md`、`Database.md`、`Business Rules.md` 需要随实现变化保持同步。
 - Review 文档用于记录阶段性检查、问题判断、修复计划和修复结论。
 - 根目录 `README.md` 负责作品集展示；当前文件只负责文档导航。
-# Phase 2A
+# v3.0 Investment phase status
 
-See [ADR-008](./ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md) for the account balance locking protocol and [Phase 2A Closing Review](./review/V3.0-Phase2A-Closing-Review.md) for verification evidence.
+- Phase 2A Account Balance Concurrency is closed; see [ADR-008](./ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md) and the [Phase 2A Closing Review](./review/V3.0-Phase2A-Closing-Review.md).
+- Phase 2B-1 Investment Projection Safety and Precision is closed with GO; see the [Phase 2B-1 Closing Review](./review/V3.0-Phase2B-1-Closing-Review.md).
+- Next: `v3.0 Phase 2B-2 — Investment Instrument and Account Binding` (read-only design). Opening Migration and all write-path work remain future phases.

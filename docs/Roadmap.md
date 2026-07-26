@@ -4,7 +4,9 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Phase 2B-1 — Investment Projection Safety and Precision（已完成，等待后续阶段规划）。
+**当前阶段：** v3.0 Phase 2B-1 — Investment Projection Safety and Precision（已完成，GO）。
+
+**下一阶段：** v3.0 Phase 2B-2 — Investment Instrument and Account Binding（只读设计）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -321,7 +323,7 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 
 ### 首次验收与定向修复
 
-首次独立验收为 NO-GO，发现 4 项 P1，随后使用定向修复提交完成修复：V4 保持不变，V5 对分类型金额恒等式、replacement 同用户同 Asset 隔离和自引用施加前向数据库约束，并对旧矛盾事实 fail-fast；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，低至不能以 CNY 两位小数表达的金额会被拒绝。独立聚焦复验结果为 GO，四项 P1 均已 CLOSED，Phase 1 正式关闭。Phase 2A 尚未开始实施，仍无公开 InvestmentTransaction API、Account.balance 联动或实际 Opening 迁移。
+首次独立验收为 NO-GO，发现 4 项 P1，随后使用定向修复提交完成修复：V4 保持不变，V5 对分类型金额恒等式、replacement 同用户同 Asset 隔离和自引用施加前向数据库约束，并对旧矛盾事实 fail-fast；Opening 只能是唯一的第一个有效事实；正持仓必须有正成本，低至不能以 CNY 两位小数表达的金额会被拒绝。独立聚焦复验结果为 GO，四项 P1 均已 CLOSED，Phase 1 正式关闭。Phase 2A 已随后关闭；公开 InvestmentTransaction API、Account.balance 联动和实际 Opening Migration 仍未实现。
 
 ### 已接受的设计方向 / 后续实施规划
 
@@ -335,20 +337,20 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 - `fee`、`tax` 作为交易组成字段，使用必填幂等键、PostgreSQL 行锁和冲正替代物理删除；
 - `Opening Position` 用于旧 Asset 迁移，普通流水与投资交易未来共用统一 `AccountBalanceService`。
 
-### Phase 2A 后续范围，当前明确不实施
+### Phase 2A 已完成能力
 
-- 统一 `AccountBalanceService`；
-- 使用 PostgreSQL `SELECT FOR UPDATE`；
-- 让普通 Transaction 使用统一余额更新路径；
-- 保证并发收入/支出不丢失更新、固定账户锁顺序并在事务失败时全部回滚；
-- 暂不接入 InvestmentTransaction，不做 Opening Position 迁移，不实现 BUY / SELL，不新增前端。
+- `AccountBalanceService` 统一普通 Transaction 的余额更新路径；
+- PostgreSQL `SELECT FOR UPDATE`、固定账户锁顺序与事务内回滚已落地；
+- InvestmentTransaction 写入、Opening Position Migration 和 Portfolio 未纳入 Phase 2A。
 
-### Phase 2B 后续范围
+### 后续阶段顺序
 
-- Opening Position Migration；
-- Legacy Asset Preflight；
-- Projection Rebuild；
-- Consistency Check。
+`Phase 2B-2 Instrument / Account Binding`
+→ `Phase 2B-3 Legacy Preflight / Opening Migration`
+→ `Phase 2B-4 Investment Write Path`
+→ `Portfolio Read Model / Frontend`
+
+Phase 2B-2 仅进行 Investment Instrument 和 Account Binding 的只读设计；上述后续能力均未实现。
 
 ### 边界说明
 
@@ -404,6 +406,3 @@ Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migratio
 - 每个阶段结束时应新增 Closing Review；
 - Roadmap 变更应同步根 README 和 docs 导航；
 - 架构级变化应通过 ADR 记录。
-# Phase 2A — Account Balance Concurrency
-
-Phase 2A adds PostgreSQL pessimistic row locking for ordinary transaction balance mutations. It uses transaction fact → Account (ascending ID) ordering, field-level account writes, a transaction-local lock timeout, and no automatic retry. Transfer, InvestmentTransaction writes, and Opening Migration remain out of scope.

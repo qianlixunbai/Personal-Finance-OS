@@ -249,8 +249,10 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 
 ## 后续计划
 
-- 当前阶段：`v3.0 Phase 2A — Account Balance Concurrency Foundation`（尚未开始实施）。
-- v3.0 Phase 1 已正式关闭；后续 Phase 2A 先处理 Account Concurrency，Phase 2B 再处理受控 Opening Position 迁移、幂等写入与账户余额联动；这些能力当前未实施。
+- 已关闭：v2.1 Market Valuation、v3.0 Phase 1 Investment Ledger Foundation、Phase 2A Account Balance Concurrency，以及 Phase 2B-1 Investment Projection Safety and Precision（GO）。
+- 下一阶段：`v3.0 Phase 2B-2 — Investment Instrument and Account Binding`（只读设计）。
+- 后续顺序：Phase 2B-2 Instrument / Account Binding → Phase 2B-3 Legacy Preflight / Opening Migration → Phase 2B-4 Investment Write Path → Portfolio Read Model / Frontend。
+- Instrument、Opening Migration、BUY/SELL API、余额联动和 Portfolio 当前均未实现。
 - 资产历史价格、定时或自动刷新、AI 财务分析和完整生产运维能力仍属于后续规划。
 
 ## 项目定位
