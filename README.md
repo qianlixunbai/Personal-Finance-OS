@@ -133,6 +133,7 @@ finance-os/
 - `DB_USERNAME`
 - `DB_PASSWORD`
 - `JWT_SECRET`
+- `MIGRATION_PREVIEW_SECRET` (a separate value of at least 32 characters; do not reuse `JWT_SECRET`)
 - 可选 `DB_URL`：未设置时默认为 `jdbc:postgresql://localhost:5432/finance_os`
 
 `JWT_SECRET` 长度至少 32 个字符。

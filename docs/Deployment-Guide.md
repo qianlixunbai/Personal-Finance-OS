@@ -32,7 +32,7 @@ From the repository root:
 Copy-Item docker/.env.example docker/.env
 ```
 
-Edit `docker/.env` before startup. Replace at least `POSTGRES_PASSWORD` and `JWT_SECRET` with local, non-production secrets. `JWT_SECRET` must contain at least 32 characters.
+Edit `docker/.env` before startup. Replace `POSTGRES_PASSWORD`, `JWT_SECRET`, and `MIGRATION_PREVIEW_SECRET` with local, non-production secrets. `JWT_SECRET` and `MIGRATION_PREVIEW_SECRET` must each contain at least 32 characters and must be different values; never reuse `JWT_SECRET` as the migration-preview secret.
 
 ```powershell
 docker compose --env-file docker/.env -f docker/compose.yml up --build -d
@@ -91,7 +91,7 @@ Use an empty PostgreSQL database for this Compose path. Flyway initializes it fr
 
 | Symptom | Check |
 |---|---|
-| Backend fails before startup | Verify all required values in `docker/.env`, especially `JWT_SECRET`, `POSTGRES_PASSWORD`, and the port. |
+| Backend fails before startup | Verify all required values in `docker/.env`, especially `JWT_SECRET`, `MIGRATION_PREVIEW_SECRET`, `POSTGRES_PASSWORD`, and the port. |
 | PostgreSQL never becomes healthy | Inspect `docker compose ... logs postgres`; remove an incompatible local volume only after preserving data. |
 | Backend readiness fails | Inspect backend logs and verify it is using `jdbc:postgresql://postgres:5432/...`, not `localhost`. |
 | Nginx returns `502` for `/api` | Wait for backend health, then inspect backend logs and the frontend container environment. |
