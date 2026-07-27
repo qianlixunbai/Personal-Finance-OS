@@ -75,7 +75,7 @@ class InvestmentCommandTransactionalService {
         InvestmentTransaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
         if (existing != null) {
             verifyHash(existing, hash);
-            return response(existing, instrument.getId());
+            return response(existing, instrument.getId(), true);
         }
         if (assetMapper.existsTransactionDrivenPosition(userId, account.getId(), instrument.getId())) {
             throw new BusinessException(409, "Transaction-driven position already exists");
@@ -106,7 +106,7 @@ class InvestmentCommandTransactionalService {
         InvestmentTransaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
         if (existing != null) {
             verifyHash(existing, hash);
-            return response(existing, instrument.getId());
+            return response(existing, instrument.getId(), true);
         }
         InvestmentTransactionType transactionType = InvestmentTransactionType.valueOf(type);
         validateBinding(account, instrument, transactionType == InvestmentTransactionType.BUY);
@@ -116,9 +116,15 @@ class InvestmentCommandTransactionalService {
     private InvestmentCommandResponse post(Long userId, Account account, InvestmentInstrument instrument, Asset asset,
                                             String key, String hash, TradeAmounts amounts,
                                             InvestmentTransactionType type) {
+        InvestmentPositionState positionBeforeCommand = replayEngine.replay(entries(userId, asset.getId())).position();
+        if (type == InvestmentTransactionType.SELL
+                && (positionBeforeCommand.quantity().signum() == 0
+                || amounts.quantity().compareTo(positionBeforeCommand.quantity()) > 0)) {
+            throw new BusinessException(409, "Sell quantity exceeds current position");
+        }
         InvestmentCalculationResult result;
         try {
-            result = calculator.calculate(position(asset), command(type, amounts));
+            result = calculator.calculate(positionBeforeCommand, command(type, amounts));
         } catch (InvestmentLedgerValidationException exception) {
             throw new BusinessException(400, exception.getMessage());
         }
@@ -143,7 +149,7 @@ class InvestmentCommandTransactionalService {
         }
         Asset updated = assetMapper.selectOwnedForUpdate(userId, asset.getId());
         consistencyChecker.verify(transaction, updated, balanceUpdates.get(account.getId()));
-        return response(transaction, instrument.getId());
+        return response(transaction, instrument.getId(), false);
     }
 
     private Account lockAccount(Long userId, Long accountId) {
@@ -256,11 +262,11 @@ class InvestmentCommandTransactionalService {
         return transaction;
     }
 
-    static InvestmentCommandResponse response(InvestmentTransaction transaction, Long instrumentId) {
+    static InvestmentCommandResponse response(InvestmentTransaction transaction, Long instrumentId, boolean idempotentReplay) {
         return new InvestmentCommandResponse(transaction.getId(), transaction.getAssetId(), transaction.getAccountId(), instrumentId,
                 transaction.getTransactionType(), decimal(transaction.getGrossAmount()), decimal(transaction.getNetAmount()),
                 decimal(transaction.getTransactionType().equals("BUY") ? transaction.getNetAmount().negate() : transaction.getNetAmount()),
-                decimal(transaction.getAccountBalanceAfter()), new InvestmentCommandResponse.FinalPosition(
+                decimal(transaction.getAccountBalanceAfter()), idempotentReplay, new InvestmentCommandResponse.FinalPosition(
                 decimal(transaction.getPositionQuantityAfter()), decimal(transaction.getPositionAvgCostAfter()),
                 decimal(transaction.getPositionTotalCostAfter()), decimal(transaction.getPositionRealizedProfitLossAfter()),
                 transaction.getPositionStatusAfter(), transaction.getProjectionVersionAfter(), transaction.getId()));

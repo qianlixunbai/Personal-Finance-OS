@@ -10,6 +10,7 @@ public record InvestmentCommandResponse(
         String netAmount,
         String cashDelta,
         String balanceAfter,
+        boolean idempotentReplay,
         FinalPosition finalPosition) {
 
     public record FinalPosition(

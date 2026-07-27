@@ -110,11 +110,13 @@ class InvestmentCommandApiIntegrationTest extends PostgresIntegrationTest {
 
         mockMvc.perform(post("/api/v1/investment/positions").with(authentication(auth(userId)))
                         .header("Idempotency-Key", "replay-key").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.transactionId").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.transactionId").value(1))
+                .andExpect(jsonPath("$.data.idempotentReplay").value(false));
         mockMvc.perform(post("/api/v1/investment/positions").with(authentication(auth(userId)))
                         .header("Idempotency-Key", "replay-key").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.transactionId").value(1))
-                .andExpect(jsonPath("$.data.balanceAfter").value("-21.50"));
+                .andExpect(jsonPath("$.data.balanceAfter").value("-21.50"))
+                .andExpect(jsonPath("$.data.idempotentReplay").value(true));
         mockMvc.perform(post("/api/v1/investment/positions").with(authentication(auth(userId)))
                         .header("Idempotency-Key", "replay-key").contentType(MediaType.APPLICATION_JSON)
                         .content(firstBuyBody("3.00000000", "10.00000000", "1.00", "0.50")))
@@ -126,14 +128,14 @@ class InvestmentCommandApiIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void invalidSellRollsBackWithoutChangingFactBalanceOrProjection() throws Exception {
+    void insufficientSellReturnsConflictAndRollsBackWithoutChangingFactBalanceOrProjection() throws Exception {
         Long userId = insertUserAccountAndInstrument();
         firstBuy(userId, "first-buy", "2.00000000", "10.00000000", "1.00", "0.50");
 
         mockMvc.perform(post("/api/v1/investment/positions/1/sell")
                         .with(authentication(auth(userId))).header("Idempotency-Key", "invalid-sell")
                         .contentType(MediaType.APPLICATION_JSON).content(trade("3.00000000", "30.00000000", "0.00", "0.00")))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value(409));
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = 1", BigDecimal.class))

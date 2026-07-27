@@ -38,7 +38,7 @@ Get-Content -LiteralPath $envFile | ForEach-Object {
     Set-Item -Path "Env:$key" -Value $value
 }
 
-$requiredVariables = @("JWT_SECRET", "DB_USERNAME", "DB_PASSWORD")
+$requiredVariables = @("JWT_SECRET", "MIGRATION_PREVIEW_SECRET", "DB_USERNAME", "DB_PASSWORD")
 $missingVariables = @()
 
 foreach ($name in $requiredVariables) {
@@ -55,6 +55,16 @@ if ($missingVariables.Count -gt 0) {
 
 if ($env:JWT_SECRET.Length -lt 32) {
     Write-Host "JWT_SECRET must be at least 32 characters for local development."
+    exit 1
+}
+
+if ($env:MIGRATION_PREVIEW_SECRET.Length -lt 32) {
+    Write-Host "MIGRATION_PREVIEW_SECRET must be at least 32 characters for local development."
+    exit 1
+}
+
+if ($env:JWT_SECRET -eq $env:MIGRATION_PREVIEW_SECRET) {
+    Write-Host "MIGRATION_PREVIEW_SECRET must not reuse JWT_SECRET."
     exit 1
 }
 
