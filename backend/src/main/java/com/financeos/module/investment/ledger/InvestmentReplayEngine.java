@@ -1,9 +1,12 @@
 package com.financeos.module.investment.ledger;
 
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+@Component
 public final class InvestmentReplayEngine {
 
     private final InvestmentLedgerCalculator calculator;

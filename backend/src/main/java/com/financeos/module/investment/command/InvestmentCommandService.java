@@ -2,9 +2,11 @@ package com.financeos.module.investment.command;
 
 import com.financeos.module.investment.command.dto.FirstBuyRequest;
 import com.financeos.module.investment.command.dto.InvestmentCommandResponse;
+import com.financeos.module.investment.command.dto.InvestmentDividendRequest;
 import com.financeos.module.investment.command.dto.InvestmentTradeRequest;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import com.financeos.module.investment.mapper.InvestmentTransactionMapper;
+import org.postgresql.util.PSQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -34,16 +36,36 @@ public class InvestmentCommandService {
                 () -> transactionalService.trade(userId, assetId, idempotencyKey, request, "SELL"));
     }
 
+    public InvestmentCommandResponse dividend(Long userId, Long assetId, String idempotencyKey, InvestmentDividendRequest request) {
+        return execute(userId, idempotencyKey,
+                () -> transactionalService.dividend(userId, assetId, idempotencyKey, request));
+    }
+
     private InvestmentCommandResponse execute(Long userId, String idempotencyKey, Command command) {
         try {
             return command.execute();
         } catch (DataIntegrityViolationException exception) {
+            if (!isIdempotencyUniqueViolation(exception)) {
+                throw exception;
+            }
             InvestmentTransaction concurrent = transactionMapper.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
             if (concurrent != null) {
                 return command.execute();
             }
             throw exception;
         }
+    }
+
+    private boolean isIdempotencyUniqueViolation(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof PSQLException sqlException
+                    && "23505".equals(sqlException.getSQLState())
+                    && sqlException.getServerErrorMessage() != null
+                    && "uk_investment_transactions_user_idempotency".equals(sqlException.getServerErrorMessage().getConstraint())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @FunctionalInterface

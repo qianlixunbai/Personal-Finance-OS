@@ -84,6 +84,14 @@ class FlywayMigrationIntegrationTest {
                 FROM flyway_schema_history
                 WHERE version = '8' AND description = 'bind asset positions to instruments' AND success = true
                 """, Integer.class);
+        Integer versionTenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '10' AND description = 'harden investment write receipts' AND success = true
+                """, Integer.class);
+        Integer versionElevenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '11' AND description = 'harden dividend write receipts' AND success = true
+                """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
                 WHERE table_name = 'exchange_rates' AND column_name = 'rate'
@@ -172,6 +180,8 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionSixMigrationCount).isEqualTo(1);
         assertThat(versionSevenMigrationCount).isEqualTo(1);
         assertThat(versionEightMigrationCount).isEqualTo(1);
+        assertThat(versionTenMigrationCount).isEqualTo(1);
+        assertThat(versionElevenMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -225,7 +235,8 @@ class FlywayMigrationIntegrationTest {
                 "ck_investment_transactions_dividend_amounts",
                 "ck_investment_transactions_opening_position_amounts_v5",
                 "ck_investment_transactions_replacement_not_self",
-                "fk_investment_transactions_replacement_user_asset");
+                "fk_investment_transactions_replacement_user_asset",
+                "ck_investment_transactions_receipt");
         assertThat(investmentIndexes).contains(
                 "idx_investment_transactions_user_trade_time_desc",
                 "idx_investment_transactions_user_asset_trade_time",

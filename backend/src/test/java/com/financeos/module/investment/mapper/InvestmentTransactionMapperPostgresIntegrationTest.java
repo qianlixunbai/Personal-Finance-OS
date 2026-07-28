@@ -206,7 +206,7 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
         transaction.setSource("MIGRATION");
         transaction.setIdempotencyKey(idempotencyKey);
         transaction.setRequestHash("a".repeat(64));
-        if ("BUY".equals(type) || "SELL".equals(type)) {
+        if ("BUY".equals(type) || "SELL".equals(type) || "DIVIDEND".equals(type)) {
             transaction.setAccountBalanceAfter(decimal("0.00"));
             transaction.setPositionQuantityAfter(decimal("2.00000000"));
             transaction.setPositionAvgCostAfter(decimal("10.00000000"));

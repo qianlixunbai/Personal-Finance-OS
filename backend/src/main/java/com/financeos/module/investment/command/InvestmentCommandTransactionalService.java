@@ -8,6 +8,7 @@ import com.financeos.module.asset.entity.Asset;
 import com.financeos.module.asset.mapper.AssetMapper;
 import com.financeos.module.investment.command.dto.FirstBuyRequest;
 import com.financeos.module.investment.command.dto.InvestmentCommandResponse;
+import com.financeos.module.investment.command.dto.InvestmentDividendRequest;
 import com.financeos.module.investment.command.dto.InvestmentTradeRequest;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import com.financeos.module.investment.instrument.InstrumentStatus;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.HexFormat;
 
 @Service
 class InvestmentCommandTransactionalService {
@@ -50,18 +52,20 @@ class InvestmentCommandTransactionalService {
     private final InvestmentTransactionMapper transactionMapper;
     private final InvestmentWriteConsistencyChecker consistencyChecker;
     private final InvestmentLedgerCalculator calculator = new InvestmentLedgerCalculator();
-    private final InvestmentReplayEngine replayEngine = new InvestmentReplayEngine();
+    private final InvestmentReplayEngine replayEngine;
 
     InvestmentCommandTransactionalService(AccountBalanceService accountBalanceService,
                                           InvestmentInstrumentMapper instrumentMapper,
                                           AssetMapper assetMapper,
                                           InvestmentTransactionMapper transactionMapper,
-                                          InvestmentWriteConsistencyChecker consistencyChecker) {
+                                          InvestmentWriteConsistencyChecker consistencyChecker,
+                                          InvestmentReplayEngine replayEngine) {
         this.accountBalanceService = accountBalanceService;
         this.instrumentMapper = instrumentMapper;
         this.assetMapper = assetMapper;
         this.transactionMapper = transactionMapper;
         this.consistencyChecker = consistencyChecker;
+        this.replayEngine = replayEngine;
     }
 
     @Transactional
@@ -113,6 +117,34 @@ class InvestmentCommandTransactionalService {
         return post(userId, account, instrument, asset, key, hash, amounts, transactionType);
     }
 
+    @Transactional
+    InvestmentCommandResponse dividend(Long userId, Long assetId, String idempotencyKey, InvestmentDividendRequest request) {
+        if (assetId == null || assetId <= 0) {
+            throw new BusinessException(400, "assetId must be positive");
+        }
+        DividendAmounts amounts = dividendAmounts(request);
+        String key = idempotencyKey(idempotencyKey);
+        Asset discovered = assetMapper.findByUserIdAndId(userId, assetId);
+        if (discovered == null) {
+            throw new BusinessException(404, "Asset not found");
+        }
+        String hash = dividendRequestHash(userId, assetId, amounts);
+        Account account = lockAccount(userId, discovered.getAccountId());
+        InvestmentInstrument instrument = lockInstrument(userId, discovered.getInstrumentId());
+        Asset asset = assetMapper.selectOwnedForUpdate(userId, assetId);
+        if (asset == null || !"TRANSACTION_DRIVEN".equals(asset.getPositionMode())
+                || !account.getId().equals(asset.getAccountId()) || !instrument.getId().equals(asset.getInstrumentId())) {
+            throw new BusinessException(409, "Position changed while preparing the command");
+        }
+        InvestmentTransaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+        if (existing != null) {
+            verifyHash(existing, hash);
+            return response(existing, instrument.getId(), true);
+        }
+        validateBinding(account, instrument, false);
+        return postDividend(userId, account, instrument, asset, key, hash, amounts);
+    }
+
     private InvestmentCommandResponse post(Long userId, Account account, InvestmentInstrument instrument, Asset asset,
                                             String key, String hash, TradeAmounts amounts,
                                             InvestmentTransactionType type) {
@@ -152,6 +184,49 @@ class InvestmentCommandTransactionalService {
         return response(transaction, instrument.getId(), false);
     }
 
+    private InvestmentCommandResponse postDividend(Long userId, Account account, InvestmentInstrument instrument, Asset asset,
+                                                    String key, String hash, DividendAmounts amounts) {
+        List<InvestmentReplayEntry> existingEntries = entries(userId, asset.getId());
+        InvestmentPositionState positionBeforeCommand = replayEngine.replay(existingEntries).position();
+        if (existingEntries.stream().noneMatch(entry -> entry.status() == InvestmentTransactionStatus.POSTED
+                && (entry.command().transactionType() == InvestmentTransactionType.BUY
+                || entry.command().transactionType() == InvestmentTransactionType.OPENING_POSITION))) {
+            throw new BusinessException(409, "Dividend requires a posted buy or opening position history");
+        }
+        InvestmentCalculationResult result;
+        try {
+            result = calculator.calculate(positionBeforeCommand,
+                    InvestmentLedgerCommand.dividend(amounts.grossAmount(), amounts.feeAmount(), amounts.taxAmount()));
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new BusinessException(400, exception.getMessage());
+        }
+        BigDecimal balanceAfter = account.getBalance().add(result.cashDelta()).setScale(2);
+        requireAccountBalanceRange(balanceAfter);
+        int versionAfter = asset.getProjectionVersion() + 1;
+        InvestmentTransaction transaction = dividendTransaction(userId, account.getId(), asset.getId(), key, hash, amounts, result,
+                balanceAfter, versionAfter);
+        transactionMapper.insert(transaction);
+        accountBalanceService.applyDeltas(
+                accountBalanceService.lockOwnedAccounts(userId, List.of(account.getId())),
+                List.of(new AccountBalanceMutation(account.getId(), result.cashDelta(), false)));
+        Account updatedAccount = lockAccount(userId, account.getId());
+        InvestmentReplayResult replay = replayEngine.replay(entries(userId, asset.getId()));
+        InvestmentPositionState replayedPosition = replay.position();
+        BigDecimal replayedAvgCost = replayedPosition.quantity().signum() == 0
+                ? BigDecimal.ZERO.setScale(8)
+                : replayedPosition.totalCost().divide(replayedPosition.quantity(), 8, RoundingMode.HALF_UP);
+        String status = replayedPosition.quantity().signum() == 0 ? "CLOSED" : "OPEN";
+        if (assetMapper.updateTransactionDrivenProjection(userId, asset.getId(), asset.getProjectionVersion(),
+                replayedPosition.quantity(), replayedAvgCost, replayedPosition.totalCost(), replayedPosition.cumulativeRealizedProfitLoss(),
+                status, transaction.getId()) != 1) {
+            throw new IllegalStateException("investment projection update did not affect exactly one row");
+        }
+        Asset updated = assetMapper.selectOwnedForUpdate(userId, asset.getId());
+        InvestmentTransaction persistedTransaction = transactionMapper.findByUserIdAndId(userId, transaction.getId());
+        consistencyChecker.verify(persistedTransaction, updated, updatedAccount.getBalance());
+        return response(transaction, instrument.getId(), false);
+    }
+
     private Account lockAccount(Long userId, Long accountId) {
         return accountBalanceService.lockOwnedAccounts(userId, List.of(accountId)).accounts().getFirst();
     }
@@ -170,6 +245,12 @@ class InvestmentCommandTransactionalService {
         }
         if (!supported(account.getType(), instrument.getAssetClass())) {
             throw new BusinessException(400, "Account type does not support the investment asset class");
+        }
+        if (!"ACTIVE".equals(account.getStatus()) && !"INACTIVE".equals(account.getStatus())) {
+            throw new BusinessException(409, "Unknown account status cannot accept investment commands");
+        }
+        if (instrument.getStatus() != InstrumentStatus.ACTIVE && instrument.getStatus() != InstrumentStatus.INACTIVE) {
+            throw new BusinessException(409, "Unknown investment instrument status cannot accept investment commands");
         }
         if (newBuy && (!"ACTIVE".equals(account.getStatus()) || instrument.getStatus() != InstrumentStatus.ACTIVE)) {
             throw new BusinessException(409, "Inactive account or investment instrument cannot accept a buy");
@@ -259,14 +340,51 @@ class InvestmentCommandTransactionalService {
         transaction.setPositionRealizedProfitLossAfter(result.newCumulativeRealizedProfitLoss());
         transaction.setPositionStatusAfter(result.newQuantity().signum() == 0 ? "CLOSED" : "OPEN");
         transaction.setProjectionVersionAfter(versionAfter);
+        transaction.setCreatedAt(now);
+        return transaction;
+    }
+
+    private InvestmentTransaction dividendTransaction(Long userId, Long accountId, Long assetId, String key, String hash,
+                                                      DividendAmounts amounts, InvestmentCalculationResult result,
+                                                      BigDecimal balanceAfter, int versionAfter) {
+        Instant now = Instant.now();
+        InvestmentTransaction transaction = new InvestmentTransaction();
+        transaction.setUserId(userId);
+        transaction.setAccountId(accountId);
+        transaction.setAssetId(assetId);
+        transaction.setTransactionType(InvestmentTransactionType.DIVIDEND.name());
+        transaction.setStatus(InvestmentTransactionStatus.POSTED.name());
+        transaction.setGrossAmount(result.grossAmount());
+        transaction.setFeeAmount(amounts.feeAmount());
+        transaction.setTaxAmount(amounts.taxAmount());
+        transaction.setNetAmount(result.netAmount());
+        transaction.setReleasedCostAmount(result.releasedCostAmount());
+        transaction.setRealizedProfitLoss(result.realizedProfitLoss());
+        transaction.setCurrency("CNY");
+        transaction.setTradeTime(now);
+        transaction.setSettlementTime(now);
+        transaction.setExternalReference(amounts.externalReference());
+        transaction.setNote(amounts.note());
+        transaction.setSource("MANUAL");
+        transaction.setIdempotencyKey(key);
+        transaction.setRequestHash(hash);
+        transaction.setAccountBalanceAfter(balanceAfter);
+        transaction.setPositionQuantityAfter(result.newQuantity());
+        transaction.setPositionAvgCostAfter(result.newAvgCost());
+        transaction.setPositionTotalCostAfter(result.newTotalCost());
+        transaction.setPositionRealizedProfitLossAfter(result.newCumulativeRealizedProfitLoss());
+        transaction.setPositionStatusAfter(result.newQuantity().signum() == 0 ? "CLOSED" : "OPEN");
+        transaction.setProjectionVersionAfter(versionAfter);
+        transaction.setCreatedAt(now);
         return transaction;
     }
 
     static InvestmentCommandResponse response(InvestmentTransaction transaction, Long instrumentId, boolean idempotentReplay) {
         return new InvestmentCommandResponse(transaction.getId(), transaction.getAssetId(), transaction.getAccountId(), instrumentId,
-                transaction.getTransactionType(), decimal(transaction.getGrossAmount()), decimal(transaction.getNetAmount()),
+                transaction.getTransactionType(), transaction.getTradeTime(), transaction.getSettlementTime(),
+                decimal(transaction.getGrossAmount()), decimal(transaction.getFeeAmount()), decimal(transaction.getTaxAmount()), decimal(transaction.getNetAmount()),
                 decimal(transaction.getTransactionType().equals("BUY") ? transaction.getNetAmount().negate() : transaction.getNetAmount()),
-                decimal(transaction.getAccountBalanceAfter()), idempotentReplay, new InvestmentCommandResponse.FinalPosition(
+                decimal(transaction.getAccountBalanceAfter()), idempotentReplay, transaction.getCreatedAt(), new InvestmentCommandResponse.FinalPosition(
                 decimal(transaction.getPositionQuantityAfter()), decimal(transaction.getPositionAvgCostAfter()),
                 decimal(transaction.getPositionTotalCostAfter()), decimal(transaction.getPositionRealizedProfitLossAfter()),
                 transaction.getPositionStatusAfter(), transaction.getProjectionVersionAfter(), transaction.getId()));
@@ -293,9 +411,46 @@ class InvestmentCommandTransactionalService {
         }
     }
 
+    private DividendAmounts dividendAmounts(InvestmentDividendRequest request) {
+        try {
+            if (request == null || request.grossAmount() == null || request.grossAmount().isBlank()
+                    || request.feeAmount() == null || request.taxAmount() == null
+                    || (request.externalReference() != null && request.externalReference().length() > 100)
+                    || (request.note() != null && request.note().length() > 500)) {
+                throw new BusinessException(400, "Dividend request fields are invalid");
+            }
+            DividendAmounts amounts = new DividendAmounts(new BigDecimal(request.grossAmount()), new BigDecimal(request.feeAmount()),
+                    new BigDecimal(request.taxAmount()), request.externalReference(), request.note());
+            validateScale(amounts.grossAmount(), 2, "grossAmount");
+            validateScale(amounts.feeAmount(), 2, "feeAmount");
+            validateScale(amounts.taxAmount(), 2, "taxAmount");
+            validatePrecision(amounts.grossAmount(), "grossAmount");
+            validatePrecision(amounts.feeAmount(), "feeAmount");
+            validatePrecision(amounts.taxAmount(), "taxAmount");
+            return amounts;
+        } catch (RuntimeException exception) {
+            if (exception instanceof BusinessException businessException) {
+                throw businessException;
+            }
+            throw new BusinessException(400, "Amounts must be decimal strings");
+        }
+    }
+
     private void validateScale(BigDecimal value, int scale, String name) {
         if (value.scale() > scale) {
             throw new BusinessException(400, name + " scale must not exceed " + scale);
+        }
+    }
+
+    private void validatePrecision(BigDecimal value, String name) {
+        if (value.precision() > 28) {
+            throw new BusinessException(400, name + " precision must not exceed 28");
+        }
+    }
+
+    private void requireAccountBalanceRange(BigDecimal value) {
+        if (value.precision() > 18) {
+            throw new BusinessException(400, "Account balance exceeds NUMERIC(18,2) range");
         }
     }
 
@@ -326,6 +481,35 @@ class InvestmentCommandTransactionalService {
         }
     }
 
+    private String dividendRequestHash(Long userId, Long assetId, DividendAmounts amounts) {
+        String canonical = String.join("\n",
+                "operation=DIVIDEND",
+                "formulaVersion=INVESTMENT_DIVIDEND_V1",
+                "userId=" + userId,
+                "assetId=" + assetId,
+                "grossAmount=" + amounts.grossAmount().setScale(2).toPlainString(),
+                "feeAmount=" + amounts.feeAmount().setScale(2).toPlainString(),
+                "taxAmount=" + amounts.taxAmount().setScale(2).toPlainString(),
+                "currency=CNY",
+                "tradeTimePolicy=SERVER_POST_TIME_V1",
+                "externalReference=" + canonicalOptional(amounts.externalReference()),
+                "note=" + canonicalOptional(amounts.note()));
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private String canonicalOptional(String value) {
+        return value == null ? "NULL" : "VALUE:" + value.getBytes(StandardCharsets.UTF_8).length + ":" + value;
+    }
+
     private record TradeAmounts(BigDecimal quantity, BigDecimal unitPrice, BigDecimal feeAmount, BigDecimal taxAmount) {
+    }
+
+    private record DividendAmounts(BigDecimal grossAmount, BigDecimal feeAmount, BigDecimal taxAmount,
+                                   String externalReference, String note) {
     }
 }
