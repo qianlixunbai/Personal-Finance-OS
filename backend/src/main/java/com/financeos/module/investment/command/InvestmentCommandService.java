@@ -3,11 +3,14 @@ package com.financeos.module.investment.command;
 import com.financeos.module.investment.command.dto.FirstBuyRequest;
 import com.financeos.module.investment.command.dto.InvestmentCommandResponse;
 import com.financeos.module.investment.command.dto.InvestmentDividendRequest;
+import com.financeos.module.investment.command.dto.InvestmentReversalRequest;
+import com.financeos.module.investment.command.dto.InvestmentReversalResponse;
 import com.financeos.module.investment.command.dto.InvestmentTradeRequest;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import com.financeos.module.investment.mapper.InvestmentTransactionMapper;
 import org.postgresql.util.PSQLException;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.financeos.common.BusinessException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -41,7 +44,19 @@ public class InvestmentCommandService {
                 () -> transactionalService.dividend(userId, assetId, idempotencyKey, request));
     }
 
-    private InvestmentCommandResponse execute(Long userId, String idempotencyKey, Command command) {
+    public InvestmentReversalResponse reverse(Long userId, Long transactionId, String idempotencyKey, InvestmentReversalRequest request) {
+        try {
+            return execute(userId, idempotencyKey,
+                    () -> transactionalService.reverse(userId, transactionId, idempotencyKey, request));
+        } catch (DataIntegrityViolationException exception) {
+            if (isReversalOriginalUniqueViolation(exception)) {
+                throw new BusinessException(409, "Investment transaction was already reversed");
+            }
+            throw new InvestmentReversalConsistencyException("Investment reversal persistence failed", exception);
+        }
+    }
+
+    private <T> T execute(Long userId, String idempotencyKey, Command<T> command) {
         try {
             return command.execute();
         } catch (DataIntegrityViolationException exception) {
@@ -68,8 +83,20 @@ public class InvestmentCommandService {
         return false;
     }
 
+    private boolean isReversalOriginalUniqueViolation(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof PSQLException sqlException
+                    && "23505".equals(sqlException.getSQLState())
+                    && sqlException.getServerErrorMessage() != null
+                    && "uk_investment_transactions_reversal_original".equals(sqlException.getServerErrorMessage().getConstraint())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @FunctionalInterface
-    private interface Command {
-        InvestmentCommandResponse execute();
+    private interface Command<T> {
+        T execute();
     }
 }

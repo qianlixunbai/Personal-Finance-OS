@@ -26,4 +26,8 @@ public record InvestmentLedgerCommand(
         return new InvestmentLedgerCommand(InvestmentTransactionType.OPENING_POSITION, quantity, unitCost, null,
                 BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2));
     }
+
+    public static InvestmentLedgerCommand reversal() {
+        return new InvestmentLedgerCommand(InvestmentTransactionType.REVERSAL, null, null, null, null, null);
+    }
 }

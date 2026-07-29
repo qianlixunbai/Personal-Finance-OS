@@ -14,6 +14,9 @@ public interface InvestmentTransactionMapper extends BaseMapper<InvestmentTransa
     @Select("SELECT * FROM investment_transactions WHERE user_id = #{userId} AND id = #{id}")
     InvestmentTransaction findByUserIdAndId(@Param("userId") Long userId, @Param("id") Long id);
 
+    @Select("SELECT * FROM investment_transactions WHERE user_id = #{userId} AND id = #{id} FOR UPDATE")
+    InvestmentTransaction findByUserIdAndIdForUpdate(@Param("userId") Long userId, @Param("id") Long id);
+
     @Select("""
             SELECT * FROM investment_transactions
             WHERE user_id = #{userId} AND asset_id = #{assetId} AND status = 'POSTED'
@@ -40,4 +43,14 @@ public interface InvestmentTransactionMapper extends BaseMapper<InvestmentTransa
     InvestmentTransaction findByUserIdAndIdempotencyKey(
             @Param("userId") Long userId,
             @Param("idempotencyKey") String idempotencyKey);
+
+    @Select("""
+            SELECT * FROM investment_transactions
+            WHERE user_id = #{userId}
+              AND original_transaction_id = #{originalTransactionId}
+              AND transaction_type = 'REVERSAL'
+            """)
+    InvestmentTransaction findReversalByUserIdAndOriginalTransactionId(
+            @Param("userId") Long userId,
+            @Param("originalTransactionId") Long originalTransactionId);
 }

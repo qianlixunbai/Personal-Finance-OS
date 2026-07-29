@@ -46,12 +46,18 @@ public class AccountBalanceService {
         if (orderedIds.isEmpty()) {
             return new LockedAccounts(List.of());
         }
-        accountMapper.configureLocalLockTimeout(lockTimeout);
+        configureLockTimeoutForCurrentTransaction();
         List<Account> lockedAccounts = accountMapper.selectOwnedForUpdate(userId, orderedIds);
         if (lockedAccounts.size() != orderedIds.size()) {
             throw new BusinessException(404, "账户不存在");
         }
         return new LockedAccounts(lockedAccounts);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void configureLockTimeoutForCurrentTransaction() {
+        requireTransaction();
+        accountMapper.configureLocalLockTimeout(lockTimeout);
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

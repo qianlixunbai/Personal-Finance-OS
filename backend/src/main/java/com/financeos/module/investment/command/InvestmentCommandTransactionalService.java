@@ -9,6 +9,8 @@ import com.financeos.module.asset.mapper.AssetMapper;
 import com.financeos.module.investment.command.dto.FirstBuyRequest;
 import com.financeos.module.investment.command.dto.InvestmentCommandResponse;
 import com.financeos.module.investment.command.dto.InvestmentDividendRequest;
+import com.financeos.module.investment.command.dto.InvestmentReversalRequest;
+import com.financeos.module.investment.command.dto.InvestmentReversalResponse;
 import com.financeos.module.investment.command.dto.InvestmentTradeRequest;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import com.financeos.module.investment.instrument.InstrumentStatus;
@@ -145,6 +147,92 @@ class InvestmentCommandTransactionalService {
         return postDividend(userId, account, instrument, asset, key, hash, amounts);
     }
 
+    @Transactional
+    InvestmentReversalResponse reverse(Long userId, Long transactionId, String idempotencyKey, InvestmentReversalRequest request) {
+        if (transactionId == null || transactionId <= 0) {
+            throw new BusinessException(400, "transactionId must be positive");
+        }
+        String key = idempotencyKey(idempotencyKey);
+        String reason = correctionReason(request);
+        String hash = reversalRequestHash(userId, transactionId, reason);
+        accountBalanceService.configureLockTimeoutForCurrentTransaction();
+        InvestmentTransaction original = transactionMapper.findByUserIdAndIdForUpdate(userId, transactionId);
+        if (original == null) {
+            throw new BusinessException(404, "Investment transaction not found");
+        }
+        Asset discovered = assetMapper.findByUserIdAndId(userId, original.getAssetId());
+        if (discovered == null || discovered.getInstrumentId() == null) {
+            throw new BusinessException(409, "Position binding is invalid for reversal");
+        }
+        Account account = lockAccount(userId, original.getAccountId());
+        InvestmentInstrument instrument = lockInstrument(userId, discovered.getInstrumentId());
+        Asset asset = assetMapper.selectOwnedForUpdate(userId, original.getAssetId());
+        if (asset == null || !"TRANSACTION_DRIVEN".equals(asset.getPositionMode())
+                || !account.getId().equals(asset.getAccountId()) || !instrument.getId().equals(asset.getInstrumentId())) {
+            throw new BusinessException(409, "Position changed while preparing the reversal");
+        }
+        InvestmentTransaction sameKey = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+        if (sameKey != null) {
+            verifyHash(sameKey, hash);
+            if (!"REVERSAL".equals(sameKey.getTransactionType()) || !original.getId().equals(sameKey.getOriginalTransactionId())) {
+                throw new BusinessException(409, "Idempotency-Key was already used with a different request");
+            }
+            return reversalResponse(sameKey, instrument.getId(), asset, true);
+        }
+        validateReversibleOriginal(original);
+        validateBinding(account, instrument, false);
+        if (transactionMapper.findReversalByUserIdAndOriginalTransactionId(userId, original.getId()) != null) {
+            throw new BusinessException(409, "Investment transaction was already reversed");
+        }
+
+        List<InvestmentReplayEntry> persistedEntries = entries(userId, asset.getId());
+        try {
+            replayEngine.replay(persistedEntries);
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new IllegalStateException("Persisted investment history is invalid", exception);
+        }
+        InvestmentReplayResult candidateReplay;
+        try {
+            candidateReplay = replayEngine.replay(persistedEntries, Set.of(original.getId()));
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new BusinessException(409, "Reversal would make investment history invalid");
+        }
+
+        BigDecimal cashDelta = reversalCashDelta(original);
+        BigDecimal balanceAfter = account.getBalance().add(cashDelta).setScale(2);
+        requireAccountBalanceRange(balanceAfter);
+        int versionAfter = asset.getProjectionVersion() + 1;
+        InvestmentTransaction reversal = reversalTransaction(userId, account.getId(), asset.getId(), key, hash, original,
+                reason, cashDelta, candidateReplay.position(), balanceAfter, versionAfter);
+        transactionMapper.insert(reversal);
+        Map<Long, BigDecimal> balanceUpdates = accountBalanceService.applyDeltas(
+                accountBalanceService.lockOwnedAccounts(userId, List.of(account.getId())),
+                List.of(new AccountBalanceMutation(account.getId(), cashDelta, false)));
+        InvestmentReplayResult secondReplay;
+        try {
+            secondReplay = replayEngine.replay(entries(userId, asset.getId()));
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new IllegalStateException("Persisted reversal replay failed", exception);
+        }
+        if (!samePosition(candidateReplay.position(), secondReplay.position())) {
+            throw new IllegalStateException("Candidate and persisted reversal replays disagree");
+        }
+        InvestmentPositionState position = secondReplay.position();
+        BigDecimal avgCost = averageCost(position);
+        String status = position.quantity().signum() == 0 ? "CLOSED" : "OPEN";
+        if (assetMapper.updateTransactionDrivenProjection(userId, asset.getId(), asset.getProjectionVersion(),
+                position.quantity(), avgCost, position.totalCost(), position.cumulativeRealizedProfitLoss(),
+                status, reversal.getId()) != 1) {
+            throw new IllegalStateException("investment reversal projection update did not affect exactly one row");
+        }
+        Account updatedAccount = lockAccount(userId, account.getId());
+        Asset updatedAsset = assetMapper.selectOwnedForUpdate(userId, asset.getId());
+        InvestmentTransaction persistedReversal = transactionMapper.findByUserIdAndId(userId, reversal.getId());
+        consistencyChecker.verifyReversal(original, persistedReversal, updatedAsset, balanceUpdates.get(account.getId()),
+                asset.getCurrentPrice(), asset.getMarketValue());
+        return reversalResponse(persistedReversal, instrument.getId(), updatedAsset, false);
+    }
+
     private InvestmentCommandResponse post(Long userId, Account account, InvestmentInstrument instrument, Asset asset,
                                             String key, String hash, TradeAmounts amounts,
                                             InvestmentTransactionType type) {
@@ -165,7 +253,12 @@ class InvestmentCommandTransactionalService {
         InvestmentTransaction transaction = transaction(userId, account.getId(), asset.getId(), key, hash, type, amounts, result,
                 balanceAfter, versionAfter);
         transactionMapper.insert(transaction);
-        InvestmentReplayResult replay = replayEngine.replay(entries(userId, asset.getId()));
+        InvestmentReplayResult replay;
+        try {
+            replay = replayEngine.replay(entries(userId, asset.getId()));
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new BusinessException(409, "Investment history changed concurrently");
+        }
         InvestmentPositionState replayedPosition = replay.position();
         BigDecimal replayedAvgCost = replayedPosition.quantity().signum() == 0
                 ? BigDecimal.ZERO.setScale(8)
@@ -187,7 +280,12 @@ class InvestmentCommandTransactionalService {
     private InvestmentCommandResponse postDividend(Long userId, Account account, InvestmentInstrument instrument, Asset asset,
                                                     String key, String hash, DividendAmounts amounts) {
         List<InvestmentReplayEntry> existingEntries = entries(userId, asset.getId());
-        InvestmentPositionState positionBeforeCommand = replayEngine.replay(existingEntries).position();
+        InvestmentPositionState positionBeforeCommand;
+        try {
+            positionBeforeCommand = replayEngine.replay(existingEntries).position();
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new BusinessException(409, "Dividend requires a posted buy or opening position history");
+        }
         if (existingEntries.stream().noneMatch(entry -> entry.status() == InvestmentTransactionStatus.POSTED
                 && (entry.command().transactionType() == InvestmentTransactionType.BUY
                 || entry.command().transactionType() == InvestmentTransactionType.OPENING_POSITION))) {
@@ -210,7 +308,12 @@ class InvestmentCommandTransactionalService {
                 accountBalanceService.lockOwnedAccounts(userId, List.of(account.getId())),
                 List.of(new AccountBalanceMutation(account.getId(), result.cashDelta(), false)));
         Account updatedAccount = lockAccount(userId, account.getId());
-        InvestmentReplayResult replay = replayEngine.replay(entries(userId, asset.getId()));
+        InvestmentReplayResult replay;
+        try {
+            replay = replayEngine.replay(entries(userId, asset.getId()));
+        } catch (InvestmentLedgerValidationException exception) {
+            throw new BusinessException(409, "Dividend cannot be posted because investment history changed concurrently");
+        }
         InvestmentPositionState replayedPosition = replay.position();
         BigDecimal replayedAvgCost = replayedPosition.quantity().signum() == 0
                 ? BigDecimal.ZERO.setScale(8)
@@ -229,6 +332,21 @@ class InvestmentCommandTransactionalService {
 
     private Account lockAccount(Long userId, Long accountId) {
         return accountBalanceService.lockOwnedAccounts(userId, List.of(accountId)).accounts().getFirst();
+    }
+
+    private void validateReversibleOriginal(InvestmentTransaction original) {
+        InvestmentTransactionType type;
+        try {
+            type = InvestmentTransactionType.valueOf(original.getTransactionType());
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(409, "Investment transaction type cannot be reversed");
+        }
+        if ((type != InvestmentTransactionType.BUY && type != InvestmentTransactionType.SELL && type != InvestmentTransactionType.DIVIDEND)
+                || !InvestmentTransactionStatus.POSTED.name().equals(original.getStatus())
+                || original.getOriginalTransactionId() != null || original.getReplacesTransactionId() != null
+                || original.getReversedAt() != null || original.getReversalReason() != null) {
+            throw new BusinessException(409, "Investment transaction cannot be reversed");
+        }
     }
 
     private InvestmentInstrument lockInstrument(Long userId, Long instrumentId) {
@@ -305,8 +423,81 @@ class InvestmentCommandTransactionalService {
                     case SELL -> InvestmentLedgerCommand.sell(transaction.getQuantity(), transaction.getUnitPrice(), transaction.getFeeAmount(), transaction.getTaxAmount());
                     case DIVIDEND -> InvestmentLedgerCommand.dividend(transaction.getGrossAmount(), transaction.getFeeAmount(), transaction.getTaxAmount());
                     case OPENING_POSITION -> InvestmentLedgerCommand.openingPosition(transaction.getQuantity(), transaction.getUnitPrice());
-                }))
+                    case REVERSAL -> InvestmentLedgerCommand.reversal();
+                }, transaction.getOriginalTransactionId()))
                 .toList();
+    }
+
+    private InvestmentTransaction reversalTransaction(Long userId, Long accountId, Long assetId, String key, String hash,
+                                                      InvestmentTransaction original, String reason, BigDecimal cashDelta,
+                                                      InvestmentPositionState position, BigDecimal balanceAfter, int versionAfter) {
+        Instant now = Instant.now();
+        InvestmentTransaction reversal = new InvestmentTransaction();
+        reversal.setUserId(userId);
+        reversal.setAccountId(accountId);
+        reversal.setAssetId(assetId);
+        reversal.setTransactionType(InvestmentTransactionType.REVERSAL.name());
+        reversal.setStatus(InvestmentTransactionStatus.POSTED.name());
+        reversal.setQuantity(original.getQuantity());
+        reversal.setUnitPrice(original.getUnitPrice());
+        reversal.setGrossAmount(original.getGrossAmount());
+        reversal.setFeeAmount(original.getFeeAmount());
+        reversal.setTaxAmount(original.getTaxAmount());
+        reversal.setNetAmount(original.getNetAmount());
+        reversal.setReleasedCostAmount(BigDecimal.ZERO.setScale(2));
+        reversal.setRealizedProfitLoss(BigDecimal.ZERO.setScale(2));
+        reversal.setCurrency(original.getCurrency());
+        reversal.setTradeTime(now);
+        reversal.setSettlementTime(now);
+        reversal.setSource("CORRECTION");
+        reversal.setIdempotencyKey(key);
+        reversal.setRequestHash(hash);
+        reversal.setOriginalTransactionId(original.getId());
+        reversal.setCorrectionReason(reason);
+        reversal.setCashDelta(cashDelta);
+        reversal.setAccountBalanceAfter(balanceAfter);
+        reversal.setPositionQuantityAfter(position.quantity());
+        reversal.setPositionAvgCostAfter(averageCost(position));
+        reversal.setPositionTotalCostAfter(position.totalCost());
+        reversal.setPositionRealizedProfitLossAfter(position.cumulativeRealizedProfitLoss());
+        reversal.setPositionStatusAfter(position.quantity().signum() == 0 ? "CLOSED" : "OPEN");
+        reversal.setProjectionVersionAfter(versionAfter);
+        reversal.setCreatedAt(now);
+        return reversal;
+    }
+
+    private InvestmentReversalResponse reversalResponse(InvestmentTransaction reversal, Long instrumentId, Asset asset,
+                                                         boolean idempotentReplay) {
+        return new InvestmentReversalResponse("REVERSED", reversal.getOriginalTransactionId(), reversal.getId(), null,
+                reversal.getAssetId(), reversal.getAccountId(), instrumentId, decimal(reversal.getCashDelta()),
+                decimal(reversal.getAccountBalanceAfter()), decimal(reversal.getPositionQuantityAfter()),
+                decimal(reversal.getPositionAvgCostAfter()), decimal(reversal.getPositionTotalCostAfter()),
+                decimal(reversal.getPositionRealizedProfitLossAfter()), reversal.getPositionStatusAfter(),
+                reversal.getProjectionVersionAfter(), reversal.getId(), decimal(asset.getCurrentPrice()),
+                decimal(asset.getMarketValue()), idempotentReplay, reversal.getCreatedAt());
+    }
+
+    private String correctionReason(InvestmentReversalRequest request) {
+        String reason = request == null ? null : request.reason();
+        if (reason == null || reason.isBlank() || reason.length() > 500 || !reason.equals(reason.trim())) {
+            throw new BusinessException(400, "Reversal reason must be 1 to 500 non-blank characters without surrounding spaces");
+        }
+        return reason;
+    }
+
+    private BigDecimal reversalCashDelta(InvestmentTransaction original) {
+        return "BUY".equals(original.getTransactionType()) ? original.getNetAmount() : original.getNetAmount().negate();
+    }
+
+    private boolean samePosition(InvestmentPositionState left, InvestmentPositionState right) {
+        return left.quantity().compareTo(right.quantity()) == 0
+                && left.totalCost().compareTo(right.totalCost()) == 0
+                && left.cumulativeRealizedProfitLoss().compareTo(right.cumulativeRealizedProfitLoss()) == 0;
+    }
+
+    private BigDecimal averageCost(InvestmentPositionState position) {
+        return position.quantity().signum() == 0 ? BigDecimal.ZERO.setScale(8)
+                : position.totalCost().divide(position.quantity(), 8, RoundingMode.HALF_UP);
     }
 
     private InvestmentTransaction transaction(Long userId, Long accountId, Long assetId, String key, String hash,
@@ -494,6 +685,23 @@ class InvestmentCommandTransactionalService {
                 "tradeTimePolicy=SERVER_POST_TIME_V1",
                 "externalReference=" + canonicalOptional(amounts.externalReference()),
                 "note=" + canonicalOptional(amounts.note()));
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private String reversalRequestHash(Long userId, Long originalTransactionId, String reason) {
+        String canonical = String.join("\n",
+                "operation=REVERSAL",
+                "formulaVersion=INVESTMENT_REVERSAL_V1",
+                "userId=" + userId,
+                "originalTransactionId=" + originalTransactionId,
+                "reason=" + canonicalOptional(reason),
+                "cashPolicy=NEGATE_ORIGINAL_EFFECTIVE_CASH_V1",
+                "replayPolicy=EXCLUDE_ORIGINAL_V1");
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8)));

@@ -118,7 +118,7 @@ class LegacyAssetMigrationTransactionalService {
     private List<InvestmentReplayEntry> entries(Long userId, Long assetId) {
         return transactionMapper.selectAllByUserIdAndAssetId(userId, assetId).stream()
                 .map(transaction -> new InvestmentReplayEntry(transaction.getId(), transaction.getTradeTime(),
-                        InvestmentTransactionStatus.valueOf(transaction.getStatus()), command(transaction)))
+                        InvestmentTransactionStatus.valueOf(transaction.getStatus()), command(transaction), transaction.getOriginalTransactionId()))
                 .toList();
     }
 
@@ -128,6 +128,7 @@ class LegacyAssetMigrationTransactionalService {
             case SELL -> InvestmentLedgerCommand.sell(transaction.getQuantity(), transaction.getUnitPrice(), transaction.getFeeAmount(), transaction.getTaxAmount());
             case DIVIDEND -> InvestmentLedgerCommand.dividend(transaction.getGrossAmount(), transaction.getFeeAmount(), transaction.getTaxAmount());
             case OPENING_POSITION -> InvestmentLedgerCommand.openingPosition(transaction.getQuantity(), transaction.getUnitPrice());
+            case REVERSAL -> InvestmentLedgerCommand.reversal();
         };
     }
 

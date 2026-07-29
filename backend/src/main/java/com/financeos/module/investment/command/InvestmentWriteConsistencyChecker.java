@@ -26,6 +26,33 @@ class InvestmentWriteConsistencyChecker {
         }
     }
 
+    void verifyReversal(InvestmentTransaction original, InvestmentTransaction reversal, Asset asset,
+                        BigDecimal appliedBalanceAfter, BigDecimal currentPriceBefore, BigDecimal marketValueBefore) {
+        if (original == null) {
+            throw new InvestmentWriteConsistencyException("Investment reversal original is missing");
+        }
+        verify(reversal, asset, appliedBalanceAfter);
+        BigDecimal expectedCashDelta = "BUY".equals(original.getTransactionType())
+                ? original.getNetAmount() : original.getNetAmount().negate();
+        if (reversal == null
+                || !"REVERSAL".equals(reversal.getTransactionType())
+                || !"POSTED".equals(reversal.getStatus())
+                || !"CORRECTION".equals(reversal.getSource())
+                || !original.getId().equals(reversal.getOriginalTransactionId())
+                || reversal.getCashDelta() == null
+                || reversal.getCashDelta().compareTo(expectedCashDelta) != 0
+                || reversal.getReleasedCostAmount() == null || reversal.getReleasedCostAmount().signum() != 0
+                || reversal.getRealizedProfitLoss() == null || reversal.getRealizedProfitLoss().signum() != 0
+                || !same(reversal.getGrossAmount(), original.getGrossAmount())
+                || !same(reversal.getFeeAmount(), original.getFeeAmount())
+                || !same(reversal.getTaxAmount(), original.getTaxAmount())
+                || !same(reversal.getNetAmount(), original.getNetAmount())
+                || !sameNullable(asset.getCurrentPrice(), currentPriceBefore)
+                || !sameNullable(asset.getMarketValue(), marketValueBefore)) {
+            throw new InvestmentWriteConsistencyException("Investment reversal does not match its original fact or final projection");
+        }
+    }
+
     private boolean validDividend(InvestmentTransaction transaction) {
         if (!"DIVIDEND".equals(transaction.getTransactionType())) {
             return true;
@@ -63,5 +90,9 @@ class InvestmentWriteConsistencyChecker {
 
     private boolean same(BigDecimal left, BigDecimal right) {
         return left != null && right != null && left.compareTo(right) == 0;
+    }
+
+    private boolean sameNullable(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
 }

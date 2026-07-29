@@ -3,6 +3,7 @@ package com.financeos.common;
 import com.financeos.module.asset.marketdata.fx.provider.ExchangeRateProviderException;
 import com.financeos.module.investment.migration.LegacyMigrationConsistencyException;
 import com.financeos.module.investment.command.InvestmentWriteConsistencyException;
+import com.financeos.module.investment.command.InvestmentReversalConsistencyException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -67,6 +68,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleInvestmentWriteConsistencyException(InvestmentWriteConsistencyException e) {
         log.error("Investment write consistency check failed", e);
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Investment write consistency check failed"));
+    }
+
+    @ExceptionHandler(InvestmentReversalConsistencyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvestmentReversalConsistencyException(InvestmentReversalConsistencyException e) {
+        log.error("Investment reversal consistency check failed", e);
+        return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Investment reversal consistency check failed"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

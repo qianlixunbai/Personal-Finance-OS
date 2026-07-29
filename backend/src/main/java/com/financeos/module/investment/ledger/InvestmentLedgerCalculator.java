@@ -20,6 +20,7 @@ public final class InvestmentLedgerCalculator {
             case SELL -> calculateSell(current, command);
             case DIVIDEND -> calculateDividend(current, command);
             case OPENING_POSITION -> calculateOpeningPosition(current, command);
+            case REVERSAL -> throw new InvestmentLedgerValidationException("Reversal is not a calculator command");
         };
     }
 

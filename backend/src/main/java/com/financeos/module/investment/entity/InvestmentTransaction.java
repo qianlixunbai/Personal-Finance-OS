@@ -104,6 +104,15 @@ public class InvestmentTransaction {
     @TableField("reversal_reason")
     private String reversalReason;
 
+    @TableField("original_transaction_id")
+    private Long originalTransactionId;
+
+    @TableField("correction_reason")
+    private String correctionReason;
+
+    @TableField("cash_delta")
+    private BigDecimal cashDelta;
+
     @TableField("created_at")
     private Instant createdAt;
 

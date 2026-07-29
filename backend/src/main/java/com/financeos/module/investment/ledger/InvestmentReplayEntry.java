@@ -6,7 +6,13 @@ public record InvestmentReplayEntry(
         long id,
         Instant tradeTime,
         InvestmentTransactionStatus status,
-        InvestmentLedgerCommand command) {
+        InvestmentLedgerCommand command,
+        Long originalTransactionId) {
+
+    public InvestmentReplayEntry(long id, Instant tradeTime, InvestmentTransactionStatus status,
+                                 InvestmentLedgerCommand command) {
+        this(id, tradeTime, status, command, null);
+    }
 
     public InvestmentReplayEntry {
         if (id <= 0) {
@@ -14,6 +20,12 @@ public record InvestmentReplayEntry(
         }
         if (tradeTime == null || status == null || command == null) {
             throw new InvestmentLedgerValidationException("Replay entry trade time, status and command are required");
+        }
+        if (command.transactionType() == InvestmentTransactionType.REVERSAL && originalTransactionId == null) {
+            throw new InvestmentLedgerValidationException("Reversal replay entry requires an original transaction id");
+        }
+        if (command.transactionType() != InvestmentTransactionType.REVERSAL && originalTransactionId != null) {
+            throw new InvestmentLedgerValidationException("Only reversal replay entries may reference an original transaction");
         }
     }
 }
