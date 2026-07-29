@@ -77,6 +77,15 @@ class InvestmentReplayEngineTest {
     }
 
     @Test
+    void rejectsDividendWithoutAnEarlierEffectiveBuyOrOpeningPosition() {
+        assertThatThrownBy(() -> replayEngine.replay(List.of(
+                entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
+                        InvestmentLedgerCommand.dividend(decimal("10.00"), decimal("0.00"), decimal("0.00"))))))
+                .isInstanceOf(InvestmentLedgerValidationException.class)
+                .hasMessage("Dividend requires an earlier effective buy or opening position");
+    }
+
+    @Test
     void matchesTheSameStepByStepCalculatorProjection() {
         List<InvestmentReplayEntry> entries = List.of(
                 entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
@@ -124,7 +133,7 @@ class InvestmentReplayEngineTest {
                 entry(2, "2026-01-02T09:00:00", InvestmentTransactionStatus.POSTED,
                         InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))))))
                 .isInstanceOf(InvestmentLedgerValidationException.class)
-                .hasMessage("Opening position must be the first effective investment transaction");
+                .hasMessage("Dividend requires an earlier effective buy or opening position");
         assertThatThrownBy(() -> replayEngine.replay(List.of(
                 entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,
                         InvestmentLedgerCommand.openingPosition(decimal("1.00000000"), decimal("10.00000000"))),

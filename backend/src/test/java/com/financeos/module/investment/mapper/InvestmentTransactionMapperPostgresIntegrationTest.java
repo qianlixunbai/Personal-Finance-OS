@@ -56,7 +56,7 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
     }
 
     @Test
-    void persistsDividendAndReversedRecordsButExcludesReversedRowsFromReplayQuery() {
+    void rejectsTheRetiredMutableReversedStatusModel() {
         Long userId = insertUser("income-investor");
         Long accountId = insertAccount(userId, "Brokerage");
         Long assetId = insertAsset(userId, accountId, "Fund");
@@ -73,13 +73,12 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
         reversedBuy.setReversedAt(Instant.parse("2026-01-03T10:00:00Z"));
         reversedBuy.setReversalReason("Corrected by future replacement workflow");
         investmentTransactionMapper.insert(dividend);
-        investmentTransactionMapper.insert(reversedBuy);
 
+        assertThatThrownBy(() -> investmentTransactionMapper.insert(reversedBuy))
+                .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(investmentTransactionMapper.selectPostedByUserIdAndAssetId(userId, assetId))
                 .extracting(InvestmentTransaction::getTransactionType)
                 .containsExactly("DIVIDEND");
-        assertThat(investmentTransactionMapper.findByUserIdAndId(userId, reversedBuy.getId()).getStatus())
-                .isEqualTo("REVERSED");
     }
 
     @Test
@@ -152,37 +151,83 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
     }
 
     @Test
-    void enforcesReplacementUserAssetIsolationAndSelfReferenceWithPostgresConstraints() {
+    void rejectsTheRetiredReplacesTransactionIdField() {
         Long firstUserId = insertUser("replacement-first");
-        Long secondUserId = insertUser("replacement-second");
         Long firstAccountId = insertAccount(firstUserId, "First brokerage");
-        Long secondAccountId = insertAccount(secondUserId, "Second brokerage");
         Long firstAssetId = insertAsset(firstUserId, firstAccountId, "First fund");
-        Long secondAssetId = insertAsset(firstUserId, firstAccountId, "Second fund");
-        Long otherUserAssetId = insertAsset(secondUserId, secondAccountId, "Other fund");
 
         InvestmentTransaction original = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", "2026-01-01T10:00:00Z", "original");
         investmentTransactionMapper.insert(original);
 
         InvestmentTransaction sameUserSameAsset = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", "2026-01-02T10:00:00Z", "same-user-asset");
         sameUserSameAsset.setReplacesTransactionId(original.getId());
-        investmentTransactionMapper.insert(sameUserSameAsset);
-
-        InvestmentTransaction crossUser = transaction(secondUserId, otherUserAssetId, secondAccountId, "BUY", "2026-01-03T10:00:00Z", "cross-user");
-        crossUser.setReplacesTransactionId(original.getId());
-        assertForeignKeyRejected(crossUser, "fk_investment_transactions_replacement_user_asset");
-
-        InvestmentTransaction crossAsset = transaction(firstUserId, secondAssetId, firstAccountId, "BUY", "2026-01-04T10:00:00Z", "cross-asset");
-        crossAsset.setReplacesTransactionId(original.getId());
-        assertForeignKeyRejected(crossAsset, "fk_investment_transactions_replacement_user_asset");
-
-        assertThatThrownBy(() -> jdbcTemplate.update(
-                "UPDATE investment_transactions SET replaces_transaction_id = id WHERE id = ?", original.getId()))
+        assertThatThrownBy(() -> investmentTransactionMapper.insert(sameUserSameAsset))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
 
-        InvestmentTransaction missingReplacement = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", "2026-01-05T10:00:00Z", "missing-replacement");
-        missingReplacement.setReplacesTransactionId(999999L);
-        assertForeignKeyRejected(missingReplacement, "fk_investment_transactions_replacement_user_asset");
+    @Test
+    void exposesTheAppendOnlyReversalColumnsFromV12() {
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'investment_transactions'
+                      AND column_name = 'original_transaction_id'
+                )
+                """, Boolean.class)).isTrue();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'investment_transactions'
+                      AND column_name = 'cash_delta'
+                )
+                """, Boolean.class)).isTrue();
+    }
+
+    @Test
+    void enforcesAppendOnlyReversalBindingAuditAndImmutability() {
+        Long userId = insertUser("reversal-constraints");
+        Long accountId = insertAccount(userId, "Brokerage");
+        Long assetId = insertAsset(userId, accountId, "Fund");
+        InvestmentTransaction original = transaction(userId, assetId, accountId, "BUY", "2026-01-01T10:00:00Z", "original-buy");
+        original.setSource("MANUAL");
+        investmentTransactionMapper.insert(original);
+
+        InvestmentTransaction reversal = reversalOf(original, "reversal-one");
+        investmentTransactionMapper.insert(reversal);
+        assertThat(reversal.getId()).isNotNull();
+        assertThat(reversal.getCashDelta()).isEqualByComparingTo("20.00");
+
+        InvestmentTransaction duplicate = reversalOf(original, "reversal-two");
+        assertThatThrownBy(() -> investmentTransactionMapper.insert(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .satisfies(error -> assertSqlStateAndConstraint(error, "23505", "uk_investment_transactions_reversal_original"));
+        InvestmentTransaction wrongCashDelta = reversalOf(original, "wrong-cash-delta");
+        wrongCashDelta.setCashDelta(decimal("19.99"));
+        assertCheckRejected(wrongCashDelta, "investment reversal audit values are invalid");
+        assertThatThrownBy(() -> jdbcTemplate.update("UPDATE investment_transactions SET note = 'changed' WHERE id = ?", original.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("DELETE FROM investment_transactions WHERE id = ?", reversal.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void triggerRejectsReversalsOfOpeningFactsAndReversalFacts() {
+        Long userId = insertUser("reversal-trigger-targets");
+        Long accountId = insertAccount(userId, "Brokerage");
+        Long assetId = insertAsset(userId, accountId, "Fund");
+        InvestmentTransaction opening = opening(userId, assetId, accountId, "2026-01-01T10:00:00Z", "opening");
+        investmentTransactionMapper.insert(opening);
+
+        assertCheckRejected(reversalOf(opening, "opening-reversal"), "investment reversal original is invalid");
+
+        InvestmentTransaction buy = transaction(userId, assetId, accountId, "BUY", "2026-01-02T10:00:00Z", "buy");
+        investmentTransactionMapper.insert(buy);
+        InvestmentTransaction firstReversal = reversalOf(buy, "first-reversal");
+        investmentTransactionMapper.insert(firstReversal);
+        InvestmentTransaction reversalOfReversal = reversalOf(firstReversal, "reversal-of-reversal");
+        assertCheckRejected(reversalOfReversal, "investment reversal original is invalid");
     }
 
     private InvestmentTransaction transaction(Long userId, Long assetId, Long accountId, String type, String tradeTime, String idempotencyKey) {
@@ -241,6 +286,40 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
         InvestmentTransaction transaction = transaction(userId, assetId, accountId, "OPENING_POSITION", tradeTime, idempotencyKey);
         transaction.setNetAmount(decimal("0.00"));
         return transaction;
+    }
+
+    private InvestmentTransaction reversalOf(InvestmentTransaction original, String idempotencyKey) {
+        InvestmentTransaction reversal = new InvestmentTransaction();
+        reversal.setUserId(original.getUserId());
+        reversal.setAssetId(original.getAssetId());
+        reversal.setAccountId(original.getAccountId());
+        reversal.setTransactionType("REVERSAL");
+        reversal.setStatus("POSTED");
+        reversal.setQuantity(original.getQuantity());
+        reversal.setUnitPrice(original.getUnitPrice());
+        reversal.setGrossAmount(original.getGrossAmount());
+        reversal.setFeeAmount(original.getFeeAmount());
+        reversal.setTaxAmount(original.getTaxAmount());
+        reversal.setNetAmount(original.getNetAmount());
+        reversal.setReleasedCostAmount(decimal("0.00"));
+        reversal.setRealizedProfitLoss(decimal("0.00"));
+        reversal.setCurrency(original.getCurrency());
+        reversal.setTradeTime(Instant.parse("2026-01-02T10:00:00Z"));
+        reversal.setSettlementTime(Instant.parse("2026-01-02T10:00:00Z"));
+        reversal.setSource("CORRECTION");
+        reversal.setIdempotencyKey(idempotencyKey);
+        reversal.setRequestHash("b".repeat(64));
+        reversal.setOriginalTransactionId(original.getId());
+        reversal.setCorrectionReason("Broker correction");
+        reversal.setCashDelta(decimal("20.00"));
+        reversal.setAccountBalanceAfter(decimal("0.00"));
+        reversal.setPositionQuantityAfter(decimal("2.00000000"));
+        reversal.setPositionAvgCostAfter(decimal("10.00000000"));
+        reversal.setPositionTotalCostAfter(decimal("20.00"));
+        reversal.setPositionRealizedProfitLossAfter(decimal("0.00"));
+        reversal.setPositionStatusAfter("OPEN");
+        reversal.setProjectionVersionAfter(1);
+        return reversal;
     }
 
     private void assertCheckRejected(InvestmentTransaction transaction, String constraintName) {
