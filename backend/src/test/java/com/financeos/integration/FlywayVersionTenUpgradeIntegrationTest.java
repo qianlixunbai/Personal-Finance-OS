@@ -35,7 +35,7 @@ class FlywayVersionTenUpgradeIntegrationTest {
         flyway(null).migrate();
 
         try (Connection connection = connection()) {
-            assertThat(appliedVersion(connection)).isEqualTo("11");
+            assertThat(appliedVersion(connection)).isEqualTo("12");
             assertThat(columnExists(connection, "account_balance_after")).isTrue();
             assertThat(columnExists(connection, "position_quantity_after")).isTrue();
             assertThat(columnExists(connection, "position_avg_cost_after")).isTrue();
@@ -46,6 +46,9 @@ class FlywayVersionTenUpgradeIntegrationTest {
             assertThat(constraintExists(connection, "ck_investment_transactions_receipt")).isTrue();
             assertThat(constraintExists(connection, "ck_investment_transactions_request_hash_sha256")).isTrue();
             assertThat(constraintExists(connection, "ck_investment_transactions_idempotency_key_canonical")).isTrue();
+            assertThat(columnExists(connection, "original_transaction_id")).isTrue();
+            assertThat(columnExists(connection, "correction_reason")).isTrue();
+            assertThat(columnExists(connection, "cash_delta")).isTrue();
             insertUserAccountInstrumentAndPosition(connection);
             assertThatThrownBy(() -> connection.createStatement().execute("""
                     INSERT INTO investment_transactions

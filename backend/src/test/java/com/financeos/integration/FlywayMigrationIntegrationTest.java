@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionEight() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionTwelve() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -91,6 +91,10 @@ class FlywayMigrationIntegrationTest {
         Integer versionElevenMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM flyway_schema_history
                 WHERE version = '11' AND description = 'harden dividend write receipts' AND success = true
+                """, Integer.class);
+        Integer versionTwelveMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '12' AND description = 'add append only investment reversals' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -182,6 +186,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionEightMigrationCount).isEqualTo(1);
         assertThat(versionTenMigrationCount).isEqualTo(1);
         assertThat(versionElevenMigrationCount).isEqualTo(1);
+        assertThat(versionTwelveMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -217,7 +222,10 @@ class FlywayMigrationIntegrationTest {
                 .containsEntry("gross_amount", "numeric")
                 .containsEntry("trade_time", "timestamp with time zone")
                 .containsEntry("settlement_time", "timestamp with time zone")
-                .containsEntry("idempotency_key", "character varying");
+                .containsEntry("idempotency_key", "character varying")
+                .containsEntry("original_transaction_id", "bigint")
+                .containsEntry("correction_reason", "character varying")
+                .containsEntry("cash_delta", "numeric");
         assertThat(investmentConstraints).contains(
                 "investment_transactions_pkey",
                 "uk_investment_transactions_user_idempotency",
@@ -227,7 +235,6 @@ class FlywayMigrationIntegrationTest {
                 "ck_investment_transactions_status",
                 "ck_investment_transactions_currency_format",
                 "ck_investment_transactions_settlement_time",
-                "ck_investment_transactions_reversal_state",
                 "ck_investment_transactions_type_fields",
                 "ck_investment_transactions_opening_source",
                 "ck_investment_transactions_buy_amounts",
@@ -236,11 +243,16 @@ class FlywayMigrationIntegrationTest {
                 "ck_investment_transactions_opening_position_amounts_v5",
                 "ck_investment_transactions_replacement_not_self",
                 "fk_investment_transactions_replacement_user_asset",
+                "ck_investment_transactions_legacy_correction_fields_empty",
+                "ck_investment_transactions_correction_fields",
+                "uk_investment_transactions_user_account_asset_id",
+                "fk_investment_transactions_original_binding",
                 "ck_investment_transactions_receipt");
         assertThat(investmentIndexes).contains(
                 "idx_investment_transactions_user_trade_time_desc",
                 "idx_investment_transactions_user_asset_trade_time",
                 "idx_investment_transactions_user_account_trade_time_desc",
-                "idx_investment_transactions_user_type_trade_time_desc");
+                "idx_investment_transactions_user_type_trade_time_desc",
+                "uk_investment_transactions_reversal_original");
     }
 }
