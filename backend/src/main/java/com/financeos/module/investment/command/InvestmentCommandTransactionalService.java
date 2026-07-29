@@ -205,7 +205,7 @@ class InvestmentCommandTransactionalService {
         InvestmentTransaction reversal = reversalTransaction(userId, account.getId(), asset.getId(), key, hash, original,
                 reason, cashDelta, candidateReplay.position(), balanceAfter, versionAfter);
         transactionMapper.insert(reversal);
-        Map<Long, BigDecimal> balanceUpdates = accountBalanceService.applyDeltas(
+        accountBalanceService.applyDeltas(
                 accountBalanceService.lockOwnedAccounts(userId, List.of(account.getId())),
                 List.of(new AccountBalanceMutation(account.getId(), cashDelta, false)));
         InvestmentReplayResult secondReplay;
@@ -228,7 +228,7 @@ class InvestmentCommandTransactionalService {
         Account updatedAccount = lockAccount(userId, account.getId());
         Asset updatedAsset = assetMapper.selectOwnedForUpdate(userId, asset.getId());
         InvestmentTransaction persistedReversal = transactionMapper.findByUserIdAndId(userId, reversal.getId());
-        consistencyChecker.verifyReversal(original, persistedReversal, updatedAsset, balanceUpdates.get(account.getId()),
+        consistencyChecker.verifyReversal(original, persistedReversal, updatedAsset, updatedAccount.getBalance(),
                 asset.getCurrentPrice(), asset.getMarketValue());
         return reversalResponse(persistedReversal, instrument.getId(), updatedAsset, false);
     }
