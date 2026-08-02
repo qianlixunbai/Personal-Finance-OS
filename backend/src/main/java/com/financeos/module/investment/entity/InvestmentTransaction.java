@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 @Data
 @TableName("investment_transactions")
@@ -112,6 +113,15 @@ public class InvestmentTransaction {
 
     @TableField("cash_delta")
     private BigDecimal cashDelta;
+
+    @TableField("correction_group_id")
+    private UUID correctionGroupId;
+
+    @TableField("replay_anchor_transaction_id")
+    private Long replayAnchorTransactionId;
+
+    @TableField("replay_sequence")
+    private Short replaySequence;
 
     @TableField("created_at")
     private Instant createdAt;

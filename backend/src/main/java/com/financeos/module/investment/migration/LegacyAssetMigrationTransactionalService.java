@@ -118,7 +118,9 @@ class LegacyAssetMigrationTransactionalService {
     private List<InvestmentReplayEntry> entries(Long userId, Long assetId) {
         return transactionMapper.selectAllByUserIdAndAssetId(userId, assetId).stream()
                 .map(transaction -> new InvestmentReplayEntry(transaction.getId(), transaction.getTradeTime(),
-                        InvestmentTransactionStatus.valueOf(transaction.getStatus()), command(transaction), transaction.getOriginalTransactionId()))
+                        InvestmentTransactionStatus.valueOf(transaction.getStatus()), command(transaction), transaction.getOriginalTransactionId(),
+                        transaction.getReplayAnchorTransactionId(),
+                        transaction.getReplaySequence() == null ? 0 : transaction.getReplaySequence()))
                 .toList();
     }
 

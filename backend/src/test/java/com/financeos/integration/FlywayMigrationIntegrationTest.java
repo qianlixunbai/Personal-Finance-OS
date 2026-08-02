@@ -37,12 +37,12 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionTwelve() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionThirteen() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments', 'investment_transaction_corrections')
                 """, Integer.class);
         Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -95,6 +95,10 @@ class FlywayMigrationIntegrationTest {
         Integer versionTwelveMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM flyway_schema_history
                 WHERE version = '12' AND description = 'add append only investment reversals' AND success = true
+                """, Integer.class);
+        Integer versionThirteenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '13' AND description = 'add investment transaction replacements' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -175,7 +179,7 @@ class FlywayMigrationIntegrationTest {
                 WHERE index_definition.indrelid = 'investment_transactions'::regclass
                 """, String.class);
 
-        assertThat(applicationTableCount).isEqualTo(10);
+        assertThat(applicationTableCount).isEqualTo(11);
         assertThat(versionOneMigrationCount).isEqualTo(1);
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);
@@ -187,6 +191,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionTenMigrationCount).isEqualTo(1);
         assertThat(versionElevenMigrationCount).isEqualTo(1);
         assertThat(versionTwelveMigrationCount).isEqualTo(1);
+        assertThat(versionThirteenMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -225,7 +230,10 @@ class FlywayMigrationIntegrationTest {
                 .containsEntry("idempotency_key", "character varying")
                 .containsEntry("original_transaction_id", "bigint")
                 .containsEntry("correction_reason", "character varying")
-                .containsEntry("cash_delta", "numeric");
+                .containsEntry("cash_delta", "numeric")
+                .containsEntry("correction_group_id", "uuid")
+                .containsEntry("replay_anchor_transaction_id", "bigint")
+                .containsEntry("replay_sequence", "smallint");
         assertThat(investmentConstraints).contains(
                 "investment_transactions_pkey",
                 "uk_investment_transactions_user_idempotency",

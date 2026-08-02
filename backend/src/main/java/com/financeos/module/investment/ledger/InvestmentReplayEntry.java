@@ -7,11 +7,18 @@ public record InvestmentReplayEntry(
         Instant tradeTime,
         InvestmentTransactionStatus status,
         InvestmentLedgerCommand command,
-        Long originalTransactionId) {
+        Long originalTransactionId,
+        Long replayAnchorTransactionId,
+        short replaySequence) {
 
     public InvestmentReplayEntry(long id, Instant tradeTime, InvestmentTransactionStatus status,
                                  InvestmentLedgerCommand command) {
-        this(id, tradeTime, status, command, null);
+        this(id, tradeTime, status, command, null, null, (short) 0);
+    }
+
+    public InvestmentReplayEntry(long id, Instant tradeTime, InvestmentTransactionStatus status,
+                                 InvestmentLedgerCommand command, Long originalTransactionId) {
+        this(id, tradeTime, status, command, originalTransactionId, null, (short) 0);
     }
 
     public InvestmentReplayEntry {
@@ -27,5 +34,21 @@ public record InvestmentReplayEntry(
         if (command.transactionType() != InvestmentTransactionType.REVERSAL && originalTransactionId != null) {
             throw new InvestmentLedgerValidationException("Only reversal replay entries may reference an original transaction");
         }
+        if (replaySequence < 0) {
+            throw new InvestmentLedgerValidationException("Replay sequence must not be negative");
+        }
+        if (replayAnchorTransactionId == null && replaySequence != 0) {
+            throw new InvestmentLedgerValidationException("Replay sequence requires an anchor transaction id");
+        }
+        if (replayAnchorTransactionId != null && replayAnchorTransactionId <= 0) {
+            throw new InvestmentLedgerValidationException("Replay anchor transaction id must be positive");
+        }
+        if (replayAnchorTransactionId != null && replaySequence != 1) {
+            throw new InvestmentLedgerValidationException("Replay anchor requires replay sequence 1");
+        }
+    }
+
+    public long effectiveAnchorId() {
+        return replayAnchorTransactionId == null ? id : replayAnchorTransactionId;
     }
 }

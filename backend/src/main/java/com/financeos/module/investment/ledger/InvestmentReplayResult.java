@@ -4,11 +4,16 @@ import java.util.List;
 
 public record InvestmentReplayResult(
         InvestmentPositionState position,
-        List<InvestmentCalculationResult> appliedCalculations) {
+        List<InvestmentCalculationResult> appliedCalculations,
+        InvestmentReplayTrace trace) {
+
+    public InvestmentReplayResult(InvestmentPositionState position, List<InvestmentCalculationResult> appliedCalculations) {
+        this(position, appliedCalculations, InvestmentReplayTrace.empty());
+    }
 
     public InvestmentReplayResult {
-        if (position == null || appliedCalculations == null) {
-            throw new InvestmentLedgerValidationException("Replay position and calculations are required");
+        if (position == null || appliedCalculations == null || trace == null) {
+            throw new InvestmentLedgerValidationException("Replay position, calculations and trace are required");
         }
         appliedCalculations = List.copyOf(appliedCalculations);
     }

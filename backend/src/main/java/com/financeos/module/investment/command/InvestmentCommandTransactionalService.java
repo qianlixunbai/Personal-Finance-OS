@@ -424,7 +424,8 @@ class InvestmentCommandTransactionalService {
                     case DIVIDEND -> InvestmentLedgerCommand.dividend(transaction.getGrossAmount(), transaction.getFeeAmount(), transaction.getTaxAmount());
                     case OPENING_POSITION -> InvestmentLedgerCommand.openingPosition(transaction.getQuantity(), transaction.getUnitPrice());
                     case REVERSAL -> InvestmentLedgerCommand.reversal();
-                }, transaction.getOriginalTransactionId()))
+                }, transaction.getOriginalTransactionId(), transaction.getReplayAnchorTransactionId(),
+                        transaction.getReplaySequence() == null ? 0 : transaction.getReplaySequence()))
                 .toList();
     }
 
