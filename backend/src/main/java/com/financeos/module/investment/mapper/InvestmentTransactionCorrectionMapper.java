@@ -5,6 +5,8 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Result;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
@@ -19,7 +21,7 @@ public interface InvestmentTransactionCorrectionMapper {
                 position_total_cost_after, position_realized_profit_loss_after, position_status_after,
                 projection_version, last_transaction_id, created_at)
             VALUES (
-                #{correctionGroupId}, #{userId}, #{accountId}, #{assetId}, #{instrumentId}, #{originalTransactionId},
+                #{correctionGroupId,typeHandler=com.financeos.module.investment.mapper.PostgresUuidTypeHandler,jdbcType=OTHER}, #{userId}, #{accountId}, #{assetId}, #{instrumentId}, #{originalTransactionId},
                 #{transactionType}, #{correctionKind}, #{idempotencyKey}, #{requestHash}, #{correctionReason},
                 #{reversalTransactionId}, #{replacementTransactionId}, #{reversalCashDelta}, #{replacementCashDelta},
                 #{commandCashDelta}, #{balanceAfter}, #{positionQuantityAfter}, #{positionAvgCostAfter},
@@ -30,5 +32,8 @@ public interface InvestmentTransactionCorrectionMapper {
     int insert(InvestmentTransactionCorrection correction);
 
     @Select("SELECT * FROM investment_transaction_corrections WHERE user_id = #{userId} AND id = #{id}")
+    @Results({
+            @Result(column = "correction_group_id", property = "correctionGroupId", typeHandler = PostgresUuidTypeHandler.class)
+    })
     InvestmentTransactionCorrection findByUserIdAndId(@Param("userId") Long userId, @Param("id") Long id);
 }

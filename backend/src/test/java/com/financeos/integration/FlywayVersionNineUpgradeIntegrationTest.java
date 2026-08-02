@@ -44,7 +44,7 @@ class FlywayVersionNineUpgradeIntegrationTest {
         flyway(null).migrate();
 
         try (Connection connection = connection()) {
-            assertThat(appliedVersion(connection)).isEqualTo("12");
+            assertThat(appliedVersion(connection)).isEqualTo("13");
             assertThat(constraintExists(connection, "uk_assets_user_id_id_account_id")).isTrue();
             assertThat(constraintExists(connection, "fk_investment_transactions_user_asset_account")).isTrue();
             assertThat(indexExists(connection, "uk_investment_transactions_posted_opening_asset")).isTrue();

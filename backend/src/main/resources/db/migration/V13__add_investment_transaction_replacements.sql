@@ -11,6 +11,19 @@ DECLARE
     actual_type TEXT;
     actual_not_null BOOLEAN;
     actual_default TEXT;
+    expected_referenced_table TEXT;
+    expected_local_columns TEXT[];
+    expected_referenced_columns TEXT[];
+    actual_referenced_table TEXT;
+    actual_referenced_schema TEXT;
+    actual_local_columns TEXT[];
+    actual_referenced_columns TEXT[];
+    actual_update_action CHAR(1);
+    actual_delete_action CHAR(1);
+    actual_match_type CHAR(1);
+    actual_deferrable BOOLEAN;
+    actual_initially_deferred BOOLEAN;
+    actual_validated BOOLEAN;
 BEGIN
     -- Generate PostgreSQL's own canonical rendering of every V12 object, then
     -- compare that full rendering.  This rejects same-name semantic drift before
@@ -106,8 +119,6 @@ BEGIN
         position_realized_profit_loss_after NUMERIC(28, 2), position_status_after VARCHAR(20),
         projection_version_after INTEGER,
         CONSTRAINT uk_investment_transactions_user_account_asset_id UNIQUE (user_id, account_id, asset_id, id),
-        CONSTRAINT fk_investment_transactions_original_binding FOREIGN KEY (user_id, account_id, asset_id, original_transaction_id)
-            REFERENCES v13_expected_v12_investment_transactions (user_id, account_id, asset_id, id),
         CONSTRAINT ck_investment_transactions_type CHECK (
             transaction_type IN ('BUY', 'SELL', 'DIVIDEND', 'OPENING_POSITION', 'REVERSAL')),
         CONSTRAINT ck_investment_transactions_status CHECK (status = 'POSTED'),
@@ -143,10 +154,6 @@ BEGIN
         ADD CONSTRAINT uk_investment_transactions_user_idempotency UNIQUE (user_id, idempotency_key),
         ADD CONSTRAINT uk_investment_transactions_user_id_id UNIQUE (user_id, id),
         ADD CONSTRAINT uk_investment_transactions_user_asset_id UNIQUE (user_id, asset_id, id),
-        ADD CONSTRAINT fk_investment_transactions_user_asset FOREIGN KEY (user_id, asset_id) REFERENCES assets (user_id, id),
-        ADD CONSTRAINT fk_investment_transactions_user_account FOREIGN KEY (user_id, account_id) REFERENCES accounts (user_id, id),
-        ADD CONSTRAINT fk_investment_transactions_user_asset_account FOREIGN KEY (user_id, asset_id, account_id) REFERENCES assets (user_id, id, account_id),
-        ADD CONSTRAINT fk_investment_transactions_replacement_user_asset FOREIGN KEY (user_id, asset_id, replaces_transaction_id) REFERENCES v13_expected_v12_investment_transactions (user_id, asset_id, id),
         ADD CONSTRAINT ck_investment_transactions_currency_format CHECK (currency ~ '^[A-Z]{3}$' AND currency = 'CNY'),
         ADD CONSTRAINT ck_investment_transactions_quantity_positive CHECK (quantity IS NULL OR quantity > 0),
         ADD CONSTRAINT ck_investment_transactions_unit_price_positive CHECK (unit_price IS NULL OR unit_price > 0),
@@ -183,10 +190,9 @@ BEGIN
         'ck_investment_transactions_source', 'ck_investment_transactions_legacy_correction_fields_empty',
         'ck_investment_transactions_type_fields', 'ck_investment_transactions_receipt',
         'ck_investment_transactions_correction_fields',
-        'fk_investment_transactions_original_binding', 'uk_investment_transactions_user_account_asset_id',
+        'uk_investment_transactions_user_account_asset_id',
         'investment_transactions_pkey', 'uk_investment_transactions_user_idempotency', 'uk_investment_transactions_user_id_id',
-        'uk_investment_transactions_user_asset_id', 'fk_investment_transactions_user_asset', 'fk_investment_transactions_user_account',
-        'fk_investment_transactions_user_asset_account', 'fk_investment_transactions_replacement_user_asset',
+        'uk_investment_transactions_user_asset_id',
         'ck_investment_transactions_currency_format', 'ck_investment_transactions_quantity_positive', 'ck_investment_transactions_unit_price_positive',
         'ck_investment_transactions_amounts_nonnegative', 'ck_investment_transactions_settlement_time', 'ck_investment_transactions_note_length',
         'ck_investment_transactions_idempotency_key', 'ck_investment_transactions_request_hash', 'ck_investment_transactions_opening_position_amounts',
@@ -213,6 +219,69 @@ BEGIN
             ELSIF required_constraint = 'ck_investment_transactions_correction_fields' THEN
                 RAISE EXCEPTION 'expected V12 correction-fields constraint definition is incompatible';
             END IF;
+            RAISE EXCEPTION 'expected V12 % constraint definition is incompatible', required_constraint;
+        END IF;
+    END LOOP;
+
+    -- PostgreSQL does not allow a temporary table to reference permanent tables.
+    -- Verify the V12 foreign keys from catalog column identities instead of trying
+    -- to recreate them on the temporary expected-definition table above.
+    FOR required_constraint, expected_referenced_table, expected_local_columns, expected_referenced_columns IN
+        SELECT * FROM (VALUES
+            ('fk_investment_transactions_original_binding', 'investment_transactions',
+                ARRAY['user_id', 'account_id', 'asset_id', 'original_transaction_id'], ARRAY['user_id', 'account_id', 'asset_id', 'id']),
+            ('fk_investment_transactions_user_asset', 'assets',
+                ARRAY['user_id', 'asset_id'], ARRAY['user_id', 'id']),
+            ('fk_investment_transactions_user_account', 'accounts',
+                ARRAY['user_id', 'account_id'], ARRAY['user_id', 'id']),
+            ('fk_investment_transactions_user_asset_account', 'assets',
+                ARRAY['user_id', 'asset_id', 'account_id'], ARRAY['user_id', 'id', 'account_id']),
+            ('fk_investment_transactions_replacement_user_asset', 'investment_transactions',
+                ARRAY['user_id', 'asset_id', 'replaces_transaction_id'], ARRAY['user_id', 'asset_id', 'id'])
+        ) AS expected(name, referenced_table, local_columns, referenced_columns)
+    LOOP
+        SELECT target_table.relname,
+               target_schema.nspname,
+               ARRAY(SELECT local_attribute.attname
+                       FROM unnest(constraint_row.conkey) WITH ORDINALITY AS local_key(attnum, position)
+                       JOIN pg_attribute local_attribute
+                         ON local_attribute.attrelid = constraint_row.conrelid
+                        AND local_attribute.attnum = local_key.attnum
+                       ORDER BY local_key.position),
+               ARRAY(SELECT referenced_attribute.attname
+                       FROM unnest(constraint_row.confkey) WITH ORDINALITY AS referenced_key(attnum, position)
+                       JOIN pg_attribute referenced_attribute
+                         ON referenced_attribute.attrelid = constraint_row.confrelid
+                        AND referenced_attribute.attnum = referenced_key.attnum
+                       ORDER BY referenced_key.position),
+               constraint_row.confupdtype,
+               constraint_row.confdeltype,
+               constraint_row.confmatchtype,
+               constraint_row.condeferrable,
+               constraint_row.condeferred,
+               constraint_row.convalidated
+          INTO actual_referenced_table, actual_referenced_schema, actual_local_columns, actual_referenced_columns,
+               actual_update_action, actual_delete_action, actual_match_type, actual_deferrable,
+               actual_initially_deferred, actual_validated
+          FROM pg_constraint constraint_row
+          JOIN pg_class target_table ON target_table.oid = constraint_row.confrelid
+          JOIN pg_namespace target_schema ON target_schema.oid = target_table.relnamespace
+         WHERE constraint_row.conrelid = 'investment_transactions'::regclass
+           AND constraint_row.conname = required_constraint
+           AND constraint_row.contype = 'f';
+        IF actual_local_columns IS NULL THEN
+            RAISE EXCEPTION 'expected V12 constraint % is missing', required_constraint;
+        END IF;
+        IF actual_referenced_schema IS DISTINCT FROM 'public'
+           OR actual_referenced_table IS DISTINCT FROM expected_referenced_table
+           OR actual_local_columns IS DISTINCT FROM expected_local_columns
+           OR actual_referenced_columns IS DISTINCT FROM expected_referenced_columns
+           OR actual_update_action IS DISTINCT FROM 'a'
+           OR actual_delete_action IS DISTINCT FROM 'a'
+           OR actual_match_type IS DISTINCT FROM 's'
+           OR actual_deferrable IS DISTINCT FROM FALSE
+           OR actual_initially_deferred IS DISTINCT FROM FALSE
+           OR actual_validated IS DISTINCT FROM TRUE THEN
             RAISE EXCEPTION 'expected V12 % constraint definition is incompatible', required_constraint;
         END IF;
     END LOOP;

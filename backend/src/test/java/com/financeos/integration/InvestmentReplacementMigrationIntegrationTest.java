@@ -139,6 +139,17 @@ class InvestmentReplacementMigrationIntegrationTest {
     }
 
     @Test
+    void rejectsSameNamedV12ForeignKeyDeleteActionDriftBeforeAnyV13Ddl() throws SQLException {
+        execute("ALTER TABLE investment_transactions DROP CONSTRAINT fk_investment_transactions_user_asset");
+        execute("""
+                ALTER TABLE investment_transactions ADD CONSTRAINT fk_investment_transactions_user_asset
+                FOREIGN KEY (user_id, asset_id) REFERENCES assets (user_id, id) ON DELETE CASCADE
+                """);
+
+        assertV13FailsBeforeAnySchemaChange("expected V12 fk_investment_transactions_user_asset constraint definition is incompatible");
+    }
+
+    @Test
     void rejectsSameNamedV12ReversalIndexDriftBeforeAnyV13Ddl() throws SQLException {
         execute("DROP INDEX uk_investment_transactions_reversal_original");
         execute("CREATE UNIQUE INDEX uk_investment_transactions_reversal_original ON investment_transactions (user_id, original_transaction_id) WHERE transaction_type = 'BUY'");
@@ -277,7 +288,7 @@ class InvestmentReplacementMigrationIntegrationTest {
         assertThat(org.assertj.core.api.ThrowableAssert.catchThrowable(this::insertDuplicateReplacementFact))
                 .hasMessageContaining("uk_investment_transactions_group_replacement");
         assertThat(org.assertj.core.api.ThrowableAssert.catchThrowable(this::insertIncompleteReplacementGroup))
-                .hasMessageContaining("replacement correction group requires its command envelope");
+                .hasMessageContaining("fk_investment_transactions_correction_group_command");
         assertThat(queryForInt("SELECT count(*) FROM investment_transactions "
                 + "WHERE correction_group_id = '00000000-0000-0000-0000-000000000014'")).isZero();
         assertThat(queryForInt("SELECT count(*) FROM investment_transaction_corrections "
@@ -495,6 +506,18 @@ class InvestmentReplacementMigrationIntegrationTest {
                            '00000000-0000-0000-0000-000000000013', id, 1
                     FROM investment_transactions WHERE id = 1
                     """);
+            long reversalTransactionId;
+            long replacementTransactionId;
+            try (var result = statement.executeQuery("""
+                    SELECT max(id) FILTER (WHERE transaction_type = 'REVERSAL'),
+                           max(id) FILTER (WHERE transaction_type <> 'REVERSAL')
+                    FROM investment_transactions
+                    WHERE correction_group_id = '00000000-0000-0000-0000-000000000013'
+                    """)) {
+                result.next();
+                reversalTransactionId = result.getLong(1);
+                replacementTransactionId = result.getLong(2);
+            }
             statement.execute("""
                     INSERT INTO investment_transaction_corrections (
                         correction_group_id, user_id, account_id, asset_id, instrument_id, original_transaction_id,
@@ -506,10 +529,11 @@ class InvestmentReplacementMigrationIntegrationTest {
                     VALUES (
                         '00000000-0000-0000-0000-000000000013', %d, %d, %d, %d, 1,
                         '%s', 'REPLACEMENT', 'replacement-command', repeat('e', 64), '%s',
-                        2, 3, 1.00, -2.00, -1.00, -2.00, 1.00000000, 2.00000000,
-                        2.00, 0.00, 'OPEN', 2, 3, CURRENT_TIMESTAMP)
+                        %d, %d, 1.00, -2.00, -1.00, -2.00, 1.00000000, 2.00000000,
+                        2.00, 0.00, 'OPEN', 2, %d, CURRENT_TIMESTAMP)
                     """.formatted(commandUserId, commandAccountId, commandAssetId, commandInstrumentId,
-                            commandTransactionType, commandReason));
+                            commandTransactionType, commandReason, reversalTransactionId, replacementTransactionId,
+                            replacementTransactionId));
             connection.commit();
         }
     }
@@ -549,14 +573,15 @@ class InvestmentReplacementMigrationIntegrationTest {
                            -1.00, quantity, unit_price, net_amount, 0.00, 'OPEN', 4,
                            NULL, NULL, -1.00,
                            '00000000-0000-0000-0000-000000000014', id, 1
-                    FROM investment_transactions WHERE id = 4
+                    FROM investment_transactions WHERE idempotency_key = 'incomplete-group-original'
                     """);
             connection.commit();
         }
     }
 
     private void insertDuplicateReplacementFact() throws SQLException {
-        execute("""
+        try (Connection connection = connection(); var statement = connection.createStatement()) {
+            int inserted = statement.executeUpdate("""
                 INSERT INTO investment_transactions (
                     user_id, asset_id, account_id, transaction_type, status, quantity, unit_price, gross_amount,
                     fee_amount, tax_amount, net_amount, released_cost_amount, realized_profit_loss, currency,
@@ -572,8 +597,14 @@ class InvestmentReplacementMigrationIntegrationTest {
                        position_realized_profit_loss_after, position_status_after, projection_version_after,
                        original_transaction_id, correction_reason, cash_delta,
                        correction_group_id, replay_anchor_transaction_id, replay_sequence
-                FROM investment_transactions WHERE id = 3
+                FROM investment_transactions
+                WHERE correction_group_id = '00000000-0000-0000-0000-000000000013'
+                  AND transaction_type <> 'REVERSAL'
                 """);
+            if (inserted != 1) {
+                throw new SQLException("Expected one replacement fact to duplicate, but found " + inserted);
+            }
+        }
     }
 
     private void insertReplacementFact(String groupId, String anchorExpression, String currencyExpression,
@@ -644,7 +675,9 @@ class InvestmentReplacementMigrationIntegrationTest {
                        fee_amount, tax_amount, net_amount, 0.00, 0.00, currency, trade_time, settlement_time,
                        'CORRECTION', 'correction-fact-reversal', repeat('6', 64),
                        id, 'correction fact cannot be corrected', net_amount, '%s', 0
-                FROM investment_transactions WHERE id = 3
+                FROM investment_transactions
+                WHERE correction_group_id = '00000000-0000-0000-0000-000000000013'
+                  AND transaction_type <> 'REVERSAL'
                 """.formatted(groupId));
     }
 
