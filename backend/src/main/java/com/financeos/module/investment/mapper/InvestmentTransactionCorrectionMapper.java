@@ -36,4 +36,16 @@ public interface InvestmentTransactionCorrectionMapper {
             @Result(column = "correction_group_id", property = "correctionGroupId", typeHandler = PostgresUuidTypeHandler.class)
     })
     InvestmentTransactionCorrection findByUserIdAndId(@Param("userId") Long userId, @Param("id") Long id);
+
+    @Select("SELECT * FROM investment_transaction_corrections WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey}")
+    @Results({@Result(column = "correction_group_id", property = "correctionGroupId", typeHandler = PostgresUuidTypeHandler.class)})
+    InvestmentTransactionCorrection findByUserIdAndIdempotencyKey(@Param("userId") Long userId, @Param("idempotencyKey") String idempotencyKey);
+
+    @Select("SELECT * FROM investment_transaction_corrections WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey} FOR UPDATE")
+    @Results({@Result(column = "correction_group_id", property = "correctionGroupId", typeHandler = PostgresUuidTypeHandler.class)})
+    InvestmentTransactionCorrection findByUserIdAndIdempotencyKeyForUpdate(@Param("userId") Long userId, @Param("idempotencyKey") String idempotencyKey);
+
+    @Select("SELECT * FROM investment_transaction_corrections WHERE user_id = #{userId} AND original_transaction_id = #{originalTransactionId}")
+    @Results({@Result(column = "correction_group_id", property = "correctionGroupId", typeHandler = PostgresUuidTypeHandler.class)})
+    InvestmentTransactionCorrection findByUserIdAndOriginalTransactionId(@Param("userId") Long userId, @Param("originalTransactionId") Long originalTransactionId);
 }

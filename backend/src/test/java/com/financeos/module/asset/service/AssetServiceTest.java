@@ -145,7 +145,7 @@ class AssetServiceTest {
         asset.setPositionStatus("OPEN");
         asset.setLastTransactionId(99L);
         asset.setProjectionVersion(4);
-        when(assetMapper.selectById(10L)).thenReturn(asset);
+        when(assetMapper.selectOwnedForUpdate(1L, 10L)).thenReturn(asset);
         when(assetMapper.updateReferencePrice(1L, 10L, new BigDecimal("12.34"),
                 new BigDecimal("149.6034566652"))).thenReturn(1);
 

@@ -97,8 +97,8 @@ public class AssetService {
         if (currentPrice == null || currentPrice.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(400, "资产价格必须大于 0");
         }
-        Asset asset = assetMapper.selectById(id);
-        if (asset == null || !asset.getUserId().equals(userId)) {
+        Asset asset = assetMapper.selectOwnedForUpdate(userId, id);
+        if (asset == null) {
             throw new BusinessException(404, "资产不存在");
         }
         asset.setCurrentPrice(currentPrice);

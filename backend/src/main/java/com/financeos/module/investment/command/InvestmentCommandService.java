@@ -6,8 +6,12 @@ import com.financeos.module.investment.command.dto.InvestmentDividendRequest;
 import com.financeos.module.investment.command.dto.InvestmentReversalRequest;
 import com.financeos.module.investment.command.dto.InvestmentReversalResponse;
 import com.financeos.module.investment.command.dto.InvestmentTradeRequest;
+import com.financeos.module.investment.command.dto.InvestmentReplacementRequest;
+import com.financeos.module.investment.command.dto.InvestmentReplacementResponse;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import com.financeos.module.investment.mapper.InvestmentTransactionMapper;
+import com.financeos.module.investment.mapper.InvestmentTransactionCorrectionMapper;
+import com.financeos.module.investment.entity.InvestmentTransactionCorrection;
 import org.postgresql.util.PSQLException;
 import org.springframework.dao.DataIntegrityViolationException;
 import com.financeos.common.BusinessException;
@@ -17,11 +21,17 @@ import org.springframework.stereotype.Service;
 public class InvestmentCommandService {
     private final InvestmentCommandTransactionalService transactionalService;
     private final InvestmentTransactionMapper transactionMapper;
+    private final InvestmentReplacementTransactionalService replacementTransactionalService;
+    private final InvestmentTransactionCorrectionMapper correctionMapper;
 
     public InvestmentCommandService(InvestmentCommandTransactionalService transactionalService,
-                                    InvestmentTransactionMapper transactionMapper) {
+                                    InvestmentTransactionMapper transactionMapper,
+                                    InvestmentReplacementTransactionalService replacementTransactionalService,
+                                    InvestmentTransactionCorrectionMapper correctionMapper) {
         this.transactionalService = transactionalService;
         this.transactionMapper = transactionMapper;
+        this.replacementTransactionalService = replacementTransactionalService;
+        this.correctionMapper = correctionMapper;
     }
 
     public InvestmentCommandResponse firstBuy(Long userId, String idempotencyKey, FirstBuyRequest request) {
@@ -53,6 +63,21 @@ public class InvestmentCommandService {
                 throw new BusinessException(409, "Investment transaction was already reversed");
             }
             throw new InvestmentReversalConsistencyException("Investment reversal persistence failed", exception);
+        }
+    }
+
+    public InvestmentReplacementResponse replace(Long userId, Long transactionId, String idempotencyKey,
+                                                 InvestmentReplacementRequest request) {
+        try {
+            return replacementTransactionalService.replace(userId, transactionId, idempotencyKey, request);
+        } catch (DataIntegrityViolationException exception) {
+            if (isReplacementIdempotencyUniqueViolation(exception)) {
+                InvestmentTransactionCorrection concurrent = correctionMapper.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
+                if (concurrent != null) {
+                    return replacementTransactionalService.replace(userId, transactionId, idempotencyKey, request);
+                }
+            }
+            throw new InvestmentReplacementConsistencyException("Investment replacement persistence failed", exception);
         }
     }
 
@@ -89,6 +114,18 @@ public class InvestmentCommandService {
                     && "23505".equals(sqlException.getSQLState())
                     && sqlException.getServerErrorMessage() != null
                     && "uk_investment_transactions_reversal_original".equals(sqlException.getServerErrorMessage().getConstraint())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isReplacementIdempotencyUniqueViolation(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof PSQLException sqlException
+                    && "23505".equals(sqlException.getSQLState())
+                    && sqlException.getServerErrorMessage() != null
+                    && "uk_investment_transaction_corrections_user_idempotency".equals(sqlException.getServerErrorMessage().getConstraint())) {
                 return true;
             }
         }

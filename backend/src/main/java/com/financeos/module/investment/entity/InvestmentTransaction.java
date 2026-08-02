@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.financeos.module.investment.mapper.PostgresUuidTypeHandler;
 import lombok.Data;
+import org.apache.ibatis.type.JdbcType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -114,7 +116,7 @@ public class InvestmentTransaction {
     @TableField("cash_delta")
     private BigDecimal cashDelta;
 
-    @TableField("correction_group_id")
+    @TableField(value = "correction_group_id", typeHandler = PostgresUuidTypeHandler.class, jdbcType = JdbcType.OTHER)
     private UUID correctionGroupId;
 
     @TableField("replay_anchor_transaction_id")
