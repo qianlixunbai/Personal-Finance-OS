@@ -16,6 +16,10 @@ Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 
 
 ## 项目截图与 Demo
 
+[**在线体验静态 Demo →**](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login)
+
+> Demo 使用虚构数据，为静态只读展示，不连接真实后端、数据库或行情 Provider，也不代表投资账本写路径已经实现前端界面。
+
 <table>
   <tr>
     <td><img src="docs/images/showcase-intro.png" alt="静态只读演示介绍页" width="100%"></td>
@@ -27,7 +31,7 @@ Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 
   </tr>
 </table>
 
-截图来自 `sites-demo` 的本地静态只读构建，全部使用虚构数据。该演示不连接真实后端、数据库或行情 Provider，也不代表投资账本写路径已有前端；当前没有可匿名验证的公开 Demo URL。
+截图来自 `sites-demo` 的本地静态只读构建。
 
 ## 为什么不是普通 CRUD
 
