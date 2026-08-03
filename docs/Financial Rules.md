@@ -1,69 +1,39 @@
-# Financial Rules
+# 金融规则
 
-## 1. Precision and truth sources
+## 精度与真值
 
-All financial calculation uses `BigDecimal` / PostgreSQL `NUMERIC`; `float`, `double`, and `new BigDecimal(double)` are forbidden. Inputs whose scale/format is unsupported are rejected, never silently truncated. CNY cash values are scale 2; investment quantity, unit price, and average cost are scale 8; division and final monetary rounding use explicit `HALF_UP` where required.
+全部金融计算使用 `BigDecimal` 与 PostgreSQL `NUMERIC`；禁止 `double`、`float` 和 `new BigDecimal(double)`。CNY 金额为 scale 2；quantity、unitPrice、averageCost 为 scale 8；输入范围/scale 不支持即拒绝，除法和最终金额按明确 `HALF_UP` 规则处理。普通流水与投资账本独立，`AccountBalanceService` 是后续余额变更唯一入口。
 
-Ordinary Transaction and InvestmentTransaction are independent ledgers. `accounts.balance` is changed only by `AccountBalanceService` in the same transaction as the applicable command. `assets` is the only current Position projection; effective investment facts are its ledger truth. Market quotes, FX, manual prices, and reference valuations are not accounting facts.
+## 普通流水
 
-## 2. Ordinary cash ledger
+`INCOME` 保存正数并增加余额；`EXPENSE` 保存正数并减少余额；`ADJUSTMENT` 使用非零有符号金额。更新/删除在一个事务内反转旧 effect 后应用新 effect；允许负余额。
 
-For ordinary Transactions, stored INCOME/EXPENSE amounts are positive: INCOME contributes `+amount`, EXPENSE contributes `-amount`, and signed ADJUSTMENT contributes its signed amount. Updating/deleting a fact reverses its old effect then applies its new effect as one transaction. Negative CNY balances are valid.
+## 投资事实
 
-## 3. Investment fact formulas
+`OPENING_POSITION` 是零现金 migration fact，开仓成本为 `round(quantity × unitCost, 2, HALF_UP)`，fee/tax/net/released cost/realized PnL 均为零。
 
-`OPENING_POSITION` is a zero-cash migration fact. Its opening cost is `round(quantity × unitCost, 2, HALF_UP)`; fee, tax, net, released cost, and realized PnL are zero. The scale-8 unit cost must reproduce the CNY opening cost exactly. It establishes a projection without changing Account balance.
+BUY：`gross = round(quantity × unitPrice, 2)`，`acquiredCost = gross + fee + tax`，现金 delta 为负；新总成本与数量累加，平均成本按 scale 8、`HALF_UP` 计算。
 
-For `BUY`:
+SELL：`net = gross - fee - tax`，`releasedCost = round(oldTotalCost × sellQuantity / oldQuantity, 2, HALF_UP)`，`realizedPnL = net - releasedCost`，现金 delta 为正。全卖归零并关闭 Position；部分卖不得超卖或留下正数量零/负成本；后续 BUY 可重开。
 
-```text
-gross = round(quantity × unitPrice, 2)
-acquiredCost = gross + fee + tax
-cashDelta = -acquiredCost
-newTotalCost = oldTotalCost + acquiredCost
-newQuantity = oldQuantity + quantity
-newAvgCost = newTotalCost / newQuantity (scale 8, HALF_UP)
-```
+DIVIDEND：`net = gross - fee - tax`，现金 delta 为正；不改变数量、成本、状态或累计 realized PnL，但会更新投影版本与现金回执。
 
-For `SELL`:
+## reversal、replacement 与重放
 
-```text
-gross = round(quantity × unitPrice, 2)
-net = gross - fee - tax
-releasedCost = round(oldTotalCost × sellQuantity / oldQuantity, 2, HALF_UP)
-realizedPnL = net - releasedCost
-cashDelta = +net
-```
+有效事实按确定性顺序全历史重放。普通命令的 immutable receipt 记录命令后余额、数量、平均成本、总成本、累计 realized PnL、状态和 projection version。
 
-For a full SELL, release the complete remaining cost and set quantity, total cost, and average cost to zero; status becomes `CLOSED`. A partial SELL must not oversell or leave a positive quantity with zero/negative total cost. A later BUY can reopen a closed Position. Cumulative realized PnL is projection state, updated by effective SELL history.
+standalone reversal 的现金 delta 与原业务 effect 相反，复制原审计金额、released cost/realized PnL 为零，并从重放中排除原事实；账户和 Asset 各更新一次。
 
-For `DIVIDEND`:
+replacement 包含：
 
 ```text
-net = gross - fee - tax
-cashDelta = +net
+reversalCashDelta    = 原事实业务现金 effect 的相反数
+replacementCashDelta = 修正后 BUY/SELL/DIVIDEND 的 effect
+commandCashDelta     = reversalCashDelta + replacementCashDelta
 ```
 
-Gross is positive; fee/tax are non-negative; net may be zero. Quantity and unit price are null. Dividend changes neither quantity, total cost, average cost, position status, nor this/cumulative realized PnL, but it still advances the Position projection version and records the cash receipt.
+grouped reversal 与 replacement fact 原子写入，Account 仅按 `commandCashDelta` 更新一次，Asset 仅投影一次，version 仅 `+1`。旧 SELL 的 released cost、realized PnL 与 receipt 始终是 posting-time snapshot；corrected truth 来自 replay、当前 projection 和 command receipt。
 
-## 4. Replay, receipts, and corrections
+## 参考估值边界
 
-Every effective fact sequence is replayed deterministically. A normal posting stores an immutable receipt containing post-command Account balance and Position quantity, average cost, total cost, cumulative realized PnL, status, and projection version. Each successful ledger-affecting command advances the Asset projection version exactly once.
-
-A standalone reversal reverses exactly one eligible original BUY/SELL/DIVIDEND. Its cash delta is the opposite of the original's business cash effect (`BUY: +net`; `SELL`/`DIVIDEND`: `-net`), copies the original audit amounts, has zero released cost/realized PnL, excludes the original from replay, and is itself not a calculator input. The Account and Asset projection are mutated once for the completed reversal.
-
-A replacement comprises three deltas:
-
-```text
-reversalCashDelta     = inverse of original business cash effect
-replacementCashDelta  = effect of corrected BUY/SELL/DIVIDEND
-commandCashDelta      = reversalCashDelta + replacementCashDelta
-```
-
-The grouped reversal and replacement fact are inserted as one immutable correction group. Account balance and Asset projection are updated only once by `commandCashDelta`; projection version advances once. The replacement takes the original logical replay slot via anchor/sequence, so later replay uses corrected truth without changing physical historical facts. The old SELL receipt and its released-cost/realized-PnL snapshot remain immutable posting evidence; replay and the final projection express the corrected truth.
-
-## 5. Valuation boundary
-
-Legacy Asset `currentPrice`/`marketValue`, quote refresh, FX data, and derived reference valuation are separate from ledger accounting. Reference valuation may compute `quantity × quotePrice × fxRate` with `BigDecimal`, producing final CNY scale 2 with `HALF_UP`, but it is not persisted as ledger truth. It must not create or change a Transaction/InvestmentTransaction, Account balance, transaction-driven quantity/cost/PnL/version, or Dashboard accounting totals.
-
-Current accounting is CNY-only. Instrument quote currency and stored FX data are reference metadata/future support, not a foreign-currency cash balance or exchange gain/loss calculation. FIFO/lots, tax reporting, corporate actions, historical performance, multi-currency accounting, and broker execution are outside this financial-rule baseline.
+manual valuation、Market Quote、FX 与 reference valuation 不进入账务真值，也不覆盖 investment ledger projection。reference valuation 可按 `quantity × quotePrice × fxRate` 以 `BigDecimal` 计算最终 CNY scale 2 值，但不持久化为账本事实。当前账务仍为 CNY 单币种；FIFO/lot、税务、公司行动、历史表现、多币种账务和券商执行均不在本基线内。

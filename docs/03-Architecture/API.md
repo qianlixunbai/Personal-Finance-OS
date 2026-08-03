@@ -1,53 +1,35 @@
-# API Baseline
+# API 当前基线
 
-All routes are under `/api/v1`. Responses use the common `ApiResponse` envelope. Except registration and login, routes require bearer authentication and operate only within the authenticated user's scope.
+所有路由位于 `/api/v1`，响应使用 `ApiResponse`。注册和登录公开；其余接口需 Bearer JWT，并只在调用者数据域内工作。
 
-## Implemented controllers and routes
+## 11 个 Controller
 
-| Controller | Routes |
+| Controller | 主要路由 |
 | --- | --- |
-| `UserController` | `POST /register`, `POST /login` |
-| `AccountController` | `GET /accounts`, `GET /accounts/page`, `GET /accounts/{id}`, `POST /accounts`, `PUT /accounts/{id}`, `POST /accounts/{id}/deactivate` |
-| `CategoryController` | `GET /categories?type=`, `POST /categories`, `POST /categories/init` |
-| `TransactionController` | `GET /transactions/page`, `GET /transactions/{id}`, `POST /transactions`, `PUT /transactions/{id}`, `DELETE /transactions/{id}` |
-| `AssetController` | `GET /assets`, `GET /assets/page`, `GET /assets/{id}`, `POST /assets`, `PUT /assets/{id}/price`, `PUT /assets/{id}/close`, `DELETE /assets/{id}`, `POST /assets/{id}/quote/refresh`, `POST /assets/{id}/reference-valuation/refresh` |
-| `DashboardController` | `GET /dashboard` |
-| `InvestmentInstrumentController` | `GET /investment/instruments`, `POST /investment/instruments` |
-| `LegacyAssetMigrationController` | `POST /investment/legacy-assets/{assetId}/migration-preview`, `POST /investment/legacy-assets/{assetId}/migration-confirm` |
-| `InvestmentCommandController` | `POST /investment/positions` (first BUY), `POST /investment/positions/{assetId}/buy`, `POST /investment/positions/{assetId}/sell`, `POST /investment/positions/{assetId}/dividends` |
-| `InvestmentReversalController` | `POST /investment/transactions/{transactionId}/reversal` |
-| `InvestmentReplacementController` | `POST /investment/transactions/{transactionId}/replacement` |
+| UserController | `POST /register`、`POST /login` |
+| AccountController | `/accounts` 列表、分页、详情、新建、更新、停用 |
+| CategoryController | `GET/POST /categories`、`POST /categories/init` |
+| TransactionController | `/transactions` 分页、详情、新建、更新、删除 |
+| AssetController | `/assets` 查询、创建、手工价格、关闭、删除、quote/reference valuation refresh |
+| DashboardController | `GET /dashboard` |
+| InvestmentInstrumentController | `GET/POST /investment/instruments` |
+| LegacyAssetMigrationController | legacy asset migration preview / confirm |
+| InvestmentCommandController | first BUY、Asset BUY、SELL、DIVIDEND |
+| InvestmentReversalController | transaction standalone reversal |
+| InvestmentReplacementController | transaction replacement |
 
-There is deliberately no Portfolio read API and no public InvestmentTransaction list/detail/audit-timeline API. No Phase 2C-1 endpoint is implied by this document.
+当前没有 Portfolio read API，也没有公开的 InvestmentTransaction 列表、详情或审计时间线 API；不得据此推导 Phase 2C-1 endpoint。
 
-## Investment commands
+## 投资命令契约
 
-Investment commands record already-executed facts; they never place orders or integrate with brokers.
+- opening migration 是单 Asset 两步流程：preview 只读；confirm 使用签名且过期的 `previewToken` 与 `X-Idempotency-Key`，创建一个 `OPENING_POSITION`，不改余额。
+- first BUY 创建 Position；后续 BUY/SELL/DIVIDEND 以 Asset 为作用域。BUY/SELL 接收 `quantity`、`unitPrice`、`feeAmount`、`taxAmount`；DIVIDEND 接收 `grossAmount` 和可选费用/税费。
+- standalone reversal 仅接收 `reason`，为一个 eligible BUY/SELL/DIVIDEND 追加 reversal；replacement 以同类型请求体和 `reason` 原子追加 grouped reversal 与 replacement fact，绝不 PUT/DELETE 原事实。
+- BUY、SELL、DIVIDEND、reversal、replacement 均需要 `Idempotency-Key`。相同规范请求返回已记录回执；同 key 不同请求返回冲突。
+- 金额输入输出均为固定 scale 的 JSON 字符串而不是 JSON number。严格 JSON 命令拒绝未知字段，也不接收用户 ID、币种、客户端入账时间、计算字段、回执或 correction 字段。
 
-- Opening migration is a two-step, single-Asset flow. Preview accepts `instrumentId` and `accountId` and is read-only. Confirm accepts the signed expiring `previewToken` and requires `X-Idempotency-Key`; it creates one `OPENING_POSITION`, changes the Asset to transaction-driven, and does not alter Account balance.
-- First BUY requires Account/Instrument identity plus trade fields. Later BUY and SELL are Asset-scoped. BUY/SELL requests carry `quantity`, `unitPrice`, `feeAmount`, and `taxAmount`.
-- DIVIDEND is Asset-scoped and carries `grossAmount`, optional `feeAmount`/`taxAmount`, optional `externalReference` and `note`. It records received cash, does not change holding quantity/cost, and may be posted for an open or closed eligible Position.
-- Standalone reversal accepts only `reason` and can correct one original BUY, SELL, or DIVIDEND by appending a reversal fact.
-- Replacement accepts a type-specific body for the original BUY/SELL/DIVIDEND plus `reason`. It atomically appends a grouped reversal and a replacement fact; it never PUTs or deletes the original.
+## 一致性与错误
 
-Every BUY, SELL, DIVIDEND, standalone reversal, and replacement requires `Idempotency-Key`. Reusing a key with the same canonical request recovers the immutable recorded result; a conflicting request is rejected. Investment decimal inputs and outputs are plain fixed-scale JSON strings, not JSON numbers. Dividend, reversal, and replacement bodies reject unknown JSON fields; callers should send exactly the documented type-specific shape. The public investment write surface does not accept user IDs, currency, client posting times, computed ledger fields, receipts, correction-group fields, or an arbitrary transaction type.
+投资写入在一个事务内完成事实、现金 delta、全历史重放、transaction-driven Asset 投影、回执和 replacement envelope；失败时全部回滚。投资事实只能通过 append-only reversal/replacement 纠正，普通 `transactions` 的 CRUD 与投资事实不同。
 
-## Mutation, consistency, and errors
-
-Ordinary `transactions` retain their own create/update/delete API and are not investment facts. Investment facts are append-only: correction is reversal or replacement only. Investment writes are atomic across fact(s), Account cash delta, full replay, transaction-driven Asset projection, immutable receipt, and replacement envelope. A failed command leaves none of those effects committed.
-
-The API uses these status classes consistently:
-
-| Status | Meaning |
-| --- | --- |
-| 400 | Invalid parameters, validation failure, malformed/unknown strict JSON fields, or invalid decimal text. |
-| 401 | Missing, expired, or invalid authentication. |
-| 403 | Authenticated but not permitted for the operation. |
-| 404 | Resource absent from the caller's scope; cross-user resources intentionally use the same result. |
-| 409 | Idempotency conflict, business conflict, replay conflict, or lock timeout/deadlock concurrency conflict. |
-| 429 | Upstream market-data rate limit. |
-| 500 | Sanitized unexpected/integrity/replay consistency failure; transaction rolls back. |
-| 502 | Invalid or failed upstream market-data response. |
-| 503 | Market-data provider/service unavailable. |
-
-Quotes, FX, and reference valuation endpoints are reference-data operations. They do not create investment facts, change Account balance, or overwrite the ledger-derived projection truth.
+`400` 参数/严格 JSON/金额无效；`401` 认证失败；`403` 无权限；`404` 不存在或跨用户资源；`409` 幂等、业务、重放或锁冲突；`429` 行情限流；`500` 已脱敏的内部一致性失败；`502` Provider 响应无效；`503` Provider 不可用。行情、FX 和 reference valuation 不创建投资事实、不改余额或账本投影。

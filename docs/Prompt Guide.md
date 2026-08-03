@@ -1,24 +1,9 @@
-# Prompt Guide
+# Prompt 协作指南
 
-## Give enough context, not a ritual
+说明目标、范围文件、验收标准和安全边界。小且明确的任务只要求检查、最小修改和聚焦验证，不必默认要求设计会、worktree、多 Agent 或全量测试。
 
-State the desired outcome, files or modules in scope, acceptance criteria, and any safety boundary. For small, clear work, ask for inspection, the minimum change, and focused verification. Do not require a design workshop, worktree, parallel agents, or full-suite test run unless the risk calls for it.
+金融、安全、migration、事务、锁和用户隔离任务应给出权威来源、精确计算/舍入/幂等/回滚要求、并发与跨用户语义，以及验收需要的测试或 smoke。要求实现者区分确认事实与假设，并在会扩大范围的选择上停下询问。
 
-## High-risk prompt checklist
+文档任务应说明文件是活文档、冻结文档还是历史记录。活文档反映当前 HEAD；ADR、design、logs、Closing Review 是历史证据，不能为了“最新”而重写。要求检查链接和失效说法；若未改代码/配置，不要求应用测试。
 
-For financial rules, security, migrations, transactions, locks, or user isolation, provide:
-
-- the authoritative source (migration, ADR, API contract, or Closing Review);
-- exact calculation, rounding, idempotency, and rollback expectations;
-- concurrency/lock order and cross-user behavior when relevant;
-- tests, runtime smoke, or review evidence required for acceptance.
-
-Ask the implementer to distinguish confirmed facts from assumptions, preserve append-only and backend-authoritative financial rules, and stop for clarification when a choice would materially expand scope.
-
-## Documentation prompts
-
-Specify whether a document is active, frozen, or historical. Active documentation should reflect the current HEAD. ADRs, design records, logs, and Closing Reviews are historical evidence and should not be rewritten merely to look current. Require link and stale-claim checks, but do not demand application tests for a documentation-only change unless code/configuration is touched.
-
-## Completion report
-
-Ask for changed files, facts checked, commands actually run and their results, known limitations, and whether any tests were intentionally not run. Never ask an agent to invent a pass result or treat a future capability as complete.
+完成报告应列出修改文件、事实来源、实际运行的命令及结果、未运行测试原因和已知限制；不得编造通过结果或把未来能力写成完成。

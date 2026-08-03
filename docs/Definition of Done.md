@@ -1,50 +1,20 @@
-# Definition of Done
+# 完成定义（Definition of Done）
 
-Use the smallest verification set that proves the changed risk. Completion always includes a readable diff, `git diff --check`, and an inspection of `git status --short` for unrelated files, generated artifacts, secrets, and unapproved changes.
+按风险选择最小充分验证。所有交付均需可读 diff、`git diff --check` 与 `git status --short` 检查，排除无关文件、生成物、密钥和未授权文件。
 
-## Ordinary low-risk change
+## 普通修改与 API
 
-- Scope, acceptance behavior, and affected documentation are clear.
-- Relevant lint, focused test, or manual check has been run where available.
-- No unrelated refactor or generated output is included.
+普通低风险修改需满足范围、验收行为和相关文档清晰，并运行就近 lint、测试或手工检查。API 改动还需验证请求/响应、校验、授权、错误语义、兼容性，并同步 API 文档与相关前端契约。
 
-## API change
+## migration、金融写路径与并发
 
-- Request/response, validation, authorization, error semantics, and backward compatibility are considered.
-- The API documentation and relevant frontend contract are updated together.
-- Controller/service tests cover the changed contract, including user-scope behavior where relevant.
+migration 必须新增前向 Flyway 脚本，不能修改已应用版本；按风险验证空库迁移、PostgreSQL/Testcontainers、约束、索引、trigger/deferred integrity 与旧数据边界。金融写路径需验证 `BigDecimal`、事务边界、余额、append-only fact/receipt、幂等、用户隔离、重放投影和完整回滚。并发/锁改动需验证锁顺序、timeout/deadlock 映射、无重复 effect 与 unknown-commit recovery。
 
-## Migration or database constraint
+## 文档、运行时与关闭
 
-- A new forward-only Flyway migration is provided; no applied migration is edited.
-- Empty-database migration and the relevant PostgreSQL/Testcontainers path are verified.
-- Constraints, indexes, trigger/deferred-integrity behavior, rollback, and legacy-data compatibility are documented and tested in proportion to risk.
+文档-only 改动需以代码/migration、ADR、最新 Closing Review 核对事实，保持冻结 Architecture 与历史记录不变，并检查链接、导航和阶段状态；不必运行完整应用测试。部署、migration、生产配置或 runtime integration 改动需执行相应 smoke。Closing Review 应记录范围、证据、限制与 GO/NO-GO，不改写历史证据。
 
-## Financial write path
-
-- Backend is the sole authority for calculations and projections; `BigDecimal`/`NUMERIC` precision and rounding are explicit.
-- Transaction boundaries, account-balance mutation, append-only facts/receipts, idempotency, user isolation, and replay/projection rules are verified as applicable.
-- Success, validation failure, business conflict, and complete rollback paths are covered.
-
-## Concurrency or lock change
-
-- Lock order and timeout/deadlock mapping are explicit and tested.
-- Concurrent commands cannot double-apply cash, facts, or a projection; unknown-commit/idempotency recovery is preserved where applicable.
-
-## Documentation-only change
-
-- Facts are checked against code/migrations, ADRs, and the latest Closing Review.
-- Frozen Architecture and historical ADR/Review/design/log records remain untouched.
-- Relative links, navigation, phase status, and terminology are checked. Full application tests are not required unless a code/configuration file was also changed.
-
-## Runtime smoke and phase closure
-
-- Compose/runtime smoke is required when deployment, migration, production configuration, or runtime integration is changed.
-- A Closing Review records scope, evidence, known limitations, and a GO/NO-GO result without rewriting historical evidence.
-
-## Final hygiene
-
-Run the relevant checks before handoff:
+提交前运行：
 
 ```powershell
 git diff --check
@@ -52,4 +22,4 @@ git diff --cached --check
 git status --short
 ```
 
-Only stage or commit files explicitly in scope. Do not stage `AGENTS.md` or any other untracked/user-owned file unless the user has expressly authorized it.
+只暂存已授权文件；不得暂存 `AGENTS.md` 等用户文件。

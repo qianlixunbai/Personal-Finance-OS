@@ -1,45 +1,29 @@
-# Deployment Guide
+# 部署指南
 
-## Scope
+## 范围与拓扑
 
-This is the supported minimal single-host Docker Compose path. It builds a React/Nginx frontend, a Spring Boot backend, and PostgreSQL. It provides persistence, service health checks, and a reproducible startup path; it is not a complete production platform for HTTPS, backups, HA, external monitoring, a registry, or automated delivery.
-
-## Compose topology
+本指南提供最小单机 Docker Compose 路径：React/Nginx 前端、Spring Boot 后端和 PostgreSQL 17。它提供可复现启动、持久卷和健康检查，不等同于 HTTPS、备份、高可用、外部监控、镜像仓库或自动化交付的完整生产平台。
 
 ```text
 Browser -> Frontend Nginx -> Backend Spring Boot -> PostgreSQL 17
 ```
 
-The frontend serves the SPA and proxies `/api/*` over the internal Compose network. The backend uses the `prod` profile, exposes health/readiness only as configured, and runs Flyway migrations `V1` through `V13` at startup. Frontend host access is controlled by `FRONTEND_PORT` (the template uses `8088`).
+前端代理 `/api/*` 到内部后端网络；后端使用 `prod` profile，启动时执行 Flyway `V1`–`V13`。
 
-## Required environment
+## 配置与命令
 
-Copy `docker/.env.example` to ignored `docker/.env`; do not commit the result. Set real values for:
-
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`;
-- `JWT_SECRET` (at least 32 characters);
-- `MIGRATION_PREVIEW_SECRET` (a separate value of at least 32 characters);
-- `FRONTEND_PORT`.
-
-`MARKET_DATA_ENABLED=false` is the safe default. If market reference data is enabled, provide `MARKET_DATA_API_KEY` and observe the configured request limits. FX data has no Compose provider configuration and is disabled unless explicitly configured by the deployment environment.
-
-## Start, inspect, and stop
+复制 `docker/.env.example` 为未跟踪的 `docker/.env`，填写 `POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、至少 32 位的 `JWT_SECRET`、独立的至少 32 位 `MIGRATION_PREVIEW_SECRET` 与 `FRONTEND_PORT`。`MARKET_DATA_ENABLED=false` 为安全默认值；FX 默认关闭。
 
 ```powershell
 Copy-Item docker\.env.example docker\.env
-# Replace all placeholder secrets in docker\.env
 docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 docker compose --env-file docker/.env -f docker/compose.yml ps
 docker compose --env-file docker/.env -f docker/compose.yml logs --tail 100 backend
 docker compose --env-file docker/.env -f docker/compose.yml down
 ```
 
-PostgreSQL has a `pg_isready` health check. Backend readiness is `GET /actuator/health/readiness`; the frontend has an HTTP health check. The named `postgres_data` volume retains database data across normal stop/start cycles.
+PostgreSQL 使用 `pg_isready`，后端 readiness 是 `/actuator/health/readiness`，前端有 HTTP health check；`postgres_data` 卷保留正常停启间的数据。
 
-## Database boundary
+## 数据库与运维边界
 
-Use an empty PostgreSQL database for the standard Compose path. Flyway creates its history and applies the tracked migrations. A legacy database created under the old `schema.sql` initialization path may contain business tables without `flyway_schema_history`; do not start it blindly, enable permanent baseline mode, or assume Compose can reconcile it. Back it up and decide on an explicit migration/rebuild procedure first.
-
-## Operational boundary
-
-The health checks establish only the Compose service readiness described here. They do not prove market-provider availability, data correctness, backup recovery, security hardening, or production capacity. The public static demo is not this deployment and has no real backend or provider connection.
+标准路径要求空数据库。旧 `schema.sql` 数据库若已有业务表却没有 Flyway history，不得盲目启动、永久启用 baseline 或假定 Compose 会自动协调；应先备份并制定迁移/重建方案。健康检查只证明此 Compose 拓扑可用，不证明行情 Provider、数据正确性、恢复能力、安全加固或生产容量。公开静态 Demo 不是该部署，也不连接真实后端。

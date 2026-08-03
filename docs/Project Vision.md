@@ -1,41 +1,17 @@
-# Project Vision
+# 项目愿景
 
-> **Current status:** `v3.0 Phase 2B Investment Write Foundation: CLOSED — GO`
-> **Next phase:** `Phase 2C-1 Investment Read Model Contract — NOT STARTED`
+Personal Finance OS 面向个人用户维护自己的财务事实：账户、普通流水、资产和投资账本。系统以 Java 后端为计算与审计核心，以 Web 为主要使用方式，目标是提供可维护、可验证且可追溯的个人财务系统，而不是执行资金或证券交易的平台。
 
-## Purpose
+## 当前产品模式
 
-Personal Finance OS is an engineered system for an individual to maintain financial facts: accounts, ordinary transactions, assets, and investment-ledger facts. It uses Java 21, Spring Boot 3, PostgreSQL, React, and TypeScript to demonstrate a maintainable, tested personal-finance product rather than a generic CRUD sample.
+用户负责手动录入财务事实；系统负责可靠计算、审计、汇总和展示。市场行情仅作为参考输入，不替代账务真值。投资交易事实采用追加式、不可变模型，通过确定性重放恢复当前投影。
 
-The product treats investment transactions as append-only facts. Backend projections are rebuilt by deterministic replay; idempotency, user isolation, atomic balance mutation, and deterministic locking protect the write path. Financial computation remains a backend responsibility rather than a frontend aggregation concern.
+当前已具备账户/收支、参考估值和 Phase 2B 投资写路径基础；系统不执行真实支付、银行转账或证券交易。
 
-## Product boundary
+## 数据维护方向
 
-The system records, organizes, and presents a user's financial information. It does not process real payments, connect to a bank for automatic transfers, place or execute securities orders, perform brokerage custody, or offer financial advice.
+手动录入是正式核心能力。CSV / Excel 导入、银行或券商账单导入、字段映射、去重与余额校准属于后续规划；它们不等同于自动银行/券商 API 同步。
 
-The public [static demo](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login) is verified presentation material using fictional data. It is read-only, has no real backend or market-data provider, and is not evidence that an investment write-path UI exists.
+## 客户端方向
 
-## Current product capability
-
-- Authentication and per-user data isolation;
-- account, category, CNY asset snapshot, and ordinary transaction management;
-- Dashboard aggregation from application data;
-- append-only investment write foundation: Instrument and Account/Instrument/Asset binding, opening migration, `BUY`/`SELL`/`DIVIDEND`, weighted-average-cost replay, balance and Asset projections, reversal, replacement correction, receipts, idempotency recovery, and concurrency safety.
-
-Phase 2B closure evidence is 92 suites / 496 tests / 0 failures / 0 errors, using PostgreSQL 17.10 and Flyway V13 migration/runtime verification. The [overall closing review](review/V3.0-Phase2B-Closing-Review.md) remains the authoritative closure record.
-
-## Deliberate non-goals and future scope
-
-Portfolio read model/API, user-facing InvestmentTransaction timeline, investment frontend, `TRANSFER`/`REFUND`, return curves, multi-currency accounting, FIFO/lot accounting, corporate actions, automatic bank/broker synchronization, AI agent capabilities, and native mobile apps are not implemented.
-
-`Phase 2C-1 Investment Read Model Contract` is not started. Its scope is to freeze high-level read semantics for Portfolio and InvestmentTransaction; it does not itself implement query APIs, frontend screens, providers, or trading capabilities.
-
-## Product principles
-
-1. Financial facts are user-owned, isolated, and auditable.
-2. Append-only investment facts take precedence over mutable shortcuts.
-3. Derived projections must be reproducible through deterministic replay.
-4. The backend owns financial rules and concurrency-sensitive mutations.
-5. Scope expands only after a documented, verified phase boundary.
-
-The architecture baseline is frozen in [Architecture](03-Architecture/Architecture.md); architecture-level changes require an ADR.
+当前以 Web 为先。响应式 PWA、移动端快速录入和共享后端 API 是长期方向，原生移动端尚未实现。Portfolio 读取体验和投资前端也仍属后续阶段。

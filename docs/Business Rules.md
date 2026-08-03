@@ -1,61 +1,25 @@
-# Business Rules
+# 业务规则
 
-## 1. Shared boundaries
+## 用户、账户、分类与普通流水
 
-- User-owned financial facts and projections are user-scoped. System categories and global market-quote/FX reference rows are explicit shared-data exceptions. Every user-owned query and lock is user-scoped; missing and cross-user resources both return security-safe 404.
-- Current v1.x accounting is CNY-only. Backend rules are authoritative; clients display returned financial values and do not re-aggregate ledger truth.
-- A command either completes its fact/projection/balance effects together or the whole database transaction rolls back.
+用户拥有的财务事实和投影严格按用户隔离；跨用户资源使用安全 `404`。共享系统分类、Market Quote 和 FX 是例外。账户创建时余额为零，后续余额变更仅由 `AccountBalanceService` 在事务中维护；账户可停用。分类为收入/支出分类，支持用户分类和系统分类。
 
-## 2. Accounts, categories, and ordinary transactions
+普通 `Transaction` 与 `InvestmentTransaction` 是不同账本。普通流水仅含 `INCOME`、`EXPENSE`、`ADJUSTMENT`，可创建、更新、删除；写入锁定相关账户，更新/删除先反转旧影响再应用新影响。允许负余额，停用账户不接受新的普通影响。
 
-Accounts have CNY balances and may be deactivated rather than deleted. Account creation initializes balance to zero; `AccountBalanceService` is the sole production writer for post-creation balance mutations. Ordinary transaction create locks its Account; ordinary update/delete locks the original fact first and then affected Account rows in ascending ID order. Metadata/status writes use the account lock and field-level updates, so they cannot overwrite a concurrent balance.
+## Asset、Instrument 与 opening migration
 
-Categories are user/system income or expense categories with an optional parent. An ordinary `Transaction` is separate from an `InvestmentTransaction`: it is the daily INCOME/EXPENSE/ADJUSTMENT ledger and supports its existing create, update, and delete API. `INCOME` increases balance, `EXPENSE` decreases it, and signed `ADJUSTMENT` applies its sign. Negative balances are allowed. An inactive Account cannot receive a new ordinary effect, but historical reversal/update handling preserves consistency.
+Legacy Asset 是既有手工资产模型，可使用既有创建、价格、关闭、删除语义；系统不会自动推断、合并或迁移它。transaction-driven Asset 是 `(user, account, instrument)` 的唯一受控 Position 投影，不能通过 Legacy Asset API 改写账本字段。
 
-## 3. Assets and instruments
+Instrument 是用户级主数据，以 `(user, market, symbol)` 唯一标识。opening migration 必须显式、单 Asset 执行：preview 只读，confirm 需要签名过期 token 和幂等键；它追加一个 `OPENING_POSITION`、重放投影并切换 Asset 模式，但不改变 Account 余额。
 
-An Asset is either:
+## 投资事实与纠正
 
-- **Legacy Asset**: the manual holding model. Existing create, manual-price update, close, and delete behavior remains available. It is never automatically bound, inferred, merged, or migrated.
-- **Transaction-driven Asset**: the one controlled current Position projection for its `(user, account, instrument)`. It cannot be created, closed, deleted, or ledger-edited through the Legacy Asset API. Its identity is immutable and its ledger fields are rebuilt from effective investment facts.
+BUY、SELL、DIVIDEND 记录已发生的手工投资活动，不下单、不连接券商。命令按固定顺序锁定资源，只通过 `AccountBalanceService` 修改现金，重放全历史并更新 Asset 投影和 immutable receipt。SELL 不得超卖；持仓可关闭并被后续 BUY 重新打开；DIVIDEND 不改变数量和成本。
 
-An Instrument is user-owned master data, uniquely identified by `(user, market, symbol)`. It must be active when creating/migrating a Position. A transaction-driven Position requires a compatible active Account and Instrument: `BROKERAGE` permits STOCK/ETF/FUND/BOND; `CRYPTO_WALLET` permits CRYPTO. Quote currency is market metadata, not a foreign-currency cash account.
+original fact 永不 UPDATE/DELETE。standalone reversal 为一个 eligible 原始 BUY/SELL/DIVIDEND 追加独立 reversal，原事实从有效重放中排除。replacement 是 grouped reversal 加同类型 replacement fact 的原子纠正，不是 `REPLACEMENT` 类型；replacement 占据 original logical slot。grouped reversal 不是独立外部命令，最终回执位于 correction envelope。
 
-## 4. Opening migration
+posting-time receipt 是不可变审计快照；canonical replay 与当前 Asset projection 才是 corrected current truth。命令的 request hash 和 idempotency key 支持回放恢复；业务失败时事实、余额、投影和回执整体回滚。
 
-Migration is explicit, one Legacy Asset at a time. Preview is read-only; confirm requires the signed, expiring preview token and an idempotency key. A candidate is an owned open CNY Legacy holding with no investment facts, valid positive holding/cost, and caller-selected compatible Account and active Instrument. `totalCost`, if present, is authoritative; only a null value is derived from `quantity × avgCost`.
+## 并发、参考数据与边界
 
-Confirmation locks Account, Instrument, then Asset; appends one `OPENING_POSITION`; replays the projection; and turns the Asset into transaction-driven. It never changes Account balance. Zero/invalid holdings remain Legacy. There is no automatic or batch migration.
-
-## 5. Investment facts and Position changes
-
-BUY, SELL, and DIVIDEND are manual records of already-executed activity. They are not ordinary Transactions, order placement, brokerage integration, or payment execution. Their public write path locks Account, Instrument, then Asset/Position; applies cash only through `AccountBalanceService`; replays full effective history; updates the Asset projection; records an immutable receipt; and commits atomically.
-
-- **BUY** may create the first transaction-driven Position atomically, or add to an existing Position. It may make Account balance negative.
-- **SELL** requires replay-valid available quantity. It can close a Position; a later BUY can reopen it.
-- **DIVIDEND** requires an eligible transaction-driven Position with an effective BUY or opening fact. It may be posted to an open or closed Position and changes only cash, last fact, and projection version—not quantity, holding cost, or cumulative realized PnL.
-
-Posting time is generated by the server; historical insertion is not offered by these commands. Each public command has a canonical request hash and idempotency key. The same key/replayed request recovers the stored result; a different request with the same key conflicts.
-
-## 6. Append-only corrections and audit
-
-Investment originals are immutable: no update/delete API and database triggers reject mutation. Correction never changes the original fact, status, amount, quantity, price, request hash, or original posting receipt.
-
-- A **standalone reversal** appends one `REVERSAL` for one eligible original BUY/SELL/DIVIDEND. It is grouped neither with a replacement nor another correction. The original is excluded from effective replay and the reversal itself is not a calculator input.
-- A **replacement** is a single immutable correction command that appends exactly a grouped reversal and a replacement fact of the same business type. The replacement keeps the original type/currency/trade and settlement times and occupies the original logical replay slot using its replay anchor; it is not a standalone `REPLACEMENT` type.
-
-A fact can be corrected only once. Correction groups, their two facts, and correction commands are immutable. A grouped reversal deliberately has no final projection receipt because it is an intermediate pair member; the replacement envelope stores the completed command receipt. A standalone reversal has its own complete receipt.
-
-The original receipt is a **posting snapshot** and remains audit evidence. The Asset projection produced by canonical replay is the corrected current truth. In particular, an old SELL's released cost, realized PnL, and receipt are never overwritten when a replacement recomputes current truth.
-
-## 7. Concurrency, dashboard, and reference data
-
-The global lock policy prevents conflicting balance/projection writes; lock timeouts and deadlock victims are surfaced as retryable 409, with no automatic retry. In investment correction, the original fact is locked before Account, Instrument, and Asset. Unknown-commit/idempotency recovery returns the durable result rather than duplicating a command.
-
-Dashboard data remains backend-calculated. Investment facts are not ordinary monthly income/expense facts, and current investment scope exposes no Portfolio read model/API. Manual Asset valuation, market quote, FX, and derived reference valuation are reference/display data only: they do not overwrite ledger projection fields or change account/transaction truth.
-
-## 8. Security, errors, and future boundary
-
-Authentication protects all non-login/register endpoints. Invalid requests use 400, missing authentication 401, authorization failure 403, absent/cross-user data 404, business/idempotency/replay/concurrency conflict 409, market-provider rate limits 429, unexpected transactional failure 500, provider bad response 502, and provider unavailability 503.
-
-Out of scope: Portfolio or InvestmentTransaction read APIs, investment UI, historical position snapshots/prices/returns, multi-currency accounting, FIFO/lots, corporate actions, broker/exchange integration, automatic trading, and AI-led financial writes. These boundaries prevent speculative write paths or a second Position truth from being introduced.
+锁超时/死锁映射为可重试 `409`，不自动重试；unknown commit 通过幂等恢复返回持久结果。Dashboard 由后端计算。手工估值、行情、FX 和 reference valuation 仅供展示，不覆盖账务或账本投影。Portfolio/read API、投资 UI、历史收益、多币种、FIFO/lot、公司行动、自动同步和 AI 写入均未实现。
