@@ -1,90 +1,224 @@
 # Personal Finance OS
 
-> **当前状态：** `v3.0 Phase 2B Investment Write Foundation：CLOSED — GO`
+[![CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml/badge.svg?branch=zh-cn)](https://github.com/qianlixunbai/Personal-Finance-OS/actions/workflows/ci.yml)
+![Java 21](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
+
+> **当前阶段：** `v3.0 Phase 2B Investment Write Foundation：CLOSED — GO`
+>
 > **下一阶段：** `Phase 2C-1 Investment Read Model Contract（尚未开始）`
 
-Personal Finance OS 是一个基于 Java 21、Spring Boot 3、PostgreSQL、React 与 TypeScript 构建的工程化个人财务管理系统。用户自主维护财务事实；系统负责可靠计算、审计、汇总与展示。投资账本采用不可变审计（immutable audit）、确定性重放（deterministic replay）、幂等恢复和并发一致性保障，因此不是普通 CRUD 示例。
+Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
 
-系统不执行真实支付、银行转账或证券交易，也不提供投资建议。
+系统记录和管理用户维护的财务事实，不执行真实支付、银行转账或证券交易，也不提供投资建议。
 
-## 项目入口与静态 Demo
+## 项目截图与 Demo
 
-- [项目文档中心](docs/README.md)
-- [冻结架构基线](docs/03-Architecture/Architecture.md)
+<table>
+  <tr>
+    <td><img src="docs/images/showcase-intro.png" alt="静态只读演示介绍页" width="100%"></td>
+    <td><img src="docs/images/showcase-dashboard.png" alt="Dashboard 财务概览" width="100%"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/showcase-accounts.png" alt="账户列表" width="100%"></td>
+    <td><img src="docs/images/showcase-transactions.png" alt="交易流水" width="100%"></td>
+  </tr>
+</table>
 
-当前未保留可匿名验证的公开静态 Demo 链接。若后续恢复公开展示，它必须使用虚构数据、保持静态只读、不连接真实后端或行情 Provider，且不能代表投资写路径前端已经实现。
+截图来自 `sites-demo` 的本地静态只读构建，全部使用虚构数据。该演示不连接真实后端、数据库或行情 Provider，也不代表投资账本写路径已有前端；当前没有可匿名验证的公开 Demo URL。
+
+## 为什么不是普通 CRUD
+
+### 金融一致性
+
+普通流水和投资命令在数据库事务内同时维护财务事实、`Account.balance` 与受控投影。写路径使用 PostgreSQL 行锁、固定锁顺序和事务级 `lock_timeout`，降低 lost update、死锁和并发错账风险。
+
+### 不可变投资账本
+
+原始投资事实不通过 `UPDATE` 或 `DELETE` 覆盖。纠正采用 append-only standalone reversal，或由 grouped reversal、同类型 replacement fact 与 correction envelope 组成的原子 replacement。
+
+### 确定性重放
+
+持仓数量、成本与累计已实现盈亏由规范化历史顺序重放得到。replacement 使用原交易的 replay anchor；trace 与 SHA-256 digest 用于比较候选重放、数据库内二次重放和最终投影。
+
+### 失败与重试恢复
+
+写路径覆盖幂等键同请求回放、同 key 不同请求冲突、锁超时、deadlock、unknown commit recovery 与分阶段故障注入。任何中途失败都会回滚事实、余额、投影、回执和纠正命令。
+
+## 系统架构
+
+```mermaid
+flowchart LR
+    U[用户] --> FE[React / TypeScript]
+    FE -->|REST API / JWT| BE
+
+    subgraph BE[Spring Boot 模块化单体]
+        AUTH[认证与用户]
+        BASIC[账户与日常流水]
+        INVEST[投资账本]
+        MARKET[行情与参考估值]
+        DASH[Dashboard]
+    end
+
+    AUTH --> DB[(PostgreSQL<br/>账务事实与受控投影)]
+    BASIC --> DB
+    INVEST --> DB
+    MARKET -->|参考数据快照| DB
+    DASH --> DB
+    MARKET -->|仅显式刷新| PROVIDER[外部行情 / FX Provider]
+```
+
+前后端分离，后端保持模块化单体。PostgreSQL 保存账务事实、投资事实和受控投影；外部 Provider 只通过显式刷新进入参考数据模块，行情和 FX 不直接修改账务真值。
+
+## 核心投资写路径
+
+```mermaid
+flowchart TD
+    REQUEST[请求校验] --> OWNERSHIP[身份与资源校验]
+    OWNERSHIP --> IDEMPOTENCY[幂等检查]
+    IDEMPOTENCY --> LOCK[固定顺序加锁]
+    LOCK --> CANDIDATE[候选历史重放]
+    CANDIDATE --> FACT[写入投资事实]
+    FACT --> BALANCE[一次 Account.balance 联动]
+    BALANCE --> REPLAY[数据库事实二次重放]
+    REPLAY --> ASSET[一次 Asset 投影]
+    ASSET --> CHECK[一致性检查]
+    CHECK --> COMMIT[提交]
+
+    REQUEST -. 任意失败 .-> ROLLBACK[事务整体回滚]
+    LOCK -. 任意失败 .-> ROLLBACK
+    CHECK -. 任意失败 .-> ROLLBACK
+
+    subgraph REPLACEMENT[Replacement：facts-first / command-last]
+        ORIGINAL[original fact<br/>保持不变] --> REVERSAL[grouped REVERSAL]
+        REVERSAL --> REPLACEMENT_FACT[same-type replacement fact]
+        REPLACEMENT_FACT --> ENVELOPE[immutable correction envelope]
+    end
+```
+
+普通 BUY / SELL / DIVIDEND 写入一个业务事实；replacement 先写两条纠正事实，完成余额与投影校验后再写 command envelope。外部命令只导致一次账户余额更新、一次 Asset 投影和一次 `projectionVersion + 1`。
 
 ## 当前核心能力
 
 ### 基础财务
 
-- 注册、登录、JWT、用户状态与数据隔离；
-- Account、Category、普通 `INCOME` / `EXPENSE` / `ADJUSTMENT`；
-- 后端原子维护 `Account.balance`，并提供 Dashboard、分页、筛选、统一响应和错误处理。
+- 注册、登录、JWT、用户状态和数据隔离；
+- Account、Category 与 `INCOME` / `EXPENSE` / `ADJUSTMENT`；
+- 后端原子维护余额，支持流水分页、筛选和安全 `404`；
+- Dashboard 汇总净资产、收支、趋势、资产分布和最近交易。
 
 ### 市场参考估值
 
-- US `STOCK` / `ETF` 参考行情、手动刷新、TTL、single-flight 与请求额度保护；
-- FX snapshot 与 reference valuation；普通 GET 不调用 Provider；
-- 最终估值只读、非持久化，不修改账务真值、投资账本投影或 Dashboard；Provider 默认关闭。
+- US `STOCK` / `ETF` 参考行情，支持显式刷新、TTL 与 single-flight；
+- Provider 默认关闭，并有用户级/全局限流和 stale fallback；
+- FX snapshot 与 reference valuation 只读计算；
+- 普通 GET 不调用 Provider，参考估值不覆盖账务或投资投影。
 
 ### 投资账本
 
-- `InvestmentInstrument` 与 Account / Instrument / Asset 绑定；
-- Legacy opening migration、`BUY`、`SELL`、`DIVIDEND` 与加权平均成本；
-- 全历史确定性重放、`Account.balance` 联动、transaction-driven Asset projection；
-- standalone reversal、replacement correction、immutable receipt、append-only audit；
-- request hash、幂等回放和恢复、确定性锁顺序、lock timeout / deadlock、unknown commit recovery；
-- replay anchor、trace、SHA-256 digest，以及任意中途失败的完整回滚。
+- 用户级 Investment Instrument 与 Account / Instrument / Asset 唯一绑定；
+- Legacy opening migration、first BUY、后续 BUY / SELL 与 DIVIDEND；
+- 加权平均成本、全历史 replay、Position 关闭与重新打开；
+- standalone reversal 与 same-type replacement correction；
+- immutable receipt、request hash、幂等恢复和 append-only audit。
 
 ## 技术栈与数据边界
 
-后端以 Java 21、Spring Boot 3、MyBatis-Plus、PostgreSQL、Flyway、Spring Security、JWT 与 Testcontainers 为核心；前端使用 React、TypeScript 与 Vite；仓库提供 Docker Compose 单机部署基础。
+| 层次 | 当前技术 |
+| --- | --- |
+| 后端 | Java 21、Spring Boot 3.3、Spring Security、JWT、MyBatis-Plus |
+| 数据 | PostgreSQL 17、Flyway V1–V13、Testcontainers |
+| 前端 | React 19、TypeScript、Vite、ECharts、Axios |
+| 交付 | Maven Wrapper、npm、Docker Compose、GitHub Actions |
 
-后端是金融计算与投影的唯一权威。行情、FX、手动估值和 reference valuation 仅是参考输入，不是账务事实。系统当前为 CNY 单币种账务，不提前实现真实银行/券商同步、真实交易执行或投资读取模型。
+- 金融计算和业务规则以后端为唯一权威，前端不重新聚合核心金融数据；
+- 当前账务为 CNY 单币种，金额使用 `BigDecimal` / `NUMERIC`；
+- Market Quote、FX、手动价格与 reference valuation 是参考数据，不是账务事实；
+- `Asset` 是当前持仓投影，`InvestmentTransaction` 是不可变投资事实；
+- 普通 `Transaction` 与 `InvestmentTransaction` 是两套不同语义的账本。
 
 ## 测试与工程验证
 
-**Phase 2B 关闭时的最后完整验证基线：**
+| 验证项 | Phase 2B 关闭基线 |
+| --- | --- |
+| 后端自动化测试 | 92 suites / 496 tests |
+| failures / errors | 0 / 0 |
+| 数据库 | PostgreSQL 17.10 |
+| Migration | Flyway V13 |
+| Replacement 并发套件 | 13/13，连续两次 |
+| Closing Review | GO，P0/P1 = 0 |
 
-- 92 个测试套件；496 项测试；0 failures；0 errors；
-- PostgreSQL 17.10；Flyway V13。
+以上是 Phase 2B 关闭时记录的历史验证基线，不是本轮 Markdown 修改重新运行后的实时统计。完整证据见 [Phase 2B 聚合 Closing Review](docs/review/V3.0-Phase2B-Closing-Review.md)。
 
-这是关闭阶段的历史验证基线，详情见 [Phase 2B 聚合 Closing Review](docs/review/V3.0-Phase2B-Closing-Review.md)，不是本次文档修改重新运行后的实时统计。
+当前 `zh-cn` 分支的 CI 会运行后端测试、前端测试/lint/build、镜像构建与 Compose 配置校验。
+
+## 项目结构
+
+```text
+finance-os/
+├── backend/       Spring Boot 模块化单体
+├── frontend/      React / TypeScript / Vite
+├── docker/        Docker Compose 单机部署
+├── scripts/       本地开发与验证脚本
+└── docs/
+    ├── 03-Architecture/
+    ├── ADR/
+    ├── design/
+    └── review/
+```
+
+详细模块、测试和文档目录见 [项目结构](docs/项目结构.md)。
 
 ## 本地运行
 
+准备 Java 21、Node.js/npm 和 PostgreSQL 17，并配置：
+
 ```powershell
-# 后端：需配置 DB_USERNAME、DB_PASSWORD、JWT_SECRET，
-# 并使用与 JWT_SECRET 不同且至少 32 位的 MIGRATION_PREVIEW_SECRET
+$env:DB_USERNAME = "finance_os"
+$env:DB_PASSWORD = "your-local-password"
+$env:JWT_SECRET = "at-least-32-characters-secret"
+$env:MIGRATION_PREVIEW_SECRET = "another-32-characters-secret"
+```
+
+启动后端：
+
+```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
+```
 
-# 前端
+启动前端：
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-启动后可访问本地 Swagger UI：`http://localhost:8080/swagger-ui.html`。完整命令和迁移边界见 [开发指南](docs/Development-Guide.md)。
+本地 Swagger UI：`http://localhost:8080/swagger-ui.html`。完整环境和验证命令见 [开发指南](docs/Development-Guide.md)。
 
 ## Docker Compose
 
 ```powershell
 Copy-Item docker\.env.example docker\.env
-# 填写 docker\.env 中的非占位密钥
+# 替换 docker\.env 中的密码和两个不同的密钥
 docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 ```
 
-该路径是单机容器化部署基础，不是完整生产运维平台；详见 [部署指南](docs/Deployment-Guide.md)。
+默认通过 `FRONTEND_PORT` 暴露前端；该配置是单机容器化基础，不是完整生产运维平台。详见 [部署指南](docs/Deployment-Guide.md)。
 
 ## 核心文档
 
-- [项目愿景](docs/Project%20Vision.md)｜[路线图](docs/Roadmap.md)｜[需求规格](docs/SRS.md)
-- [数据库基线](docs/03-Architecture/Database.md)｜[API 基线](docs/03-Architecture/API.md)
+- [文档中心](docs/README.md)｜[项目愿景](docs/Project%20Vision.md)｜[需求规格](docs/SRS.md)｜[路线图](docs/Roadmap.md)
+- [冻结架构](docs/03-Architecture/Architecture.md)｜[数据库基线](docs/03-Architecture/Database.md)｜[API 契约](docs/03-Architecture/API.md)
 - [业务规则](docs/Business%20Rules.md)｜[金融规则](docs/Financial%20Rules.md)
-- [ADR](docs/ADR/)｜[阶段 Review](docs/review/)
+- [开发指南](docs/Development-Guide.md)｜[完成定义](docs/Definition%20of%20Done.md)｜[代码审查清单](docs/Code%20Review%20Checklist.md)
+- [ADR](docs/ADR/)｜[阶段 Review](docs/review/)｜[项目结构](docs/项目结构.md)
 
 ## 下一阶段与未实现能力
 
-下一阶段仅为 `Phase 2C-1 Investment Read Model Contract`，尚未开始。Portfolio read API、InvestmentTransaction 用户查询/详情/时间线、投资前端、`TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、AI Agent 与原生移动端均未实现。
+下一阶段仅为 `Phase 2C-1 Investment Read Model Contract`，尚未开始。
+
+当前没有 Portfolio read API、InvestmentTransaction 列表/详情/审计时间线、投资前端或 Position 纠正 UI；也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
