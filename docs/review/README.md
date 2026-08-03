@@ -1,15 +1,28 @@
 # Review Reports
 
-本目录用于保存项目关键 Review 结果，包括架构 Review、代码 Review、数据库 Review、API Review 与发布前 Review。
+Historical reviews record their own evidence and conclusions. The active product status is `v3.0 Phase 2B Investment Write Foundation: CLOSED — GO`; `Phase 2C-1 Investment Read Model Contract — NOT STARTED`.
 
-记录原则：
+## Closing Reviews
 
-- Review 报告应优先列出问题、风险与结论。
-- 已冻结的设计文档不在 Review 报告中直接修改。
-- Review 结论需要说明是否阻塞后续阶段。
-- 修复过程应记录到 `docs/logs/`，重大决策应进入 `docs/ADR/`。
+- [V1.0](V1.0-Closing-Review.md), [V1.1](V1.1-Closing-Review.md), [V1.2](V1.2-Closing-Review.md), [V1.3](V1.3-Closing-Review.md), [V1.4](V1.4-Closing-Review.md), [V1.5](V1.5-Closing-Review.md), [V2.0](V2.0-Closing-Review.md), [V2.1](V2.1-Closing-Review.md)
+- [V3.0 Phase 1](V3.0-Phase1-Closing-Review.md)
+- [V3.0 Phase 2A](V3.0-Phase2A-Closing-Review.md)
+- [V3.0 Phase 2B-1](V3.0-Phase2B-1-Closing-Review.md)
+- [V3.0 Phase 2B-2](V3.0-Phase2B-2-Closing-Review.md)
+- [V3.0 Phase 2B-3](V3.0-Phase2B-3-Closing-Review.md)
+- [V3.0 Phase 2B-4A](V3.0-Phase2B-4A-Closing-Review.md)
+- [V3.0 Phase 2B-4B](V3.0-Phase2B-4B-Closing-Review.md)
+- [V3.0 Phase 2B-5A](V3.0-Phase2B-5A-Closing-Review.md)
+- [V3.0 Phase 2B-5B-1](V3.0-Phase2B-5B-1-Closing-Review.md)
+- [V3.0 Phase 2B-5B-2](V3.0-Phase2B-5B-2-Closing-Review.md)
+- [V3.0 Phase 2B overall closure](V3.0-Phase2B-Closing-Review.md)
 
-当前报告：
+## Other reviews and plans
 
-- [2026-07-06-architecture-review.md](2026-07-06-architecture-review.md)
-- [v3.0 Phase 1 Closing Review](V3.0-Phase1-Closing-Review.md)
+- [Architecture Review](2026-07-06-architecture-review.md)
+- [Database Review](Database-Review.md)
+- [API Review](API-Review.md)
+- [Exception Handling Review](Exception-Handling-Review.md)
+- [P2 Fix Plan](P2-Fix-Plan.md)
+
+Review reports are historical records: do not rewrite them to change past evidence. Use the [Roadmap](../Roadmap.md), [SRS](../SRS.md), and [documentation center](../README.md) for the active baseline. Major architectural decisions belong in [ADR](../ADR/); implementation logs belong in [logs](../logs/).

@@ -1,425 +1,62 @@
 # Development Guide
 
-Version: 1.0
+> **Current status:** `v3.0 Phase 2B Investment Write Foundation: CLOSED — GO`
+> **Next phase:** `Phase 2C-1 Investment Read Model Contract — NOT STARTED`
 
----
+## Repository and change discipline
 
-# 1. Project Goal
+- The active development branch is `zh-cn`. `sites-demo` is a separate static, read-only presentation branch; do not treat it as application source or modify it as part of backend work.
+- The architecture baseline in [Architecture](03-Architecture/Architecture.md) is frozen. Architecture-level changes require an ADR; implementation and documentation changes must not silently rewrite that baseline.
+- Schema authority is Flyway `V1` through `V13` in `backend/src/main/resources/db/migration`. Never edit an applied migration or restore the retired `schema.sql` initialization path.
+- The current backend surface contains 11 tracked Controllers. Controller and endpoint counts are implementation facts, not permanent release metrics.
 
-Personal Finance OS 是一个现代化个人金融管理系统。
+## Prerequisites and local configuration
 
-项目目标：
+- Java 21 and Node.js/npm for local development;
+- PostgreSQL for a non-Compose backend run, or a Docker Engine compatible with Docker Compose;
+- `DB_USERNAME`, `DB_PASSWORD`, and a `JWT_SECRET` of at least 32 characters;
+- a distinct `MIGRATION_PREVIEW_SECRET` of at least 32 characters for opening-position migration preview/confirm.
 
-- 企业级架构
-- 长期维护
-- 高可扩展性
-- 高可读性
-- 高可测试性
-- 可持续迭代
+`DB_URL` defaults to `jdbc:postgresql://localhost:5432/finance_os`. Market Data and FX providers are disabled by default. Do not add real provider keys to tracked files.
 
-本项目不是 Demo，而是长期维护的核心项目。
-
----
-
-# 2. Development Principles
-
-整个项目遵循：
-
-- KISS（Keep It Simple）
-- DRY（Don't Repeat Yourself）
-- SOLID
-- Clean Architecture
-- High Cohesion
-- Low Coupling
-
-代码质量优先于开发速度。
-
----
-
-# 3. Architecture Principles
-
-采用模块化单体（Modular Monolith）。
-
-禁止为了规模较小的项目引入微服务。
-
-所有模块必须保持独立职责。
-
-模块之间通过 Service 或事件通信，不允许随意跨模块调用。
-
----
-
-# 4. Layer Rules
-
-Controller
-
-负责：
-
-- 参数接收
-- 参数校验
-- 返回结果
-
-禁止：
-
-业务逻辑
-
-数据库操作
-
---------------------
-
-Service
-
-负责：
-
-业务逻辑
-
-数据计算
-
-事务控制
-
---------------------
-
-Repository
-
-负责：
-
-数据库访问
-
-禁止：
-
-业务逻辑
-
---------------------
-
-Entity
-
-数据库映射。
-
-禁止：
-
-业务代码。
-
----
-
-# 5. Database Rules
-
-统一 PostgreSQL。
-
-所有表采用 snake_case。
-
-所有字段采用 snake_case。
-
-金额统一 Decimal。
-
-时间统一 UTC。
-
-所有表默认包含：
-
-- id
-- created_at
-- updated_at
-
-禁止：
-
-数据库字段随意修改。
-
-当前项目使用 Flyway 10.20.0 管理数据库迁移，依赖 `flyway-core` 和 `flyway-database-postgresql`。唯一数据库结构来源为 `backend/src/main/resources/db/migration/` 下的 V1、V2、V3 版本化 migration；原 `schema.sql` 已删除，主应用和测试 profile 均已移除 Spring SQL Init。
-
-数据库变更必须新增版本化 migration，并同步 `Database.md`。当前未配置 `baseline-on-migrate`，新的空 PostgreSQL 数据库会自动执行 V1；已有旧开发数据库不会被项目自动 baseline 或重建。
-
----
-
-# 6. API Rules
-
-全部 RESTful。
-
-统一返回：
-
-{
-    "code": 200,
-    "message": "success",
-    "data": {}
-}
-
-统一异常。
-
-统一错误码。
-
----
-
-# 7. Naming Rules
-
-类：
-
-PascalCase
-
-方法：
-
-camelCase
-
-变量：
-
-camelCase
-
-数据库：
-
-snake_case
-
-常量：
-
-UPPER_SNAKE_CASE
-
----
-
-# 8. Git Rules
-
-Branch
-
-main
-
-develop
-
-feature/*
-
-bugfix/*
-
-hotfix/*
-
-Commit
-
-feat:
-
-fix:
-
-docs:
-
-refactor:
-
-test:
-
-style:
-
----
-
-# 9. Logging
-
-统一日志。
-
-INFO：
-
-正常业务。
-
-WARN：
-
-业务异常。
-
-ERROR：
-
-系统异常。
-
-禁止：
-
-System.out.println()
-
----
-
-# 10. Security
-
-JWT。
-
-密码：
-
-BCrypt。
-
-禁止：
-
-SQL 拼接。
-
-禁止：
-
-硬编码密钥。
-
----
-
-# 11. Performance
-
-所有列表分页。
-
-Dashboard 避免重复查询。
-
-避免 N+1 Query。
-
-优先优化 SQL。
-
-缓存作为 V2 功能接入。
-
----
-
-# 12. Documentation
-
-任何重大修改：
-
-必须更新：
-
-- 文档
-- API
-- 数据库设计
-
-文档优先于代码。
-
----
-
-# 13. Development Workflow
-
-需求
-
-↓
-
-设计
-
-↓
-
-Review
-
-↓
-
-开发
-
-↓
-
-测试
-
-↓
-
-Review
-
-↓
-
-Merge
-
-任何阶段不得跳过 Review。
-
----
-
-# 14. Local Backend Run
-
-数据库迁移提示：
-
-- 全新或空数据库可以正常启动；Flyway 会自动创建 `flyway_schema_history` 并顺序执行 V1、V2、V3。
-- 如果旧开发数据库由旧版 `schema.sql` 创建、已有业务表但没有 `flyway_schema_history`，不要直接启动新版应用，也不要永久启用 `baseline-on-migrate`。
-- 对旧数据库应先决定备份后重建空数据库，或经过 schema 比对后执行一次受控 baseline；本项目不会自动替用户处理已有数据库。
-
-后端本地启动依赖以下环境变量：
-
-- `JWT_SECRET`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-- 可选 `DB_URL`
-
-`JWT_SECRET` 用于创建 JWT 签名密钥，长度必须至少 32 字符。`DB_USERNAME` 和 `DB_PASSWORD` 用于连接 PostgreSQL。`DB_URL` 未设置时默认为 `jdbc:postgresql://localhost:5432/finance_os`；如需连接其他实例，可仅覆盖完整 JDBC URL，用户名和密码仍通过各自变量配置，不要将密码嵌入 URL。
-
-第一次使用：
-
-1. 复制 `backend/.env.example` 为 `backend/.env.local`
-2. 在 `backend/.env.local` 中填写本地 PostgreSQL 用户名和密码；如需覆盖本地默认地址，再填写可选的 `DB_URL`
-3. 确保 `JWT_SECRET` 至少 32 字符
-4. 在项目根目录运行：
+## Commands
 
 ```powershell
-.\scripts\dev-start-backend.ps1
-```
-
-后续启动后端时，直接在项目根目录运行：
-
-```powershell
-.\scripts\dev-start-backend.ps1
-```
-
-注意：
-
-- `backend/.env.local` 只保存本地真实配置，不要提交到 Git
-- `backend/.env.example` 只保存模板值，可以提交
-- 启动脚本只把变量设置到当前 PowerShell 进程，不会打印真实 secret
-- 如果前端出现 Vite proxy `ECONNREFUSED`，先确认后端是否启动成功
-- 后端启动成功时，应看到 Tomcat started on port 8080
-
-## OpenAPI / Swagger
-
-后端基于 Spring Boot `3.3.5` 接入 `springdoc-openapi-starter-webmvc-ui:2.6.0`，提供 OpenAPI 3 JSON 和 Swagger UI：
-
-- Swagger UI：`http://localhost:8080/swagger-ui.html`（最终页面可跳转到 `/swagger-ui/index.html`）
-- OpenAPI JSON：`http://localhost:8080/v3/api-docs`
-- 文档标题为 `Personal Finance OS API`，版本为 `v1`
-- `bearerAuth` 使用 HTTP Bearer，`bearerFormat` 为 JWT
-- 注册和登录为公开接口，其余业务接口要求 JWT
-- 六个 Controller 的 24 个接口均有运行时 operation summary
-
-Swagger UI 的 `Authorize` 可用于输入 JWT Bearer token。`OpenApiIntegrationTest` 使用真实 Spring Boot、Security 和 PostgreSQL Testcontainers 上下文，验证 OpenAPI JSON、Swagger UI、六个标签、公开接口和受保护接口的安全声明，共 2 项测试。
-
----
-
-# 15. Controller / API Test Strategy
-
-后端当前共有 188 项测试，前端当前共有 13 项测试。六个 Controller（User、Account、Asset、Category、Transaction 和 Dashboard）的核心 HTTP 契约由 MockMvc slice 测试覆盖；这些测试使用真实 Security 配置，并以 pass-through 的 JWT Filter 保持安全链参与测试。
-
-前端测试使用 Node 内置 test runner，覆盖分页、认证响应和行情展示纯函数；未引入 Jest、Vitest、React Testing Library 或 jsdom。
-
-真实 API 集成测试使用真实 JWT 和 Testcontainers 启动的 `postgres:17-alpine`，通过 Spring 的动态数据源属性连接容器；测试使用正式的 Flyway V1-V3 migration 初始化结构，不会连接本地开发数据库。`FlywayMigrationIntegrationTest` 额外验证空数据库迁移、`flyway_schema_history`、8 张业务表及 `exchange_rates` 的精度和约束。集成测试覆盖注册和登录、禁用用户旧 token 返回 401、有效 / 过期 / 篡改 / 格式错误 JWT 的统一 401 响应、账户/资产/分类/流水用户隔离、流水创建/更新/删除时的账户余额联动，以及分页和组合筛选。
-
-运行完整后端测试前，请先启动 Docker Desktop（或提供兼容的 Docker daemon），然后执行：
-
-```powershell
+# Backend
 cd backend
-.\mvnw.cmd clean test
+.\mvnw.cmd spring-boot:run
+.\mvnw.cmd test
+
+# Frontend
+cd frontend
+npm install
+npm test
+npm run lint
+npm run build
+
+# Compose
+Copy-Item docker\.env.example docker\.env
+# Set non-placeholder secrets in docker\.env
+docker compose --env-file docker/.env -f docker/compose.yml up --build -d
+docker compose --env-file docker/.env -f docker/compose.yml ps
+docker compose --env-file docker/.env -f docker/compose.yml down
 ```
 
-Docker Engine 29 requires Docker API 1.40 or later. The backend Surefire configuration supplies `api.version=1.40` only to the test JVM, so the command above needs no extra parameters or user-level environment variables. This does not affect production runtime configuration.
+The current Compose path is documented in [Deployment Guide](Deployment-Guide.md). OpenAPI and Swagger are local-development aids; production profile disables them.
 
----
+## Migration, financial writes, and concurrency
 
-# 16. 持续集成 / GitHub Actions
+- Run migrations against an empty database in normal development. A database created by the former `schema.sql` path and lacking `flyway_schema_history` needs an explicit backup/migration decision; it must not be blindly baselined or repaired.
+- Migration changes require a forward-only migration, PostgreSQL/Testcontainers coverage where practical, and an isolated runtime smoke check when the migration depends on database trigger or deferred-constraint behavior.
+- Financial write-path changes require backend-owned calculations, `BigDecimal`, transactional rollback coverage, idempotency, user isolation, and replay/projection validation as applicable.
+- Account and investment commands follow the documented lock order. Lock timeout/deadlock and unknown-commit recovery are API behavior, not incidental implementation details.
 
-CI 工作流文件为 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)，使用最小的 `contents: read` 权限，不需要 GitHub Secrets，也不执行部署；CI 执行后端测试，以及前端 test、lint 和 build。
+## Verification expectations
 
-工作流在以下情况触发：
+The historical final Phase 2B closure baseline is **92 suites / 496 tests / 0 failures / 0 errors**, recorded with PostgreSQL 17.10 and Flyway V13 verification. It is not a live test count for later changes; use the commands above to verify a new change.
 
-- push 到 `zh-cn`；
-- 目标为 `zh-cn` 的 `pull_request`；
-- `workflow_dispatch` 手动触发。
+For a focused change, run the nearest relevant tests plus `git diff --check`. Run Maven, Node, Compose, and runtime smoke checks in proportion to the files and risks touched. Before handoff, inspect `git status --short` and ensure no unrelated files, generated output, secrets, or `sites-demo` changes were included.
 
-向 `sites-demo` 分支的提交不会触发面向 `zh-cn` 的完整 CI。
+## Documentation sources of truth
 
-## Backend Job
-
-- 运行环境：`ubuntu-latest`；
-- 使用 Temurin Java 21 和 Maven Wrapper；
-- 在 `backend` 目录执行 `./mvnw -B clean test`；
-- 执行全部后端测试；
-- Testcontainers 会启动 `postgres:17-alpine`，因此不需要额外的 PostgreSQL service；
-- `pom.xml` 的测试范围配置会提供 `api.version=1.40`，开发者不需要在 CI 命令中手工传参。
-
-## Frontend Job
-
-- 运行环境：`ubuntu-latest`；
-- 使用 Node 22；
-- 在 `frontend` 目录依次执行 `npm ci`、`npm test`、`npm run lint` 和 `npm run build`；
-- 当前前端测试总计 13 项。
-
-任一命令失败都会使对应 Job 和整个工作流失败。当前 CI 只负责验证后端和前端，不包含 coverage、artifact、部署或分支保护配置。
-
-# Market data refresh
-
-`POST /api/v1/assets/{id}/quote/refresh` is disabled by default. It refreshes only an authenticated user's US-market `STOCK` or `ETF` asset and returns an independent USD reference quote. Missing, blank, or non-US markets return HTTP 400. It never writes `assets.current_price`, `assets.market_value`, or Dashboard data.
-
-The cache TTL defaults to 15 minutes. A stale cached quote is returned with a warning if the provider is unavailable. Provider calls use an in-process single-flight key per `(US, symbol)` and configurable per-user/global per-minute limits; cache hits do not consume either limit.
-
-## Cached quotes in Assets
-
-Asset list, page, and detail responses may include a nullable `marketQuote` snapshot only for US-market `STOCK` and `ETF` assets with valid symbols. These GET endpoints only read the database: list and page requests batch eligible response symbols into one US-market quote query, while detail reads one eligible cached quote. Non-US assets always return `marketQuote: null`; GET endpoints never call the provider, refresh automatically, or change CNY asset valuation fields.
-
-The Assets page keeps the CNY manual valuation price separate from the reference quote and uses the quote's returned currency. Manual refresh is a per-row action. A successful refresh replaces only that row's cached quote; `STALE_FALLBACK` keeps the old quote visible and displays a fixed Chinese warning rather than the backend warning text. If market-data refresh is disabled, existing snapshots remain readable and a refresh error is shown as a generic unavailable-service message.
-
-## FX Foundation
-
-v2.1 Phase 1 新增 `exchange_rates` 公共最新成功快照。`fx-data.enabled` 默认 `false`，本阶段没有真实 FX Provider、HTTP Client 或刷新接口，因此不会发出网络请求。`FX_DATA_API_KEY` 仅通过环境变量读取；`backend/.env.example` 只提供空占位符，不得提交真实 Key。
-
-Phase 2 增加内部 FX refresh workflow：默认 TTL 为 60 分钟，freshness 以 `fetched_at` 判断；同一 `base:quote` 使用 single-flight，额度为单进程内存中的每用户 5/min 与全局 30/min。刷新仍没有公开 API、真实 Provider 或网络 Client；失败时仅可返回既有 stale 快照，不能伪造汇率。当前后端测试总数为 213。
+Read implementation/migrations first, then the relevant ADR, then the latest Closing Review, then active documentation. Current rules and contracts live in [Database](03-Architecture/Database.md), [API](03-Architecture/API.md), [Business Rules](Business%20Rules.md), and [Financial Rules](Financial%20Rules.md); Closing Reviews remain historical evidence.

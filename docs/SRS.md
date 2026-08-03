@@ -1,251 +1,77 @@
-# SRS（软件需求规格说明）
+# SRS — Software Requirements Specification
 
-**项目名称：** Personal Finance OS
+> **Current status:** `v3.0 Phase 2B Investment Write Foundation: CLOSED — GO`
+> **Next phase:** `Phase 2C-1 Investment Read Model Contract — NOT STARTED`
 
-**版本：** v1.0 Foundation / v1.1 Showcase Enhancement 对齐版
+## 1. Purpose and scope
 
-------
+Personal Finance OS is a Java 21 / Spring Boot 3 / PostgreSQL / React + TypeScript personal-finance system. It enables an authenticated user to maintain financial facts and view supported derived information. This SRS is the active requirements baseline; historical design decisions and closure evidence are recorded separately in [ADR](ADR/) and [Review](review/).
 
-# 一、文档目的
+The system is a record-management product. It does not execute real payments, transfers, or securities transactions.
 
-本文档用于描述 Personal Finance OS 的功能需求、业务范围以及系统边界。
+## 2. Functional requirements
 
-SRS 是整个项目需求的唯一正式来源。
+### 2.1 Identity and data isolation
 
-所有开发、数据库设计、接口设计和测试工作，都应以本文件及其子文档为依据。
+- The system shall support registration and login.
+- Protected operations shall require JWT authentication.
+- A user shall access only their own financial data.
 
-当需求发生变化时，应首先更新 SRS，再进行开发。
+### 2.2 Accounts, categories, and ordinary transactions
 
-------
+- The system shall support accounts, user categories, CNY asset snapshots, and ordinary transactions.
+- Ordinary transactions currently support `INCOME`, `EXPENSE`, and `ADJUSTMENT`.
+- `INCOME` and `EXPENSE` amounts shall be positive; an `ADJUSTMENT` amount shall be non-zero and include a reason.
+- Account balances shall be updated by backend-controlled transactional logic.
+- `TRANSFER` and `REFUND` are not implemented requirements in this baseline.
 
-# 二、项目简介
+### 2.3 Dashboard
 
-Personal Finance OS 是一套面向个人用户的现代化金融管理系统。
+- The system shall aggregate supported account, asset, and ordinary-transaction data for Dashboard presentation.
+- Frontend presentation shall not independently recalculate authoritative financial results.
 
-系统主要提供：
+### 2.4 Investment write foundation
 
-- 个人资产管理
-- 日常记账
-- 投资资产管理
-- 财务统计分析
-- AI 辅助分析（v4.0 后续规划，当前未实现）
+- Investment transactions shall be represented as append-only facts.
+- The backend shall support user-scoped Instruments and unique Account/Instrument/Asset binding.
+- The backend shall support legacy opening-position migration and type-specific `BUY`, `SELL`, and `DIVIDEND` posting.
+- Investment projections shall use deterministic full-history replay with weighted-average cost.
+- The backend shall atomically maintain the affected Account balance and transaction-driven Asset projection.
+- The backend shall support append-only standalone reversal and replacement correction, preserving immutable original facts, receipts, and audit records.
+- The backend shall provide idempotency recovery and concurrency-safe locking for investment write commands.
 
-本项目不提供金融交易能力，仅负责记录、管理、分析个人财务数据。
+### 2.5 Investment reads and UI
 
-------
+- Portfolio-specific read model/API, InvestmentTransaction user query/detail/audit timeline, investment frontend, position detail, and correction UI are not implemented.
+- `Phase 2C-1 Investment Read Model Contract` is not started. It will define high-level read semantics before read APIs or frontend scope is implemented.
 
-# 三、目标用户
+## 3. Non-functional requirements
 
-本项目主要面向：
+### 3.1 Integrity and determinism
 
-- 个人投资者
-- 日常记账用户
-- 长期资产管理用户
-- 有多账户管理需求的用户
+- Financial write rules and authoritative projections shall be enforced in the backend.
+- Investment-ledger projections shall be reproducible by deterministic replay.
+- Append-only facts, idempotency, transaction boundaries, and deterministic lock ordering shall protect the write path.
 
-暂不考虑企业用户及多人协作场景。
+### 3.2 Security
 
-------
+- Passwords shall be protected using BCrypt.
+- JWT authentication, parameter validation, and user isolation shall protect application data.
 
-# 四、系统目标
+### 3.3 Operations and verification
 
-系统应满足以下目标：
+- Schema evolution shall use Flyway migrations on PostgreSQL.
+- The Phase 2B closure evidence is 92 suites / 496 tests / 0 failures / 0 errors, with PostgreSQL 17.10 and Flyway V13 migration/runtime verification. This is a historical closure baseline, not a claim that tests were rerun by a documentation change.
 
-- 统一管理个人资产；
-- 提供准确可靠的财务数据；
-- 支持长期数据积累；
-- 提供可视化分析能力；
-- 为后续 AI 辅助分析保留可靠数据基础；
-- 保持良好的扩展能力。
+## 4. Product boundaries and deferred scope
 
-------
+The following are explicitly outside the current implementation: return curves, historical price or position snapshots, multi-currency accounting, FIFO/lot accounting, corporate actions, automatic bank/broker synchronization, AI agent capabilities, and native mobile apps.
 
-# 五、系统范围
+The static [demo](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login) uses fictional data, is read-only, has no real backend or market-data provider, and does not demonstrate an investment write-path UI.
 
-V1.0 包含以下核心模块：
+## 5. Requirement governance
 
-## 用户模块
-
-负责：
-
-- 注册
-- 登录
-- 身份认证
-- 用户信息管理
-
-------
-
-## 账户模块
-
-负责：
-
-- 管理各种资金账户；
-- 查看余额；
-- 管理账户状态。
-
-------
-
-## 记账模块
-
-负责：
-
-- 收入
-- 支出
-- 余额调整
-
-当前已支持 `INCOME`、`EXPENSE`、`ADJUSTMENT`。完整 `TRANSFER` / `REFUND` 模型属于后续规划，当前不作为已实现能力。
-
-当前金额契约：
-
-- `INCOME` 请求金额必须大于 0，数据库保存正数，账户余额增加；
-- `EXPENSE` 请求金额必须大于 0，数据库保存正数，账户余额减少，前端展示时可以显示为负数；
-- `ADJUSTMENT` 请求金额不能为 0，可以为正数或负数，且必须填写调整原因。
-
-V1.x 基础币种固定为 `CNY`。账户、资产和流水当前只允许 `CNY`，流水币种必须与所属账户一致；当前不提供汇率换算，Dashboard 不聚合不同币种数据。
-
-所有财务数据均来源于记账流水。
-
-------
-
-## 分类模块
-
-负责：
-
-- 收入分类；
-- 支出分类；
-- 自定义分类；
-- 分类管理。
-
-------
-
-## 投资模块
-
-负责：
-
-- 股票
-- ETF
-- 基金
-- 债券
-- 黄金
-- 数字资产
-
-记录持仓、成本、市值及收益情况。
-
-------
-
-## Dashboard 模块
-
-展示：
-
-- 总资产
-- 净资产
-- 收支统计
-- 最近交易
-- 投资概览
-- 资产分布
-
-------
-
-## 后续数据分析能力
-
-当前 Dashboard 仅提供基于真实业务数据的收支汇总和资产聚合。以下能力属于 v1.2 Visualization Polish 及后续版本规划，在对应实现和验收完成前不作为当前已实现能力：
-
-- 趋势分析；
-- 投资分析；
-- 现金流分析。
-
-------
-
-# 六、系统边界
-
-本系统不包含：
-
-- 股票交易；
-- 银行支付；
-- 自动投资；
-- 自动下单；
-- 量化交易；
-- 高频交易；
-- 金融风控。
-
-------
-
-# 七、非功能需求
-
-系统应满足以下要求：
-
-## 性能
-
-- 页面响应时间应尽量控制在合理范围内；
-- 列表查询支持分页；
-- 支持后续缓存扩展。
-
-## 可维护性
-
-- 模块化设计；
-- 完整文档；
-- 清晰代码结构。
-
-## 安全性
-
-- JWT 身份认证；
-- BCrypt 密码加密；
-- 参数校验；
-- 防止 SQL 注入。
-
-## 可扩展性
-
-系统应支持未来扩展：
-
-- 多币种；
-- 第三方行情；
-- AI 功能；
-- 插件系统；
-- 国际化。
-
-------
-
-# 八、需求文档结构
-
-详细需求将拆分到以下子文档：
-
-- SRS-User.md
-- SRS-Account.md
-- SRS-Ledger.md
-- SRS-Portfolio.md
-- SRS-Dashboard.md
-- SRS-Analytics.md
-- SRS-AI.md
-
-每个模块均包含：
-
-- 功能说明；
-- 业务规则；
-- 输入输出；
-- 异常处理；
-- 验收标准。
-
-------
-
-# 九、需求管理原则
-
-所有新增需求必须遵循以下原则：
-
-1. 明确业务价值；
-2. 不破坏现有架构；
-3. 更新相关文档；
-4. 经过评审后再进入开发。
-
-未经确认的需求，不得直接实现。
-
-------
-
-# 十、版本范围
-
-当前 SRS 对应版本口径：
-
-**Personal Finance OS v1.0 Foundation / v1.1 Showcase Enhancement**
-
-v1.0 Foundation 已完成阶段验收。v1.1 Showcase Enhancement 已完成阶段验收。当前进入 v1.2 Visualization Polish。v1.3 Engineering Polish、v2.0 Market Data Foundation、v3.0 Investment Transaction Model、v4.0 AI Finance Assistant 均属于后续规划。
-
-未来版本新增需求将在对应版本中扩展，不直接修改已发布版本的功能定义。
+- Architecture is frozen in [Architecture](03-Architecture/Architecture.md); architecture-level changes require an ADR.
+- Detailed domain rules are maintained in [Business Rules](Business%20Rules.md) and [Financial Rules](Financial%20Rules.md).
+- The [Requirements Index](SRS详解.md) maps this SRS to related requirements and evidence.
+- Changes to implemented scope require aligned SRS, Roadmap, API/Database documentation where applicable, and verification evidence.

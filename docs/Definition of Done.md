@@ -1,244 +1,55 @@
-# Definition of Done（完成定义）
+# Definition of Done
 
-**项目名称：** Personal Finance OS
+Use the smallest verification set that proves the changed risk. Completion always includes a readable diff, `git diff --check`, and an inspection of `git status --short` for unrelated files, generated artifacts, secrets, and unapproved changes.
 
-**版本：** v1.0 / v1.1 对齐版
+## Ordinary low-risk change
 
-------
+- Scope, acceptance behavior, and affected documentation are clear.
+- Relevant lint, focused test, or manual check has been run where available.
+- No unrelated refactor or generated output is included.
 
-# 一、文档目的
+## API change
 
-Definition of Done（以下简称 DoD）用于定义一个功能、模块或版本在什么情况下才可以被认为"真正完成"。
+- Request/response, validation, authorization, error semantics, and backward compatibility are considered.
+- The API documentation and relevant frontend contract are updated together.
+- Controller/service tests cover the changed contract, including user-scope behavior where relevant.
 
-DoD 是项目统一的完成标准。
+## Migration or database constraint
 
-v1.1 Showcase Enhancement 已完成阶段验收。当前 v1.2 Visualization Polish 不要求 Docker、CI/CD、OpenAPI / Swagger、Flyway / Liquibase 必须完成；这些能力属于后续工程化阶段或未来版本规划。DoD 应按当前任务所属版本和变更范围执行。
+- A new forward-only Flyway migration is provided; no applied migration is edited.
+- Empty-database migration and the relevant PostgreSQL/Testcontainers path are verified.
+- Constraints, indexes, trigger/deferred-integrity behavior, rollback, and legacy-data compatibility are documented and tested in proportion to risk.
 
-只有满足适用于当前任务或当前版本范围的 DoD 要求，功能才能：
+## Financial write path
 
-- 合并代码；
-- 发布版本；
-- 进入下一阶段开发。
+- Backend is the sole authority for calculations and projections; `BigDecimal`/`NUMERIC` precision and rounding are explicit.
+- Transaction boundaries, account-balance mutation, append-only facts/receipts, idempotency, user isolation, and replay/projection rules are verified as applicable.
+- Success, validation failure, business conflict, and complete rollback paths are covered.
 
-代码写完，并不代表功能完成。
+## Concurrency or lock change
 
-------
+- Lock order and timeout/deadlock mapping are explicit and tested.
+- Concurrent commands cannot double-apply cash, facts, or a projection; unknown-commit/idempotency recovery is preserved where applicable.
 
-# 二、DoD 基本原则
+## Documentation-only change
 
-任何开发任务，都必须满足以下原则：
+- Facts are checked against code/migrations, ADRs, and the latest Closing Review.
+- Frozen Architecture and historical ADR/Review/design/log records remain untouched.
+- Relative links, navigation, phase status, and terminology are checked. Full application tests are not required unless a code/configuration file was also changed.
 
-- 功能完整；
-- 质量达标；
-- 文档同步；
-- 测试通过；
-- Review 完成。
+## Runtime smoke and phase closure
 
-任何一项未完成，都不能视为 Done。
+- Compose/runtime smoke is required when deployment, migration, production configuration, or runtime integration is changed.
+- A Closing Review records scope, evidence, known limitations, and a GO/NO-GO result without rewriting historical evidence.
 
-------
+## Final hygiene
 
-# 三、需求完成
+Run the relevant checks before handoff:
 
-请确认：
+```powershell
+git diff --check
+git diff --cached --check
+git status --short
+```
 
--  已完成当前任务或当前版本范围内 SRS 定义的需求；长期规划中的 SRS 需求不作为本次完成门槛。
--  未超出本次开发范围。
--  未遗漏需求。
--  已符合 Business Rules。
--  已符合 Financial Rules。
-
-------
-
-# 四、代码完成
-
-请确认：
-
--  所有代码已实现。
--  无 TODO。
--  无 FIXME。
--  无调试代码。
--  无临时代码。
--  无废弃代码。
-
-------
-
-# 五、代码质量
-
-请确认：
-
--  通过 Code Review。
--  满足 Code Review Checklist。
--  满足项目编码规范。
--  无重复代码。
--  命名规范统一。
--  模块边界清晰。
-
-------
-
-# 六、架构一致性
-
-请确认：
-
--  未违反 Architecture。
--  未违反 Development Guide。
--  未违反 ADR。
--  未新增循环依赖。
--  未破坏模块职责。
-
-------
-
-# 七、数据库完成
-
-如涉及数据库，请确认：
-
--  数据库结构已完成。
--  当前 `schema.sql` 已同步；如项目后续引入 Flyway / Liquibase，则对应 Migration 已编写。
--  索引已确认。
--  外键关系正确。
--  数据库文档已更新。
-
-如本次无数据库修改，可标记为 N/A（Not Applicable）。
-
-------
-
-# 八、API 完成
-
-如涉及接口，请确认：
-
--  API 已实现。
--  API 文档已更新。
--  返回结构统一。
--  错误码统一。
--  参数校验完成。
-
-如本次无 API 修改，可标记为 N/A。
-
-------
-
-# 九、测试完成
-
-请确认：
-
--  核心功能测试通过。
--  异常流程测试通过。
--  边界条件测试通过。
--  回归测试通过（如适用）。
--  无已知阻塞问题。
-
-------
-
-# 十、安全检查
-
-请确认：
-
--  参数校验完成。
--  权限校验完成。
--  无 SQL 注入风险。
--  无敏感信息泄露。
--  JWT 使用正确。
-
-------
-
-# 十一、性能检查
-
-请确认：
-
--  无明显性能问题。
--  无重复查询。
--  无无效循环。
--  查询效率符合预期。
--  已评估是否需要缓存。
-
-------
-
-# 十二、日志与异常
-
-请确认：
-
--  日志完整。
--  日志级别合理。
--  异常统一处理。
--  错误信息明确。
--  无异常吞没。
-
-------
-
-# 十三、文档同步
-
-请确认：
-
--  SRS 已更新（如需要）。
--  API 文档已更新（如需要）。
--  Database 文档已更新（如需要）。
--  Roadmap 已更新（如需要）。
--  ADR 已新增或更新（如涉及重要技术决策）。
-
-------
-
-# 十四、Git 检查
-
-请确认：
-
--  Commit Message 符合规范。
--  无无关文件。
--  无临时文件。
--  已清理调试内容。
--  提交内容聚焦于当前任务。
-
-------
-
-# 十五、版本发布（适用于版本开发）
-
-发布版本前，请确认：
-
--  所有模块完成。
--  所有文档同步。
--  所有测试通过。
--  Release Note 已编写。
--  Tag 已创建（发布时）。
-
-------
-
-# 十六、最终确认
-
-只有当以下条件全部满足时，任务才可标记为 Done：
-
--  功能已实现。
--  需求已满足。
--  Review 已通过。
--  测试已通过。
--  文档已同步。
--  无阻塞问题。
--  可以安全合并代码。
-
-否则，任务状态应保持为 In Progress 或 Ready for Review。
-
-------
-
-# 十七、任务状态定义
-
-为统一项目流程，任务状态定义如下：
-
-- **To Do**：尚未开始。
-- **Ready**：满足开发前置条件，可开始开发。
-- **In Progress**：开发中。
-- **Review**：等待 Code Review。
-- **Changes Requested**：Review 提出修改意见。
-- **Testing**：测试中。
-- **Done**：满足本 DoD，可合并。
-- **Released**：已发布到正式版本。
-
-任何任务不得跳过状态流转。
-
-------
-
-# 十八、持续改进
-
-Definition of Done 不是固定不变的。
-
-随着项目的发展，应根据新的经验持续完善本文件。
-
-任何新增的质量要求，都应优先补充到 DoD 中，而不是依赖个人记忆。
-
-统一标准、统一流程、统一质量，是 Personal Finance OS 长期维护的重要基础。
+Only stage or commit files explicitly in scope. Do not stage `AGENTS.md` or any other untracked/user-owned file unless the user has expressly authorized it.
