@@ -248,13 +248,17 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 - v2.1 仍保持 CNY-only Account / Transaction；普通 GET 不调用 Provider，只有显式 POST 才可能刷新 Quote 或 FX；真实 FX Provider 默认关闭。
 - v3.0 Phase 1 Investment Ledger Foundation 已完成并正式关闭：InvestmentTransaction 是事实、Asset 是受控投影；纯计算和 replay 内核、V4/V5 migration、Entity/Mapper 与测试已具备，但没有开放任何投资交易入口或改变现有余额、Asset / Dashboard 行为。首次 NO-GO、4 项 P1 定向修复和最终 GO 详见 [Phase 1 Closing Review](docs/review/V3.0-Phase1-Closing-Review.md)。
 
+## 当前投资阶段
+
+- v3.0 Phase 2B Investment Write Foundation 已完成并正式关闭（GO），详见 [Phase 2B Overall Closing Review](docs/review/V3.0-Phase2B-Closing-Review.md)。
+- 当前已具备用户级 Instrument、Account/Instrument/Asset 绑定、opening migration、BUY/SELL/DIVIDEND posting、全历史加权平均成本 replay、Account.balance 原子联动、transaction-driven Asset projection、standalone reversal、replacement correction、immutable receipt、append-only audit、幂等恢复和并发安全。
+- 最新完整验证基线：92 suites、496 tests、0 failures、0 errors；PostgreSQL 17.10 Testcontainers 与 V13 isolated runtime smoke 已在 2B-5B-2 Closing Review 中记录。
+- 下一阶段为 `v3.0 Phase 2C-1 — Investment Read Model Contract`，尚未开始；它将只在高层冻结 Portfolio 与 InvestmentTransaction 的只读语义。
+
 ## 后续计划
 
-- 已关闭：v2.1 Market Valuation、v3.0 Phase 1 Investment Ledger Foundation、Phase 2A Account Balance Concurrency，以及 Phase 2B-1 Investment Projection Safety and Precision（GO）。
-- 下一阶段：`v3.0 Phase 2B-2 — Investment Instrument and Account Binding`（只读设计）。
-- 后续顺序：Phase 2B-2 Instrument / Account Binding → Phase 2B-3 Legacy Preflight / Opening Migration → Phase 2B-4 Investment Write Path → Portfolio Read Model / Frontend。
-- Instrument、Opening Migration、BUY/SELL API、余额联动和 Portfolio 当前均未实现。
-- 资产历史价格、定时或自动刷新、AI 财务分析和完整生产运维能力仍属于后续规划。
+- Portfolio read API、InvestmentTransaction 用户查询/详情/审计时间线、投资前端、持仓详情和 correction UI 尚未实现。
+- 历史持仓快照、历史价格、收益曲线、多币种、FIFO/lot、公司行动、券商或交易所接入、AI 财务分析和完整生产运维能力仍属于后续规划。
 
 ## 项目定位
 
@@ -262,6 +266,3 @@ Personal Finance OS 不是简单 CRUD Demo，而是面向求职作品集的工�
 # Phase 2A Account Balance Concurrency
 
 Ordinary transaction balance mutations now use PostgreSQL pessimistic locks and the protocol defined in [ADR-008](docs/ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md). This does not add Transfer, investment writes, multi-currency, Redis, MQ, or automatic retries.
-# v3.0 Phase 2B-3
-
-Legacy opening migration is now an explicit, JWT-protected backend workflow: create/list a user-owned Instrument, preview one Legacy Asset against a selected Account and Instrument, then confirm with a signed expiring token plus `X-Idempotency-Key`. It creates only `OPENING_POSITION`, does not alter Account cash, and does not add BUY/SELL/DIVIDEND, Portfolio, or frontend migration features. Set `MIGRATION_PREVIEW_SECRET` to a unique value of at least 32 characters.

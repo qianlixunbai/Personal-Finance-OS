@@ -4,9 +4,9 @@
 
 **项目名称：** Personal Finance OS
 
-**当前阶段：** v3.0 Phase 2B-2 — Investment Instrument and Account Binding（已完成，GO）。
+**当前阶段：** v3.0 Phase 2B — Investment Write Foundation（已完成并正式关闭，GO）。
 
-**下一阶段：** v3.0 Phase 2B-3 — Legacy Preflight / Opening Migration（未开始）。
+**下一阶段：** v3.0 Phase 2C-1 — Investment Read Model Contract（未开始）。
 
 本文档用于记录 Personal Finance OS 的阶段性路线图。文档必须明确区分“已完成”“当前阶段”和“后续规划”，不得把未来能力写成当前已实现能力。
 
@@ -343,28 +343,31 @@ stale fallback 刷新成功时，详情会显示旧数据 warning，但全局成
 - PostgreSQL `SELECT FOR UPDATE`、固定账户锁顺序与事务内回滚已落地；
 - InvestmentTransaction 写入、Opening Position Migration 和 Portfolio 未纳入 Phase 2A。
 
-### 后续阶段顺序
+## v3.0 Phase 2B Investment Write Foundation（已完成并正式关闭）
 
-`Phase 2B-2 Instrument / Account Binding`
-→ `Phase 2B-3 Legacy Preflight / Opening Migration`
-→ `Phase 2B-4 Investment Write Path`
-→ `Portfolio Read Model / Frontend`
+Phase 2B 的全部叶子阶段均已正式 GO，聚合结论见 [Phase 2B Overall Closing Review](./review/V3.0-Phase2B-Closing-Review.md)。
 
-Phase 2B-2 仅进行 Investment Instrument 和 Account Binding 的只读设计；上述后续能力均未实现。
+- 2B-1：Investment Projection Safety and Precision；
+- 2B-2：Instrument and Account Binding；
+- 2B-3：Legacy Preflight / Opening Migration；
+- 2B-4A / 2B-4B：BUY、SELL、DIVIDEND 写入路径；
+- 2B-5A：append-only standalone reversal；
+- 2B-5B-1 / 2B-5B-2：replacement command envelope、replay foundation 与 replacement write path。
 
-### 边界说明
+父阶段覆盖关系为：
 
-Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migration、InvestmentTransaction 写入链路和 Portfolio 仍属于后续阶段，不代表当前已实现能力。
+```text
+Phase 2B-4  = Phase 2B-4A + Phase 2B-4B
+Phase 2B-5B = Phase 2B-5B-1 + Phase 2B-5B-2
+```
 
-------
+当前能力包括用户级 Instrument、唯一 Account/Instrument/Asset 绑定、opening migration、BUY/SELL/DIVIDEND、全历史加权平均成本 replay、Account.balance 原子联动、transaction-driven Asset projection、standalone reversal、replacement correction、immutable receipt、append-only audit、幂等恢复、确定性锁、lock timeout/deadlock 映射、unknown-commit recovery，以及 PostgreSQL V4–V13 迁移和 runtime 验证。
 
-## v3.0 Phase 2B-1 Investment Projection Safety and Precision（已完成）
+Phase 2B 不再接受功能扩展。Portfolio 专用 read model/API、InvestmentTransaction 用户查询/详情/审计时间线、投资前端、持仓快照、历史行情、收益曲线、多币种、FIFO/lot、公司行动、券商/交易所接入和 AI 均不属于 Phase 2B。
 
-- V6 将 `assets.quantity` 和 `assets.avg_cost` 对齐为 `NUMERIC(28,8)`，而投资账本金额字段继续保持 CNY 两位小数。
-- Asset API 保持 LEGACY 资产的原有行为，并拒绝 close 或 delete transaction-driven 的受控投影；参考价格更新仍不受影响。
-- 投资 replay 统一使用 `Instant` / `TIMESTAMPTZ`，并按 `trade_time ASC, id ASC` 稳定排序；投资查询始终携带 `user_id` 边界。
-- 未新增 InvestmentTransaction 写 API、Opening Migration、Account.balance 联动、Portfolio 前端或历史快照。
-- 详见 [Phase 2B-1 Closing Review](./review/V3.0-Phase2B-1-Closing-Review.md)。
+## v3.0 Phase 2C-1 — Investment Read Model Contract（未开始）
+
+下一阶段只在高层冻结 Portfolio 与 InvestmentTransaction 的只读语义，明确 current projection、effective history 与 append-only audit history 的边界，为后续 Query API 和投资前端提供唯一数据口径。本路线图不提前设计完整 contract，也不将 API 实现、前端、行情、快照、多币种、AI 或批量迁移纳入 2C-1。
 
 ## Future（长期规划）
 
@@ -406,9 +409,3 @@ Phase 1、Phase 2A 与 Phase 2B-1 均已完成并正式关闭；Opening Migratio
 - 每个阶段结束时应新增 Closing Review；
 - Roadmap 变更应同步根 README 和 docs 导航；
 - 架构级变化应通过 ADR 记录。
-# v3.0 Phase 2B-2 — completed
-
-Investment Instrument and Account Binding is closed: V7/V8 add user-scoped Instrument master data and immutable Asset schema binding, with no Opening Migration and no investment write path. The next planned phase remains 2B-3 Legacy Preflight / Opening Migration; it is not started by this delivery.
-# v3.0 Phase 2B-3 status
-
-Phase 2B-2 is closed. Phase 2B-3 now provides explicit Legacy preflight, signed preview, and confirmed opening migration. Phase 2B-4 (general investment write, reversal/replacement, and related workflows) remains future scope.

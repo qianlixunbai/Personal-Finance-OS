@@ -127,9 +127,9 @@ Authorization: Bearer <token>
 - 文档标题：`Personal Finance OS API`
 - 文档版本：`v1`
 - 安全方案：HTTP Bearer `bearerAuth`，`bearerFormat` 为 JWT
-- Controller tag：`User`、`Account`、`Asset`、`Category`、`Transaction`、`Dashboard`
-- 六个 Controller 共 24 个 operation summary
-- 注册和登录为公开接口，其余 22 个业务接口声明 JWT 安全要求
+- 当前 tracked 后端共有 11 个 Controller；运行时 OpenAPI 以当前 Controller 注解为准。
+- 注册和登录为公开接口，其余业务接口默认声明 JWT 安全要求。
+- 本文档记录已实现 API 基线；它不以历史 Controller 数量或 operation summary 数量作为当前事实。
 
 `OpenApiIntegrationTest` 验证 OpenAPI JSON、Swagger UI、tag 和安全声明。OpenAPI 描述接口契约，不替代业务规则文档，也不表示已生成客户端 SDK、已完成 contract diff 或已覆盖所有业务语义。
 
@@ -222,7 +222,11 @@ Authorization: Bearer <token>
 | `401` | `401 Unauthorized` |
 | `403` | `403 Forbidden` |
 | `404` | `404 Not Found` |
-| 其他 | `400 Bad Request` |
+| `409` | `409 Conflict` |
+| `429` | `429 Too Many Requests` |
+| `502` | `502 Bad Gateway` |
+| `503` | `503 Service Unavailable` |
+| 其他 | `500 Internal Server Error` |
 
 当前错误响应覆盖：
 
@@ -231,7 +235,8 @@ Authorization: Bearer <token>
 - 请求参数缺失、参数类型错误、请求体格式错误已统一返回 `HTTP 400 + ApiResponse.error`，包括 `MissingServletRequestParameterException`、`MethodArgumentTypeMismatchException` 和 `HttpMessageNotReadableException`；
 - Spring Security 未认证 `401` 返回统一 JSON 响应；
 - Spring Security 无权限 `403` 返回统一 JSON 响应；
-- 未知异常统一返回 `HTTP 500 + ApiResponse.error(500, "系统异常")`。
+- 并发冲突、投资业务候选冲突及锁超时/deadlock 安全映射为 `409`；
+- 数据库不可用映射为 `503`；未知异常统一返回 `HTTP 500 + ApiResponse.error(500, "服务器内部错误")`。
 
 当前已知限制：
 
@@ -322,7 +327,7 @@ Authorization: Bearer <token>
 - Reference Valuation refresh 需要 JWT，先校验 ownership；非本人或不存在资产返回 `404`，不支持的资产返回 `400`，且两者均不会调用 provider 或消费额度。FX 限额、无效 provider 响应和临时不可用分别使用 `429`、`502`、`503` 的统一安全错误体。
 - 若 quote 或 FX 刷新失败但已有旧快照，refresh 返回成功的 `STALE` 响应和固定的 `FEATURE_DISABLED` 或 `REFRESH_FAILED` warning；warning 不包含 provider 原始响应、URL、密钥或堆栈。Quote 为 `CNY` 时使用 `CNY/CNY`、rate `1` 和 `SYSTEM_IDENTITY`，不会刷新 FX。
 - Assets UI 只消费 `referenceValuation` 的后端字段并格式化展示：人工 Asset 估值与市场参考估值并列；FRESH、STALE、PARTIAL、UNAVAILABLE 和公开 warning code 映射为固定中文。单资产 refresh 的成功响应只替换当前行 `referenceValuation`，不会写入 `currentPrice`、`marketValue` 或 Dashboard。
-- v3.0 Phase 1 已建立 InvestmentTransaction 领域、计算/replay 内核和持久化基础，但**没有公开 Investment Transaction API**；现有 Asset、Transaction、Account 与 Dashboard API 行为不变。
+- v3.0 Phase 1 的“没有公开 Investment Transaction API”是当时的历史边界；后续已在 Phase 2B 以类型专用端点实现投资写入，见 9.7。Portfolio read API 与用户可见的 InvestmentTransaction 查询 API 仍未实现。
 
 ## 9.5 Dashboard APIs
 
@@ -385,6 +390,29 @@ Authorization: Bearer <token>
 - `ADJUSTMENT` 当前不强制匹配分类 `type`，但必须填写 `description`；
 - `currency` 为空时默认 `CNY`；V1.x 非 `CNY` 输入返回 HTTP `400`；
 - 流水币种必须与所属账户币种一致，否则返回 HTTP `400`。
+
+------
+
+## 9.7 Investment APIs
+
+所有本节接口均要求 `Authorization: Bearer <token>`，并从认证上下文取得当前用户。投资请求和响应中的金额、数量、成本和余额字段遵循既有字符串十进制契约；后端负责金融计算与 projection，不接受客户端提供的计算结果、用户 ID、币种或客户端交易时间。
+
+| Method | Path | Required header | Major request type | Major response type | Current behavior |
+|---|---|---|---|---|---|
+| `GET` | `/api/v1/investment/instruments` | — | — | `ApiResponse<List<InvestmentInstrumentResponse>>` | 查询当前用户的 Instrument。 |
+| `POST` | `/api/v1/investment/instruments` | — | `InvestmentInstrumentRequest` | `ApiResponse<InvestmentInstrumentResponse>` | 创建当前用户 Instrument。 |
+| `POST` | `/api/v1/investment/legacy-assets/{assetId}/migration-preview` | — | `LegacyAssetMigrationPreviewRequest` | `ApiResponse<LegacyAssetMigrationPreviewResponse>` | 对一个 Legacy Asset 进行只读 opening migration 预检和预览。 |
+| `POST` | `/api/v1/investment/legacy-assets/{assetId}/migration-confirm` | `X-Idempotency-Key` | `LegacyAssetMigrationConfirmRequest` | `ApiResponse<LegacyAssetMigrationConfirmResponse>` | 使用有效 preview token 确认一个 `OPENING_POSITION`；不改变 Account.balance。 |
+| `POST` | `/api/v1/investment/positions` | `Idempotency-Key` | `FirstBuyRequest` | `ApiResponse<InvestmentCommandResponse>` | first BUY，在同一事务中创建 transaction-driven Position、BUY 事实和最终投影。 |
+| `POST` | `/api/v1/investment/positions/{assetId}/buy` | `Idempotency-Key` | `InvestmentTradeRequest` | `ApiResponse<InvestmentCommandResponse>` | 为已有 transaction-driven Position 记录 BUY。 |
+| `POST` | `/api/v1/investment/positions/{assetId}/sell` | `Idempotency-Key` | `InvestmentTradeRequest` | `ApiResponse<InvestmentCommandResponse>` | 为已有 transaction-driven Position 记录 SELL。 |
+| `POST` | `/api/v1/investment/positions/{assetId}/dividends` | `Idempotency-Key` | `InvestmentDividendRequest` | `ApiResponse<InvestmentCommandResponse>` | 记录已实际收到的 DIVIDEND；未知字段和无效十进制字符串返回 `400`。 |
+| `POST` | `/api/v1/investment/transactions/{transactionId}/reversal` | `Idempotency-Key` | `InvestmentReversalRequest` | `ApiResponse<InvestmentReversalResponse>` | 对 BUY、SELL 或 DIVIDEND 追加 standalone reversal；原事实和 receipt 不更新、不删除。 |
+| `POST` | `/api/v1/investment/transactions/{transactionId}/replacement` | `Idempotency-Key` | 与原事实类型对应的 `BuyReplacementRequest`、`SellReplacementRequest` 或 `DividendReplacementRequest` | `ApiResponse<InvestmentReplacementResponse>` | 追加 grouped reversal 和 replacement fact；不是 generic write endpoint。 |
+
+当前投资命令使用 canonical request hash 和 immutable receipt 支持幂等重放。相同 key 且相同请求返回原有 immutable receipt；相同 key 与不同请求、业务候选冲突，以及 PostgreSQL lock timeout/deadlock 均使用既有安全 `409` 语义。内部 request hash、事实键、数据库 constraint 和 trigger 不是公开 API contract。
+
+投资事实、receipt 和 correction command 均为 append-only。reversal 与 replacement 通过 replay 生成当前 Position 真值；现有 SELL receipt 仍是 posting-time 审计快照。当前没有 Portfolio 专用 read API、InvestmentTransaction 用户查询/详情/审计时间线 API，也没有 generic InvestmentTransaction write API。
 
 ------
 
@@ -701,7 +729,8 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 
 - operation summary 是否与 Controller 一致；
 - API.md 是否与运行时 OpenAPI 一致；
-- OpenAPI 是否保持六个 Controller、六个 tag 和 24 个 operation summary；
+- tracked Controller 数量是否与当前 11 个 Controller 一致；
+- Investment command、opening migration、reversal 和 replacement 路径是否与 Controller 注解一致；
 - 是否明确区分公开接口、JWT 保护接口、业务规则文档和未来 contract tooling。
 
 ------
@@ -716,15 +745,6 @@ v1.0 已完成参数校验和 Spring Security 错误响应统一包装。
 - Known Gaps；
 - Future Evolution。
 
-当前后端已经具备认证、账户、分类、资产、Dashboard 以及 Transaction / Ledger 第一版基础 API。Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
+当前后端已经具备认证、账户、分类、资产、Dashboard、普通 Transaction / Ledger API，以及 Phase 2B 已关闭的投资 Instrument、opening migration、BUY、SELL、DIVIDEND、standalone reversal 和 replacement 命令 API。普通 Transaction / Ledger API 已落地 `INCOME`、`EXPENSE`、`ADJUSTMENT` 的基础 CRUD、分页查询、用户隔离和账户余额联动；`TRANSFER` / `REFUND` 当前明确返回 `400`，不作为已实现能力。
 
-OpenAPI / Swagger 已在 v1.3 完成，当前 API 基线已经包含运行时接口文档。后续重点仍是完整 `TRANSFER` / `REFUND` 模型、分类更新删除、资产完整更新、并发余额更新策略、分类管理页面，以及 OpenAPI schema diff、客户端 SDK 生成和文档 artifact 发布等配套能力。
-# Phase 2A concurrency note
-
-Missing or cross-user locked resources return 404. An inactive new target returns 400. Lock timeout and deadlock-victim errors return a sanitized 409; normal lock waits that complete in time remain successful. Success payloads are unchanged and clients choose whether to retry.
-# Phase 2B-2 API boundary
-
-Phase 2B-2 deliberately exposes no public Instrument API, Position API, or InvestmentTransaction write API. Its Instrument command and Account/Instrument binding validation are internal services only. Opening Migration and Account.balance coupling are also not exposed or implemented.
-# Phase 2B-3 API update
-
-JWT-protected `GET/POST /api/v1/investment/instruments` provides explicit Instrument selection. `POST /api/v1/investment/legacy-assets/{assetId}/migration-preview` is read-only and accepts `instrumentId` and `accountId`. `POST /api/v1/investment/legacy-assets/{assetId}/migration-confirm` accepts a signed preview token and requires `X-Idempotency-Key`. It is the only public opening write path; no public BUY/SELL/DIVIDEND API is introduced.
+OpenAPI / Swagger 已在 v1.3 完成，当前 API 基线包含运行时接口文档和 11 个 tracked Controller。Phase 2B 已关闭；Portfolio read API、InvestmentTransaction 用户查询/详情/审计时间线和投资前端仍未实现，并将由后续 `v3.0 Phase 2C-1 — Investment Read Model Contract` 先冻结只读语义。本文档不将该阶段写成已开始或已实现。
