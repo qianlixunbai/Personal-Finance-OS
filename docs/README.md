@@ -1,7 +1,8 @@
 # 文档中心
 
 > **Phase 2B：CLOSED — GO**
-> **Phase 2C-1：NOT STARTED**
+> **Phase 2C-1：CLOSED — GO（仅契约）**
+> **Investment read API / frontend：NOT STARTED**
 
 本目录以当前实现为准。阅读顺序建议为：根 README → [项目愿景](Project%20Vision.md) → [路线图](Roadmap.md) → 冻结架构与 ADR → Database/API → 业务与金融规则 → 开发/部署指南 → 当前阶段 Closing Review。
 
@@ -20,12 +21,13 @@
 ## ADR 与阶段验收
 
 - 账户并发与锁：[ADR-008](ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md)
-- 投资演进：[ADR-007](ADR/ADR-007-investment-ledger-foundation.md) 至 [ADR-014](ADR/ADR-014-append-only-investment-transaction-replacement.md)
+- 投资演进：[ADR-007](ADR/ADR-007-investment-ledger-foundation.md) 至 [ADR-015](ADR/ADR-015-investment-read-model-contract.md)
 - [Phase 2A](review/V3.0-Phase2A-Closing-Review.md)、[2B-1](review/V3.0-Phase2B-1-Closing-Review.md)、[2B-2](review/V3.0-Phase2B-2-Closing-Review.md)、[2B-3](review/V3.0-Phase2B-3-Closing-Review.md)
 - [2B-4A](review/V3.0-Phase2B-4A-Closing-Review.md)、[2B-4B](review/V3.0-Phase2B-4B-Closing-Review.md)、[2B-5A](review/V3.0-Phase2B-5A-Closing-Review.md)、[2B-5B-1](review/V3.0-Phase2B-5B-1-Closing-Review.md)、[2B-5B-2](review/V3.0-Phase2B-5B-2-Closing-Review.md)
 - [Phase 2B 聚合 Closing Review](review/V3.0-Phase2B-Closing-Review.md)
+- Phase 2C-1：[读取模型契约](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)、[ADR-015](ADR/ADR-015-investment-read-model-contract.md)、[Closing Review](review/V3.0-Phase2C-1-Closing-Review.md)
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Portfolio read API 与投资前端仍未实现。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C-1 已冻结读取契约，但 Portfolio read API 与投资前端仍未实现。
 
 ## 文档语言与治理
 

@@ -12,7 +12,8 @@ Personal Finance OS 以 Web 为主要使用方式，由用户自主维护账户�
 
 ```text
 v3.0 Phase 2B Investment Write Foundation：CLOSED — GO
-Phase 2C-1 Investment Read Model Contract：NOT STARTED
+Phase 2C-1 Investment Read Model Contract：CLOSED — GO
+Investment read API / frontend：NOT STARTED
 ```
 
 当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。完整功能边界见根 [README](../README.md)，历史验收证据见 [Phase 2B Closing Review](review/V3.0-Phase2B-Closing-Review.md)。
@@ -27,20 +28,24 @@ Phase 2C-1 Investment Read Model Contract：NOT STARTED
 | v3.0 Phase 1 | CLOSED — GO | 投资账本基础 | [Phase 1 Review](review/V3.0-Phase1-Closing-Review.md) |
 | v3.0 Phase 2A | CLOSED — GO | 账户余额并发安全 | [Phase 2A Review](review/V3.0-Phase2A-Closing-Review.md) |
 | v3.0 Phase 2B | CLOSED — GO | 投资写路径 | [Phase 2B Review](review/V3.0-Phase2B-Closing-Review.md) |
+| v3.0 Phase 2C-1 | CLOSED — GO | 投资读取模型契约 | [Phase 2C-1 Review](review/V3.0-Phase2C-1-Closing-Review.md) |
 
 各阶段当时的范围、测试数字、风险和 GO / NO-GO 结论以对应 Closing Review 为准，不用当前结果覆盖历史证据。
 
-## 4. 当前下一阶段
+## 4. Phase 2C-1 契约关闭
 
-`Phase 2C-1 Investment Read Model Contract` 尚未冻结、尚未实现。本阶段只用于定义候选读取语义，包括：
+`Phase 2C-1 Investment Read Model Contract` 已冻结并关闭。冻结内容包括：
 
 - Portfolio read semantics 与 Position summary；
 - `InvestmentTransaction` 查询语义；
 - correction / audit timeline；
-- 当前值与历史回放的边界；
-- 分页、排序、用户隔离和金额格式。
+- 当前值与历史回执的边界；
+- 分页、排序、用户隔离和金额格式；
+- 默认逻辑事件与独立审计时间线的分层。
 
-本路线图不定义具体 endpoint，也不提前修改 API、SRS、数据库或代码。
+完整契约见 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md) 与 [ADR-015](ADR/ADR-015-investment-read-model-contract.md)。本阶段没有实现 endpoint、DTO、SQL、前端或数据库变化，当前代码能力不变。
+
+读取 API 实现阶段尚未开始；本路线图不擅自为其命名新的 Phase 编号。
 
 ## 5. Phase 2C 后续候选
 

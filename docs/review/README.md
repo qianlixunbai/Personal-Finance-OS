@@ -8,5 +8,6 @@
 - v2.x Market Data / Valuation：[V2.0](V2.0-Closing-Review.md)、[V2.1](V2.1-Closing-Review.md)
 - v3.0 Investment：[Phase 1](V3.0-Phase1-Closing-Review.md)、[Phase 2A 并发安全](V3.0-Phase2A-Closing-Review.md)、[2B-1 投影安全与精度](V3.0-Phase2B-1-Closing-Review.md)、[2B-2 Instrument 与账户绑定](V3.0-Phase2B-2-Closing-Review.md)、[2B-3 Legacy Opening Migration](V3.0-Phase2B-3-Closing-Review.md)、[2B-4A BUY / SELL 写路径](V3.0-Phase2B-4A-Closing-Review.md)、[2B-4B DIVIDEND 写路径](V3.0-Phase2B-4B-Closing-Review.md)、[2B-5A 追加式冲正](V3.0-Phase2B-5A-Closing-Review.md)、[2B-5B-1 替换命令封装与重放基础](V3.0-Phase2B-5B-1-Closing-Review.md)、[2B-5B-2 替换写路径](V3.0-Phase2B-5B-2-Closing-Review.md)
 - [Phase 2B 聚合 Closing Review](V3.0-Phase2B-Closing-Review.md)
+- [Phase 2C-1 Investment Read Model Contract Closing Review](V3.0-Phase2C-1-Closing-Review.md)
 
 当前状态请看 [文档中心](../README.md)；重大架构决策请看 [ADR](../ADR/)。

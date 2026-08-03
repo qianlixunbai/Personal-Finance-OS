@@ -1,6 +1,6 @@
 # 当前产品需求基线
 
-> 覆盖至 `v3.0 Phase 2B` 正式关闭；`Phase 2C-1` 尚未开始。
+> 覆盖至 `v3.0 Phase 2B` 实现基线；`Phase 2C-1` 读取模型契约已冻结，读取实现尚未开始。
 
 ## 已实现需求
 
@@ -14,7 +14,9 @@
 
 ## 已规划但未实现
 
-Portfolio read API、InvestmentTransaction 用户时间线、投资前端、`TRANSFER` / `REFUND`、历史收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、AI Agent 与原生移动端。
+投资读取模型契约已通过 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md) 与 [ADR-015](ADR/ADR-015-investment-read-model-contract.md) 冻结。Portfolio、Position、InvestmentTransaction 查询、审计时间线和投资前端仍未实现，当前 API 与前端能力没有变化。
+
+其他未实现能力包括 `TRANSFER` / `REFUND`、历史收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、AI Agent 与原生移动端。
 
 ## 明确排除
 
