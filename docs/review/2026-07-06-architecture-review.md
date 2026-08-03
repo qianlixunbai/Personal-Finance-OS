@@ -1,10 +1,10 @@
-# Architecture Review（2026-07-06）
+# 架构审查（2026-07-06）
 
-## Review 目标
+## 审查目标
 
 对 `docs/03-Architecture/Architecture.md` 进行冻结前 Review，确认其是否满足当前阶段的架构设计要求。
 
-## Review 范围
+## 审查范围
 
 本次 Review 仅覆盖架构文档本身，包括：
 

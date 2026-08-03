@@ -1,14 +1,14 @@
-# API Review
+# API 审查
 
-## Review Object
+## 审查对象
 
 `docs/03-Architecture/API.md`
 
-## Review Status
+## 审查状态
 
-Passed with minor revisions
+通过，含少量修订
 
-## Review Scope
+## 审查范围
 
 本次 Review 覆盖：
 
@@ -22,7 +22,7 @@ Passed with minor revisions
 - `/categories/init` 的长期边界风险；
 - Target v1.0 API Design 是否避免被误解为当前 Sprint 必须全部实现。
 
-## Minor Revisions Applied
+## 已完成的小修
 
 已完成的小修：
 
@@ -31,7 +31,7 @@ Passed with minor revisions
 - 在 Error Handling 与 Known Gaps 中补充参数校验相关异常类型：`MethodArgumentNotValidException`、`ConstraintViolationException`、`MissingServletRequestParameterException`、`HttpMessageNotReadableException` 当前尚未统一包装为 `ApiResponse`。
 - 在 Target v1.0 API Design 中补充说明：Target v1.0 API Design 表示目标方向，不代表当前 Sprint 必须一次性全部实现。
 
-## Transaction / Ledger API Review
+## Transaction / Ledger API 审查
 
 关联提交：
 
@@ -84,7 +84,7 @@ Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
 4. Controller 层测试待补。
 5. 前端尚未接入 Transaction / Ledger API。
 
-## Review Findings
+## 审查发现
 
 当前未发现阻塞性 API 文档问题。
 
@@ -95,7 +95,7 @@ Tests run: 20, Failures: 0, Errors: 0, Skipped: 0
 3. Target v1.0 API Design 中的接口仅表示目标方向，后续仍需结合 Sprint 范围拆分实现。
 4. Transaction / Ledger API 第一版已落地基础 CRUD，但 `TRANSFER` / `REFUND`、并发余额更新和前端接入仍需后续补齐。
 
-## Review Conclusion
+## 审查结论
 
 `API.md` 当前可作为 Personal Finance OS 后续 API Review、Controller 补齐、DTO 演进、前端接入分页、错误处理收敛和 v1.0 API 设计完善的基线。
 

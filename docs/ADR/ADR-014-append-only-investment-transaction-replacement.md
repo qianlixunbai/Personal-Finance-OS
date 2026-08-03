@@ -1,25 +1,25 @@
-# ADR-014: Append-Only Investment Transaction Replacement
+# ADR-014：追加式投资交易替换
 
-## Status
+## 状态
 
-Accepted
+Accepted（已接受）
 
-## Decision
+## 最终决策
 
-A replacement is one immutable correction command, one grouped `REVERSAL` fact, and one replacement fact of the original `BUY`, `SELL`, or `DIVIDEND` type. Original facts are never updated. There is no standalone `REPLACEMENT` transaction type, no copied external idempotency key on facts, and no 5B-2 write API in this decision.
+一次 replacement 由一条不可变纠正命令、一条分组 `REVERSAL` 事实和一条与原始 `BUY`、`SELL` 或 `DIVIDEND` 类型相同的替换事实组成。原始事实永不更新。本决策不定义独立的 `REPLACEMENT` transaction type，不在事实中复制外部幂等键，也不提供 5B-2 写 API。
 
-The correction command owns the external idempotency key and request hash. It is inserted only after the two facts, account mutation, second replay, and projection update have succeeded. Its presence therefore means a complete immutable command; neither `PENDING` nor a recoverable command status exists. Deferred composite fact-to-command and command-to-fact foreign keys, plus a deferred completion trigger, allow this facts-first / command-last order while requiring one same-user pair with a single original binding.
+纠正命令拥有外部幂等键和 request hash。只有两条事实、账户变更、第二次 replay 与投影更新全部成功后才插入该命令。因此，命令存在就表示一项完整、不可变的命令；不存在 `PENDING` 或可恢复的命令状态。延迟检查的事实到命令、命令到事实复合外键，加上延迟完成 trigger，使事实优先、命令最后的顺序成为可能，同时要求同一用户的一对事实只能绑定一个原始事实。
 
-Grouped reversals retain original monetary audit values, reversal cash delta, and reason, but their legacy final-receipt columns are all `NULL`: they do not claim a projection state that was never committed. Standalone reversals retain the V12 complete receipt semantics.
+分组冲正保留原始金额审计值、冲正现金增量与原因，但其旧版最终回执列全部为 `NULL`：它们不声称存在一个从未提交的投影状态。独立冲正继续保留 V12 的完整回执语义。
 
-Replacement facts use `replay_anchor_transaction_id = original.id` and `replay_sequence = 1`; ordinary facts have a null anchor and sequence zero. Grouped reversals have no replay anchor and sequence zero. A replacement inherits the original type, currency, trade time, and settlement time. Correction facts cannot become a later correction's original. The command's `createdAt` is the real time of the correction; it is never backdated to the original posting time.
+替换事实使用 `replay_anchor_transaction_id = original.id` 与 `replay_sequence = 1`；普通事实的 anchor 为空且 sequence 为零；分组冲正没有 replay anchor，sequence 也为零。Replacement 继承原始事实的类型、币种、trade time 与 settlement time。纠正事实不能成为后续纠正的原始事实。命令的 `createdAt` 是实际纠正时间，绝不回填为原始入账时间。
 
-The canonical replay key is `(effectiveTradeTime, effectiveAnchorId, replaySequence, fact.id)`, where a replacement's effective trade time and anchor come from the original fact. The reversed original is excluded and reversals are never calculator inputs. This preserves the original logical slot even when a replacement has a larger physical ID. Ordinary facts at the same timestamp continue to use their original fact ID as the stable ordering tie-breaker.
+规范 replay key 为 `(effectiveTradeTime, effectiveAnchorId, replaySequence, fact.id)`；replacement 的 effective trade time 与 anchor 来自原始事实。被冲正的原始事实会被排除，冲正事实永不作为 calculator 输入。即使替换事实具有更大的物理 ID，这也能保留原始逻辑位置。同一时间戳下的普通事实继续使用原始事实 ID 作为稳定的顺序决胜字段。
 
-Candidate replay and the second replay compare the ordered logical fact trace, anchor, replay sequence, type, quantity, total cost, average cost, cumulative realized PnL, each SELL's released cost and realized PnL, the replacement amounts and cash results, the final Position, and the canonical replay digest. Replay records these deterministic effective trace steps. Its SHA-256 digest serializes normalized monetary values with `toPlainString()` and excludes `createdAt`, correction group ids, and physical replacement IDs. The digest describes business replay, not storage randomness.
+候选 replay 与第二次 replay 会比较有序逻辑事实轨迹、anchor、replay sequence、type、quantity、total cost、average cost、累计 realized PnL、每个 SELL 的 released cost 与 realized PnL、替换金额和现金结果、最终 Position 以及规范 replay digest。Replay 会记录这些确定性的有效轨迹步骤。其 SHA-256 digest 使用 `toPlainString()` 序列化规范化金额，并排除 `createdAt`、纠正组 ID 和替换事实的物理 ID。该 digest 描述业务 replay，而不是存储随机性。
 
-Existing SELL released cost, realized PnL, and receipts remain immutable posting-time audit snapshots. Corrected current truth is expressed by complete replay and the Asset projection; the correction command envelope expresses the completed replacement outcome.
+现有 SELL 的 released cost、realized PnL 与回执继续作为不可变的入账时审计快照。纠正后的当前真值由完整 replay 与 Asset 投影表达；纠正命令封装表达已完成的替换结果。
 
-## Consequences
+## 影响
 
-PostgreSQL validates binding, pair completeness, type/currency/time inheritance, command receipt completeness, immutable facts, immutable commands, and the canonical replay anchor shape. Java remains responsible for business replay legality such as oversell. Candidate/second-replay comparison and the actual replacement write path are deferred to Phase 2B-5B-2.
+PostgreSQL 校验绑定、配对完整性、类型 / 币种 / 时间继承、命令回执完整性、事实不可变性、命令不可变性以及规范 replay anchor 形状。Java 继续负责超卖等业务 replay 合法性。候选 / 第二次 replay 比较以及实际 replacement 写路径推迟到 Phase 2B-5B-2。

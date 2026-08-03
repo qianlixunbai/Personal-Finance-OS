@@ -26,3 +26,11 @@
 - [Phase 2B 聚合 Closing Review](review/V3.0-Phase2B-Closing-Review.md)
 
 Opening migration 与 investment write path 已在 Phase 2B 实现；Portfolio read API 与投资前端仍未实现。
+
+## 文档语言与治理
+
+- `zh-cn` 分支的当前活文档、ADR 和 Closing Review 以简体中文为主；
+- 类名、字段、API、SQL、命令、正式阶段名称和标准技术术语可以保留英文；
+- 历史文档的语言统一只改变叙述表达，不改变测试数字、HEAD、SHA、风险或阶段结论；
+- README 负责项目展示，Database / API / Rules 负责当前技术查证，ADR 负责长期决策，Closing Review 负责验收证据；
+- 临时 Agent 执行计划不作为长期正式文档，失去引用后应删除或归档。

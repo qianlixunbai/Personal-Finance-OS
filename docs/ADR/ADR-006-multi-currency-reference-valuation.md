@@ -4,9 +4,9 @@
 
 **ADR 编号：** ADR-006
 
-**Title:** Multi-Currency Reference Valuation and Exchange-Rate Snapshots
+**英文标题：** Multi-Currency Reference Valuation and Exchange-Rate Snapshots
 
-**Status:** Accepted
+**状态：** Accepted（已接受）
 
 **日期：** 2026-07-19
 
@@ -14,7 +14,7 @@
 
 ---
 
-## Context
+## 背景
 
 v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但明确不修改 `Asset.currentPrice`、`Asset.marketValue` 或 Dashboard（`docs/review/V2.0-Closing-Review.md:64-68`）。v2.1 需要在保持该隔离边界的前提下，为外币行情生成 CNY 参考估值。
 
@@ -26,7 +26,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 - `Architecture.md` 已冻结；架构级变化必须通过 ADR（`docs/03-Architecture/Architecture.md:15-19`）。
 - Asset 查询已批量读取行情快照且 GET 不调用 Provider（`backend/src/main/java/com/financeos/module/asset/marketdata/service/MarketQuoteQueryService.java:42-58`）。
 
-## Current Constraints
+## 当前约束
 
 - `AccountService`、`AssetService`、`TransactionService` 在 Service 层拒绝非 CNY 输入。
 - `DashboardService` 使用 CNY Account、Asset、Transaction QueryService 的结果计算总资产。
@@ -35,7 +35,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 - `asset_prices` 存在于 V1，但没有 Entity / Mapper，不能复用为 FX 或参考估值存储。
 - v2.1 不实现完整投资交易模型、外币现金账户或 Dashboard 跨币种聚合。
 
-## Decision Drivers
+## 决策驱动因素
 
 1. 旧 CNY 数据和 API 必须零语义迁移继续工作。
 2. 原始持仓、原始行情、汇率快照和派生估值必须分离。
@@ -45,23 +45,23 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 6. 外部失败不得修改 Account、Transaction 或 Asset 人工估值。
 7. 设计必须可按独立阶段实施和验证。
 
-## Considered Options
+## 备选方案
 
-### Option A：完整多币种账本
+### 方案 A：完整多币种账本
 
 开放 Account、Transaction、Asset 和用户基础币种配置，并改造余额联动与 Dashboard。该方案需要汇兑交易、历史汇率口径、跨币种转账、数据回填和大规模兼容测试，超出 v2.1 安全范围。
 
-### Option B：外币资产参考估值
+### 方案 B：外币资产参考估值
 
 保持账本和人工估值为 CNY，保存原始行情与最新成功 FX 快照，请求时生成 CNY 参考估值。该方案不修改核心表语义，可复用 v2.0 刷新模式，并能独立测试。
 
-### Option C：外币资产正式估值
+### 方案 C：外币资产正式估值
 
 把 Asset 成本、价格和市值改为原生币种，并让 Dashboard 使用折算值。该方案会重新解释既有字段，引入回填和双重存储一致性风险，不适合 v2.1。
 
-## Decision
+## 最终决策
 
-选择 **Option B：外币资产参考估值**。
+选择 **方案 B：外币资产参考估值**。
 
 - v2.1 系统基础币种继续固定为 CNY，不开放用户配置。
 - Account 与 Transaction 继续只允许 CNY。
@@ -74,11 +74,11 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 
 本 ADR 已在 Phase 1 FX Foundation 的 migration、持久化边界与 PostgreSQL 测试通过后转为 `Accepted`。Phase 2 的内部 refresh workflow 已实现并通过最终验证；随后 Phase 3 Reference Valuation Backend 和 Phase 4 Assets UI 也已完成并通过验收。`Accepted` 表示架构决策生效，v2.1 的最终关闭状态另见 Closing Review。
 
-## Base Currency
+## 基础币种
 
 基础币种固定为 `CNY`。原因是 Account 余额、Transaction 余额联动、Asset 人工估值与 Dashboard 已形成同一 CNY 口径。用户可配置基础币种将把参考估值问题扩大为完整多币种账本问题。
 
-## Currency Semantics
+## 币种语义
 
 | 数据 | 币种语义 | 数据类别 |
 |---|---|---|
@@ -93,7 +93,7 @@ v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但�
 
 禁止把 USD 行情或 USD 市值写入现有 Asset 人工字段，也禁止让前端自行完成跨币种聚合。
 
-## Exchange Rate Direction
+## 汇率方向
 
 采用直接、不可歧义的方向：
 
@@ -107,7 +107,7 @@ rate = 7.25
 
 v2.1 估值只解析 `quoteCurrency/CNY`。不存储反向倒数；`CNY/CNY` 由服务返回固定 `1`，不写入数据库。
 
-## Data Model
+## 数据模型
 
 Phase 1 计划新增 `V3__exchange_rates.sql`，只创建 `exchange_rates`：
 
@@ -127,7 +127,7 @@ Phase 1 计划新增 `V3__exchange_rates.sql`，只创建 `exchange_rates`：
 
 只保存最新成功快照。upsert 仅在新 `rate_time` 更晚，或 `rate_time` 相同但 `fetched_at` 更新时覆盖。失败响应、非正 rate、币种不匹配或时间缺失不得覆盖旧快照。
 
-## Reference Valuation Formula
+## 参考估值公式
 
 ```text
 nativeMarketValue = quantity × quotePrice
@@ -136,7 +136,7 @@ baseCurrencyMarketValue = nativeMarketValue × fxRateToCny
 
 当 `quoteCurrency = CNY` 时使用系统恒等汇率 `1`。缺少行情或所需 FX 时不生成 CNY 金额；存在过期快照时允许计算，但必须标记为 `STALE` 并返回结构化 warning。
 
-## Precision and Rounding
+## 精度与舍入
 
 - quantity 沿用 `DECIMAL(18,8)`。
 - quote price 沿用 `NUMERIC(20,8)`。
@@ -146,7 +146,7 @@ baseCurrencyMarketValue = nativeMarketValue × fxRateToCny
 - 最终 `baseCurrencyMarketValue` 使用 `setScale(2, RoundingMode.HALF_UP)`。
 - 前端只格式化后端结果，不重算公式。
 
-## API Boundary
+## API 边界
 
 - 普通 Asset GET 只读取数据库快照并计算，不调用 Provider。
 - `AssetResponse` 可新增向后兼容的 nullable `referenceValuation` 嵌套字段；list/page 必须批量读取行情和去重后的货币对。
@@ -154,13 +154,13 @@ baseCurrencyMarketValue = nativeMarketValue × fxRateToCny
 - 保留现有 `POST /api/v1/assets/{id}/quote/refresh` 语义，不静默扩展为 FX 刷新。
 - 前端只能提交 Asset ID，不得提交 symbol、market、currency、rate、provider 或 API Key。
 
-## Provider Boundary
+## Provider 边界
 
 设计 `ExchangeRateProvider.fetchRate(baseCurrency, quoteCurrency)`、`ExchangeRateQuote` 与 `ExchangeRateProviderException`。Phase 2 仅实现内部 workflow；真实 Provider、价格、许可证、覆盖范围和额度仍须在 adapter 实施前独立核实，不假定 Twelve Data 适用。
 
 Provider adapter 只负责调用、校验和标准化。API Key 仅来自环境变量或 Secret Store；功能默认关闭；启用但缺 Key 时 fail-fast。401/403、429、5xx、timeout、malformed response、不支持货币对、非正 rate、时间缺失和币种不匹配均映射为内部分类，原始响应不返回客户端。
 
-## Security Boundary
+## 安全边界
 
 - 所有刷新和读取接口要求认证。
 - Service 先验证 Asset 归属；他人 Asset 返回 404。
@@ -169,7 +169,7 @@ Provider adapter 只负责调用、校验和标准化。API Key 仅来自环境�
 - single-flight 等待者不重复消费额度。
 - single-flight 与额度保护继续明确为单进程能力。
 
-## Failure Behaviour
+## 失败行为
 
 - Provider 成功且持久化成功后，才更新最新快照。
 - 刷新失败且存在旧快照：返回旧快照，标记 `STALE`，附结构化 warning。
@@ -178,17 +178,17 @@ Provider adapter 只负责调用、校验和标准化。API Key 仅来自环境�
 - 两项均不可用：返回 `UNAVAILABLE`。
 - 任何失败路径均不得修改 Asset、Account、Transaction 或 Dashboard 数据。
 
-## Dashboard Boundary
+## Dashboard 边界
 
 v2.1 四个阶段均不修改现有 Dashboard。参考估值只在 Assets 范围展示。后续如接入，应新增独立“市场参考总资产”或显式口径切换，不能替换现有人工 CNY 总资产。
 
-## Consequences
+## 影响
 
 正面影响：旧数据和 API 语义稳定；外部输入可追溯；估值与账务真值隔离；可以复用 v2.0 的缓存与失败模式；实施可拆分。
 
 代价与限制：最新快照不能重建历史估值；Asset 的“人工估值币种”和行情币种需在 UI 清晰区分；运行时计算增加少量批量查询与 CPU 成本；Provider 与 TTL 仍需实施前确认。
 
-## Rejected Alternatives
+## 被拒绝的方案
 
 - 拒绝完整多币种账本，因为会改变余额联动、交易模型与 Dashboard。
 - 拒绝把 USD 行情写入 `assets.current_price` 或 `assets.market_value`。
@@ -196,11 +196,11 @@ v2.1 四个阶段均不修改现有 Dashboard。参考估值只在 Assets 范围
 - 拒绝复用 `asset_prices`，因为其当前是未接入的历史价格表，语义与 FX 不同。
 - 拒绝 GET 或 Dashboard 隐式联网。
 
-## Migration Strategy
+## Migration 策略
 
 Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accounts`、`assets`、`transactions`、`users` 或 `market_quotes`。该 additive migration 对旧 CNY 数据无回填要求。回退功能时停止读写新表；如未来必须删除表，应通过新的 forward migration 执行，而不是修改 V3。
 
-## Testing Strategy
+## 测试策略
 
 - PostgreSQL 17 Testcontainers 验证空库 V1→V2→V3 与 V2→V3 升级。
 - 验证表、精度、CHECK、唯一键、时间类型和最新快照 upsert。
@@ -208,21 +208,21 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 - 估值覆盖精度、大数、零持仓、缺失、过期、CNY 恒等转换和用户隔离。
 - 保持现有 CNY、余额联动、Dashboard、行情不污染人工估值、GET 不调用 Provider 等回归测试不变。
 
-## Out of Scope
+## 范围外事项
 
 - 外币现金账户、外币收支、跨币种转账、汇兑流水和汇兑损益。
 - 历史汇率、历史估值、定时/自动/批量刷新和图表。
 - BUY、SELL、DIVIDEND、手续费、税费和实现盈亏。
 - Dashboard 参考总资产、用户基础币种配置、更多市场与分布式协调。
 
-## Open Questions
+## 待确认问题
 
 1. Phase 2 使用哪个 FX Provider，其许可证、报价方向、额度和覆盖范围是否满足需求？
 2. FX 默认 TTL 是否采用 1 小时，以及最终额度默认值应如何匹配 Provider 套餐？
 3. `referenceValuation` 是否在 Phase 3 即加入 Asset list/page，还是到 Phase 4 UI 一并开放？推荐 Phase 3 完成批量后端能力，Phase 4 才由 UI 消费。
 4. Phase 4 原生币种市值的展示小数位是否按币种规则配置，还是统一最多 8 位？
 
-## Approval
+## 审批记录
 
 - 提出时间：2026-07-19
 - 接受日期：2026-07-19

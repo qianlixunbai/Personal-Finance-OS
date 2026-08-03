@@ -1,14 +1,14 @@
-# Database Review
+# 数据库审查
 
-## Review Object
+## 审查对象
 
 docs/03-Architecture/Database.md
 
-## Review Status
+## 审查状态
 
-Passed with minor revisions
+通过，含少量修订
 
-## Review Scope
+## 审查范围
 
 本次 Review 覆盖：
 
@@ -22,7 +22,7 @@ Passed with minor revisions
 - Dashboard / Analytics 不保存人工统计结果
 - Future Evolution 边界
 
-## Minor Revisions Applied
+## 已完成的小修
 
 本次小修已完成：
 
@@ -32,7 +32,7 @@ Passed with minor revisions
 - 补充 users.status / accounts.status 当前仍为 VARCHAR，尚无 CHECK 约束
 - 补充 UNIQUE(symbol, price_date) 通常已支持组合查询，无需重复普通索引
 
-## Review Conclusion
+## 审查结论
 
 Database.md 可以作为后续 schema 修正、migration 规划和 API.md 设计的上游依据。
 
@@ -43,7 +43,7 @@ Database.md 可以作为后续 schema 修正、migration 规划和 API.md 设计
 - Entity / Mapper 暂未修改
 - 当前 Known Gaps 应作为后续 Review issue 或 ADR 候选项处理
 
-## Follow-up Items
+## 后续事项
 
 后续待处理：
 

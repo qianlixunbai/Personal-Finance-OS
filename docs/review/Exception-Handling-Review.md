@@ -1,8 +1,8 @@
-# Exception Handling Review
+# 异常处理审查
 
 本文档用于记录 v1.0 阶段统一异常处理补强的背景、处理范围、验证结果与后续建议。
 
-## 1. Review 背景
+## 1. 审查背景
 
 在 API 基线文档与后端实现 Review 中，参数校验相关异常被识别为 Known Gap。
 
