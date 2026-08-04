@@ -6,9 +6,9 @@
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
 
-> **当前阶段：** `v3.0 Phase 2C-1 Investment Read Model Contract：CLOSED — GO`
+> **当前阶段：** `v3.0 Phase 2C-2A Internal Investment Read Foundation：CLOSED — GO`
 >
-> **下一阶段：** `Investment read API / frontend：NOT STARTED`
+> **下一阶段：** `Public investment read API / frontend：NOT STARTED`
 
 Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
 
@@ -217,13 +217,13 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 
 - [文档中心](docs/README.md)｜[项目愿景](docs/Project%20Vision.md)｜[需求规格](docs/SRS.md)｜[路线图](docs/Roadmap.md)
 - [冻结架构](docs/03-Architecture/Architecture.md)｜[数据库基线](docs/03-Architecture/Database.md)｜[API 契约](docs/03-Architecture/API.md)
-- [Phase 2C-1 读取模型契约](docs/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)｜[ADR-015](docs/ADR/ADR-015-investment-read-model-contract.md)｜[Closing Review](docs/review/V3.0-Phase2C-1-Closing-Review.md)
+- [Phase 2C-1 读取模型契约](docs/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)｜[ADR-015](docs/ADR/ADR-015-investment-read-model-contract.md)｜[2C-1 Review](docs/review/V3.0-Phase2C-1-Closing-Review.md)｜[2C-2A Review](docs/review/V3.0-Phase2C-2A-Closing-Review.md)
 - [业务规则](docs/Business%20Rules.md)｜[金融规则](docs/Financial%20Rules.md)
 - [开发指南](docs/Development-Guide.md)｜[完成定义](docs/Definition%20of%20Done.md)｜[代码审查清单](docs/Code%20Review%20Checklist.md)
 - [ADR](docs/ADR/)｜[阶段 Review](docs/review/)｜[项目结构](docs/项目结构.md)
 
 ## 下一阶段与未实现能力
 
-`Phase 2C-1 Investment Read Model Contract` 已关闭并获得 GO；本阶段只冻结读取语义、候选 API、字段与审计边界，没有新增运行时能力。Investment read API 和前端仍为 `NOT STARTED`。
+`Phase 2C-1 Investment Read Model Contract` 与 `Phase 2C-2A Internal Investment Read Foundation` 已关闭并获得 GO。后端现已具备内部 Position list 与 logical transaction list 查询、logical correction 折叠和稳定 cursor 基础；这些 Service 尚未通过公开 Controller 暴露。
 
-当前没有 Portfolio read API、InvestmentTransaction 列表/详情/审计时间线、投资前端或 Position 纠正 UI；也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
+当前没有公开 Portfolio read API、InvestmentTransaction 列表/详情/审计时间线 API、投资前端或 Position 纠正 UI；也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。

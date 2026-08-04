@@ -1,6 +1,6 @@
 # API 当前契约
 
-本文记录 `zh-cn` 当前公开 Controller 的可查阅契约。实现事实来自 11 个 Controller、DTO、Security 配置和异常映射；未来 Phase 2C-1 路径不得从本文提前推导。
+本文记录 `zh-cn` 当前公开 Controller 的可查阅契约。实现事实来自 11 个 Controller、DTO、Security 配置和异常映射；Phase 2C-2A 的内部读取 Service 尚未形成公开 API，不得从内部类直接外推 endpoint。
 
 ## 1. 通用约定
 
@@ -248,6 +248,6 @@ BUY、SELL 与 DIVIDEND 返回：
 - generic investment write endpoint；
 - original fact 的 PUT/PATCH/DELETE；
 - Position detail/correction UI contract；
-- Phase 2C-1 的预定义 endpoint。
+- Phase 2C-1 候选路径对应的公开 endpoint。
 
-这些能力必须在后续范围中先定义 contract，再实施；不得从现有写接口或数据库表名直接外推。
+Phase 2C-1 已冻结 contract，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础；公开 Controller、认证参数绑定与 OpenAPI 仍须在后续范围中实施，不得从内部 Service 或数据库表名直接外推。
