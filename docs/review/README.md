@@ -11,5 +11,6 @@
 - [Phase 2C-1 Investment Read Model Contract Closing Review](V3.0-Phase2C-1-Closing-Review.md)
 - [Phase 2C-2A Internal Investment Read Foundation Closing Review](V3.0-Phase2C-2A-Closing-Review.md)
 - [Phase 2C-2B Portfolio & Position Read API Closing Review](V3.0-Phase2C-2B-Closing-Review.md)
+- [Phase 2C-2C Transaction & Audit Read API Closing Review](V3.0-Phase2C-2C-Closing-Review.md)
 
 当前状态请看 [文档中心](../README.md)；重大架构决策请看 [ADR](../ADR/)。

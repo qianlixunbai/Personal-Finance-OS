@@ -6,9 +6,9 @@
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
 
-> **当前阶段：** `v3.0 Phase 2C-2B Portfolio & Position Read API：CLOSED — GO`
+> **当前阶段：** `v3.0 Phase 2C-2C Transaction & Audit Read API：CLOSED — GO`
 >
-> **下一阶段：** `v3.0 Phase 2C-2C Transaction & Audit Read API：NOT STARTED`
+> **下一阶段：** `v3.0 Phase 2C-3 Investment Read Frontend：NOT STARTED`
 
 Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
 
@@ -127,6 +127,7 @@ flowchart TD
 - 加权平均成本、全历史 replay、Position 关闭与重新打开；
 - standalone reversal 与 same-type replacement correction；
 - immutable receipt、request hash、幂等恢复和 append-only audit。
+- Portfolio、Position 列表/详情，以及 logical transaction 列表/详情和 audit timeline 只读 API。
 
 ## 技术栈与数据边界
 
@@ -145,16 +146,16 @@ flowchart TD
 
 ## 测试与工程验证
 
-| 验证项 | Phase 2B 关闭基线 |
+| 验证项 | Phase 2C-2C 关闭证据 |
 | --- | --- |
-| 后端自动化测试 | 92 suites / 496 tests |
+| 后端自动化测试 | 98 suites / 540 tests |
 | failures / errors | 0 / 0 |
 | 数据库 | PostgreSQL 17.10 |
 | Migration | Flyway V13 |
-| Replacement 并发套件 | 13/13，连续两次 |
+| Transaction PostgreSQL 聚焦套件 | 18/18，连续两次 |
 | Closing Review | GO，P0/P1 = 0 |
 
-以上是 Phase 2B 关闭时记录的历史验证基线，不是本轮 Markdown 修改重新运行后的实时统计。完整证据见 [Phase 2B 聚合 Closing Review](docs/review/V3.0-Phase2B-Closing-Review.md)。
+以上是 Phase 2C-2C 关闭时记录的验证快照；完整命令、语义断言和环境见 [Phase 2C-2C Closing Review](docs/review/V3.0-Phase2C-2C-Closing-Review.md)。
 
 当前 `zh-cn` 分支的 CI 会运行后端测试、前端测试/lint/build、镜像构建与 Compose 配置校验。
 
@@ -217,13 +218,13 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 
 - [文档中心](docs/README.md)｜[项目愿景](docs/Project%20Vision.md)｜[需求规格](docs/SRS.md)｜[路线图](docs/Roadmap.md)
 - [冻结架构](docs/03-Architecture/Architecture.md)｜[数据库基线](docs/03-Architecture/Database.md)｜[API 契约](docs/03-Architecture/API.md)
-- [Phase 2C-1 读取模型契约](docs/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)｜[ADR-015](docs/ADR/ADR-015-investment-read-model-contract.md)｜[2C-2A Review](docs/review/V3.0-Phase2C-2A-Closing-Review.md)｜[2C-2B Review](docs/review/V3.0-Phase2C-2B-Closing-Review.md)
+- [Phase 2C-1 读取模型契约](docs/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)｜[ADR-015](docs/ADR/ADR-015-investment-read-model-contract.md)｜[2C-2A Review](docs/review/V3.0-Phase2C-2A-Closing-Review.md)｜[2C-2B Review](docs/review/V3.0-Phase2C-2B-Closing-Review.md)｜[2C-2C Review](docs/review/V3.0-Phase2C-2C-Closing-Review.md)
 - [业务规则](docs/Business%20Rules.md)｜[金融规则](docs/Financial%20Rules.md)
 - [开发指南](docs/Development-Guide.md)｜[完成定义](docs/Definition%20of%20Done.md)｜[代码审查清单](docs/Code%20Review%20Checklist.md)
 - [ADR](docs/ADR/)｜[阶段 Review](docs/review/)｜[项目结构](docs/项目结构.md)
 
 ## 下一阶段与未实现能力
 
-`Phase 2C-2B Portfolio & Position Read API` 已关闭并获得 GO。后端现已公开 Portfolio、Position 列表与 Position 详情三个只读端点；Portfolio 仅统计 transaction-driven Position，参考估值只读取缓存 quote / FX，不改变账务真值。
+`Phase 2C-2C Transaction & Audit Read API` 已关闭并获得 GO。Phase 2C 后端现已公开 Portfolio、Position 列表/详情、logical transaction 列表/详情与 audit timeline；默认列表返回逻辑业务事件，详情和时间线以原始事实 ID 作为 `logicalTransactionId`，不会把 correction physical fact 暴露为独立逻辑交易。
 
-`Phase 2C-2C Transaction & Audit Read API` 尚未开始；InvestmentTransaction 列表/详情/审计时间线、投资前端和 Position 纠正 UI 仍未实现。系统也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
+`Phase 2C-3 Investment Read Frontend` 尚未开始；投资前端和 correction UI 仍未实现。系统也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
