@@ -227,6 +227,37 @@ a { color: inherit; }
 .reference-valuation__warnings { display: grid; gap: 6px; margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4); border: 1px solid rgba(245, 158, 11, .34); border-radius: var(--radius-sm); color: #fde68a; background: var(--color-warning-subtle); font-size: 13px; overflow-wrap: anywhere; }
 .reference-valuation-cell__value { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+.investment-workspace { display: grid; gap: var(--space-5); }
+.investment-section, .investment-detail { display: grid; gap: var(--space-4); }
+.section-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
+.section-heading h2 { margin: 0; color: var(--color-text-primary); font-size: 19px; letter-spacing: -.02em; }
+.section-heading__eyebrow { margin: 0 0 5px; color: var(--color-primary); font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-size: 10px; font-weight: 750; letter-spacing: .1em; }
+.investment-summary-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.investment-summary-grid .summary-card__value { font-size: clamp(17px, 1.4vw, 22px); }
+.investment-reference-note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; padding: 12px 14px; border: 1px solid rgba(245, 158, 11, .28); border-radius: var(--radius-sm); color: var(--color-text-secondary); background: rgba(245, 158, 11, .06); font-size: 13px; line-height: 1.55; }
+.investment-reference-note strong { color: #fcd34d; }
+.investment-reference-note ul, .investment-warnings { width: 100%; margin: 0; padding-left: 20px; color: #fde68a; }
+.investment-status-filter { width: 132px; }
+.investment-status-filter .field__label { margin-bottom: 4px; }
+.investment-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.investment-loading { display: grid; min-height: 112px; place-items: center; color: var(--color-text-secondary); font-size: 14px; }
+.investment-details { display: grid; gap: var(--space-4); }
+.investment-detail-section { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+.investment-detail-section h3, .investment-receipt h3 { margin: 0; color: var(--color-text-primary); font-size: 15px; }
+.investment-detail__note { margin: -4px 0 0; color: var(--color-text-secondary); font-size: 13px; }
+.investment-receipt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.investment-receipt { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: rgba(6, 9, 13, .36); }
+.audit-timeline { display: grid; gap: 14px; margin: 0; padding: 2px 0 0 22px; list-style: none; }
+.audit-timeline > li { position: relative; padding-left: 18px; border-left: 1px solid var(--color-border-strong); }
+.audit-timeline__marker { position: absolute; top: 4px; left: -5px; width: 9px; height: 9px; border: 2px solid var(--color-primary); border-radius: 50%; background: var(--color-page-background); }
+.audit-timeline__content { display: grid; gap: 8px; padding: 0 0 10px; }
+.audit-timeline__content > strong { color: var(--color-text-primary); }
+.audit-timeline__content > span, .audit-timeline__facts span { color: var(--color-text-tertiary); font-size: 12px; }
+.audit-timeline__content p { margin: 0; color: var(--color-text-secondary); }
+.audit-timeline__facts { display: grid; gap: var(--space-3); }
+.audit-timeline__facts > div { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-sm); }
+.badge--purple { color: #c4b5fd; border-color: rgba(139, 92, 246, .32); background: rgba(139, 92, 246, .12); }
+
 @media (min-width: 2200px) {
   .dashboard-workspace .dashboard-context > div > span,
   .dashboard-workspace .dashboard-panel__eyebrow,
@@ -280,6 +311,7 @@ a { color: inherit; }
   .cashflow-panel__metrics { gap: 7px; }
   .cashflow-metric strong { font-size: 12px; }
   .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .investment-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 768px) {
   .app-shell { display: block; min-height: 100vh; }
@@ -291,7 +323,7 @@ a { color: inherit; }
   .mobile-topbar__actions .utility-status { min-width: 20px; }
   .mobile-topbar__loaded-at { display: inline-flex; align-items: center; gap: 4px; color: var(--color-text-tertiary); font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-size: 10px; font-variant-numeric: tabular-nums; }
   .mobile-topbar__actions .user-menu__label { display: none; }
-  .mobile-bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 6; display: grid; grid-template-columns: repeat(4, 1fr); min-height: calc(60px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--color-border); background: #070b11; }
+  .mobile-bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 6; display: grid; grid-template-columns: repeat(5, 1fr); min-height: calc(60px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); border-top: 1px solid var(--color-border); background: #070b11; }
   .mobile-bottom-nav__link { display: grid; min-height: 60px; place-items: center; align-content: center; gap: 4px; color: var(--color-text-tertiary); font-size: 10px; font-weight: 650; text-decoration: none; }
   .mobile-bottom-nav__link--active { color: var(--color-primary); }
   .app-main { width: 100%; padding: 16px 16px calc(84px + env(safe-area-inset-bottom)); }
@@ -299,6 +331,10 @@ a { color: inherit; }
   .page-header__title { font-size: 23px; }
   .page-panel, .content-card { padding: 16px; }
   .summary-grid, .form-grid, .filter-grid { grid-template-columns: 1fr; }
+  .investment-summary-grid, .investment-filter-grid, .investment-receipt-grid { grid-template-columns: 1fr; }
+  .section-heading { align-items: flex-start; flex-direction: column; }
+  .investment-status-filter { width: 100%; }
+  .mobile-bottom-nav__link { min-width: 0; padding: 0 2px; font-size: 9px; }
   .dashboard-workspace { gap: 14px; }
   .dashboard-context { min-height: 34px; }
   .dashboard-context p { font-size: 17px; }

@@ -6,6 +6,7 @@ const links = [
     { to: '/', label: '仪表盘', icon: 'activity', end: true },
     { to: '/accounts', label: '账户', icon: 'accounts', end: false },
     { to: '/assets', label: '资产', icon: 'assets', end: false },
+    { to: '/investments', label: '投资', icon: 'investments', end: false },
     { to: '/transactions', label: '交易流水', icon: 'transactions', end: false },
 ] as const satisfies readonly { to: string; label: string; icon: IconName; end?: boolean }[];
 
