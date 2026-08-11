@@ -3,7 +3,8 @@
 > **Phase 2B：CLOSED — GO**
 > **Phase 2C-1：CLOSED — GO（仅契约）**
 > **Phase 2C-2A：CLOSED — GO（内部读取基础）**
-> **Public investment read API / frontend：NOT STARTED**
+> **Phase 2C-2B：CLOSED — GO（Portfolio & Position Read API）**
+> **Phase 2C-2C：NOT STARTED（Transaction & Audit Read API）**
 
 本目录以当前实现为准。阅读顺序建议为：根 README → [项目愿景](Project%20Vision.md) → [路线图](Roadmap.md) → 冻结架构与 ADR → Database/API → 业务与金融规则 → 开发/部署指南 → 当前阶段 Closing Review。
 
@@ -28,8 +29,9 @@
 - [Phase 2B 聚合 Closing Review](review/V3.0-Phase2B-Closing-Review.md)
 - Phase 2C-1：[读取模型契约](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)、[ADR-015](ADR/ADR-015-investment-read-model-contract.md)、[Closing Review](review/V3.0-Phase2C-1-Closing-Review.md)
 - Phase 2C-2A：[Internal Investment Read Foundation Closing Review](review/V3.0-Phase2C-2A-Closing-Review.md)
+- Phase 2C-2B：[Portfolio & Position Read API Closing Review](review/V3.0-Phase2C-2B-Closing-Review.md)
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C-1 已冻结读取契约，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础。公开 Portfolio / investment read API 与投资前端仍未实现。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C-1 已冻结读取契约，Phase 2C-2A 已实现内部读取基础，Phase 2C-2B 已公开 Portfolio、Position 列表和 Position 详情。Phase 2C-2C transaction/audit API 与投资前端仍未实现。
 
 ## 文档语言与治理
 

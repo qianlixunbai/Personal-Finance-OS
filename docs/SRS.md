@@ -1,6 +1,6 @@
 # 当前产品需求基线
 
-> 覆盖至 `v3.0 Phase 2C-2A` 内部读取实现基线；公开投资读取 API 与前端尚未开始。
+> 覆盖至 `v3.0 Phase 2C-2B Portfolio & Position Read API`；Phase 2C-2C transaction/audit API 与投资前端尚未开始。
 
 ## 已实现需求
 
@@ -8,6 +8,7 @@
 - Market Quote、FX 与只读 reference valuation；
 - `InvestmentInstrument`、opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement；
 - 内部 Position list、logical transaction list、logical correction 折叠与稳定 cursor 基础；
+- 公开 Portfolio、Position 列表与 Position 详情只读 API；
 - 后端权威计算、追加式审计、幂等、并发与确定性重放；
 - Flyway、Docker Compose、CI 与 PostgreSQL Testcontainers 验证基础。
 
@@ -15,7 +16,7 @@
 
 ## 已规划但未实现
 
-投资读取模型契约已通过 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md) 与 [ADR-015](ADR/ADR-015-investment-read-model-contract.md) 冻结，内部列表基础由 [Phase 2C-2A Review](review/V3.0-Phase2C-2A-Closing-Review.md) 验收。公开 Controller、Portfolio summary、详情、审计时间线和投资前端仍未实现，当前公开 API 与前端能力没有变化。
+投资读取模型契约已通过 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md) 与 [ADR-015](ADR/ADR-015-investment-read-model-contract.md) 冻结，内部列表基础由 [Phase 2C-2A Review](review/V3.0-Phase2C-2A-Closing-Review.md) 验收，Portfolio / Position API 由 [Phase 2C-2B Review](review/V3.0-Phase2C-2B-Closing-Review.md) 验收。Phase 2C-2C logical transaction 列表/详情、audit timeline 和投资前端仍未实现。
 
 其他未实现能力包括 `TRANSFER` / `REFUND`、历史收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、AI Agent 与原生移动端。
 
