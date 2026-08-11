@@ -243,17 +243,16 @@ BUY、SELL 与 DIVIDEND 返回：
 
 当前没有：
 
-- InvestmentTransaction 列表、详情、用户时间线或审计查询 API；
 - generic investment write endpoint；
 - original fact 的 PUT/PATCH/DELETE；
 - Position detail/correction UI contract；
 - 投资前端只读页面与 correction 展示。
 
-Phase 2C-1 已冻结 contract，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础；Phase 2C-2B 已公开 Portfolio 与 Position 读取端点。未实现的 transaction/audit 能力仍不得从内部 Service 或数据库表名直接外推。
+Phase 2C-1 已冻结 contract，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础；Phase 2C-2B 已公开 Portfolio 与 Position 读取端点；Phase 2C-2C 已公开 logical transaction 与 audit 读取端点。未实现能力仍不得从内部 Service 或数据库表名直接外推。
 
 ## 10. 投资读取 API（当前实现）
 
-以下 bearer-protected、只读端点已经实现：`GET /api/v1/investment/portfolio`、`GET /api/v1/investment/positions`、`GET /api/v1/investment/positions/{positionId}`。
+以下 bearer-protected、只读端点已经实现：`GET /api/v1/investment/portfolio`、`GET /api/v1/investment/positions`、`GET /api/v1/investment/positions/{positionId}`、`GET /api/v1/investment/transactions`、`GET /api/v1/investment/transactions/{logicalTransactionId}`、`GET /api/v1/investment/transactions/{logicalTransactionId}/audit-timeline`。
 
 Portfolio 只包含 transaction-driven Position，不包含 Legacy Asset、Account 现金余额、全部资产或净资产。统计值来自当前 `Asset` 持仓投影；普通 GET 不重放交易。
 
@@ -261,4 +260,8 @@ Position 列表采用 opaque cursor seek pagination，稳定顺序为 `instrumen
 
 投资读取金额使用固定 scale JSON string。Reference valuation 是非账务数据，只读取缓存 quote 与 FX：GET 不调用 Provider、不刷新或写入数据，也不获取写锁。Portfolio 的缓存估值合计排除 manual Asset price；即使估值不可用，reference 对象也仍然存在。
 
-Logical transaction 列表/详情与 audit timeline API 仍未实现。
+Logical transaction 列表以 original fact ID 作为 logicalTransactionId；默认只展示逻辑业务事件，不给 raw correction facts 单独分配列表槽位。列表使用 opaque cursor seek pagination，接受可选 `positionId`、`accountId`、`instrumentId`、`type=OPENING_POSITION|BUY|SELL|DIVIDEND`、`correctionStatus=UNCHANGED|REVERSED|REPLACED`、`from`、`to`、cursor 与 1-100 的 size。
+
+详情仅接受 logicalTransactionId；物理 reversal 或 replacement fact ID 与跨用户 ID 统一按 404 处理。详情分别返回 original business values、replacement 的 effective business values（如有）、immutable posting receipt、correction final receipt（如有），以及由受控 `Asset` projection 在请求时读取的 currentPosition；这些 receipt 不是 currentPosition 的替代品。
+
+Audit timeline 为非分页逻辑事件审计视图：UNCHANGED 只有 original posting；standalone reversal 保留 original 并追加 standalone reversal；replacement 以一个 replacement command 表示 grouped reversal 与 replacement physical fact。响应不暴露 correction group、idempotency/request hash、replay digest、projection version 或内部诊断字段。普通 GET 不调用 Provider、不刷新、不写状态，也不获取写锁。

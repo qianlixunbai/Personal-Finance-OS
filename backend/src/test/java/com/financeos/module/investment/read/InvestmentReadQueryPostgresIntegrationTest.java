@@ -9,9 +9,14 @@ import com.financeos.module.investment.read.dto.InvestmentLogicalTransactionList
 import com.financeos.module.investment.read.dto.InvestmentPositionListItem;
 import com.financeos.module.investment.read.dto.InvestmentPortfolioResponse;
 import com.financeos.module.investment.read.dto.InvestmentPositionDetail;
+import com.financeos.module.investment.read.dto.InvestmentTransactionAuditTimeline;
+import com.financeos.module.investment.read.dto.InvestmentTransactionDetail;
+import com.financeos.module.investment.read.mapper.InvestmentReadMapper;
+import com.financeos.module.investment.read.mapper.InvestmentReadRow;
 import com.financeos.module.investment.read.model.LogicalTransactionListQuery;
 import com.financeos.module.investment.read.model.PositionListQuery;
 import com.financeos.module.investment.read.service.InvestmentLogicalTransactionReadQueryService;
+import com.financeos.module.investment.read.service.InvestmentLogicalTransactionDetailQueryService;
 import com.financeos.module.investment.read.service.InvestmentPositionReadQueryService;
 import com.financeos.module.investment.read.service.InvestmentPortfolioQueryService;
 import com.financeos.module.investment.read.service.InvestmentPositionDetailQueryService;
@@ -25,8 +30,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.aop.support.AopUtils;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -53,8 +62,10 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
     @Autowired private InvestmentPortfolioQueryService portfolioService;
     @Autowired private InvestmentPositionDetailQueryService detailService;
     @Autowired private InvestmentLogicalTransactionReadQueryService transactionService;
+    @Autowired private InvestmentLogicalTransactionDetailQueryService transactionDetailService;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private ObjectMapper objectMapper;
+    @SpyBean private InvestmentReadMapper readMapper;
     @SpyBean private MarketQuoteQueryService quoteQueryService;
     @MockBean private MarketQuoteService marketQuoteRefreshService;
     @MockBean private ReferenceValuationRefreshService referenceValuationRefreshService;
@@ -206,6 +217,7 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
     @Test
     void ordinaryPortfolioListAndDetailReadsDoNotRefreshProvidersOrWriteState() {
         Fixture fixture = fixture();
+        long transactionId = insertBuy(fixture, "2026-08-01T10:00:00Z", "read-side-effects");
         Map<String, Object> before = jdbcTemplate.queryForMap("""
                 SELECT xmin::text AS row_version, quantity, avg_cost, total_cost, realized_profit_loss,
                        current_price, market_value, projection_version, last_transaction_id
@@ -218,6 +230,8 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
         portfolioService.get(fixture.userId());
         positionService.list(fixture.userId(), null);
         detailService.get(fixture.userId(), fixture.positionId());
+        transactionDetailService.get(fixture.userId(), transactionId);
+        transactionDetailService.auditTimeline(fixture.userId(), transactionId);
 
         assertThat(jdbcTemplate.queryForMap("""
                 SELECT xmin::text AS row_version, quantity, avg_cost, total_cost, realized_profit_loss,
@@ -462,6 +476,189 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
                 .extracting(InvestmentLogicalTransactionListItem::logicalTransactionId).isEqualTo(originalId);
     }
 
+    @Test
+    void transactionDetailKeepsUnchangedPostingReceiptSeparateFromCurrentPosition() {
+        Fixture fixture = fixture();
+        long originalId = insertBuy(fixture, "2026-08-01T10:00:00Z", "detail-unchanged");
+        jdbcTemplate.update("UPDATE assets SET quantity = 4.00000000, avg_cost = 12.50000000, total_cost = 50.00, realized_profit_loss = 7.00 WHERE id = ?",
+                fixture.positionId());
+
+        InvestmentTransactionDetail detail = transactionDetailService.get(fixture.userId(), originalId);
+        InvestmentTransactionAuditTimeline timeline = transactionDetailService.auditTimeline(fixture.userId(), originalId);
+
+        assertThat(detail.logicalTransactionId()).isEqualTo(originalId);
+        assertThat(detail.correctionStatus()).isEqualTo("UNCHANGED");
+        assertThat(detail.effective()).isTrue();
+        assertThat(detail.originalBusinessValues().quantity()).isEqualTo("1.00000000");
+        assertThat(detail.effectiveBusinessValues()).isNull();
+        assertThat(detail.postingReceipt().positionQuantityAfter()).isEqualTo("1.00000000");
+        assertThat(detail.currentPosition().quantity()).isEqualTo("4.00000000");
+        assertThat(detail.currentPosition().totalCost()).isEqualTo("50.00");
+        assertThat(timeline.events()).singleElement().satisfies(event -> {
+            assertThat(event.eventKind()).isEqualTo("ORIGINAL_POSTING");
+            assertThat(event.physicalFactId()).isEqualTo(originalId);
+            assertThat(event.receiptApplicability()).isEqualTo("POSTING_TIME");
+            assertThat(event.postingReceipt().positionQuantityAfter()).isEqualTo("1.00000000");
+        });
+    }
+
+    @Test
+    void transactionDetailAndTimelineRepresentStandaloneReversalWithoutReplacingOriginalValues() {
+        Fixture fixture = fixture();
+        long originalId = insertBuy(fixture, "2026-08-01T10:00:00Z", "detail-reversed");
+        Instant correctedAt = Instant.parse("2026-08-04T10:00:01Z");
+        long reversalId = insertStandaloneReversal(fixture, originalId, Instant.parse("2026-08-04T10:00:00Z"), correctedAt);
+        jdbcTemplate.update("UPDATE assets SET quantity = 2.00000000, avg_cost = 12.00000000, total_cost = 24.00 WHERE id = ?", fixture.positionId());
+
+        InvestmentTransactionDetail detail = transactionDetailService.get(fixture.userId(), originalId);
+        InvestmentTransactionAuditTimeline timeline = transactionDetailService.auditTimeline(fixture.userId(), originalId);
+
+        assertThat(detail.correctionStatus()).isEqualTo("REVERSED");
+        assertThat(detail.effective()).isFalse();
+        assertThat(detail.originalBusinessValues().netAmount()).isEqualTo("10.00");
+        assertThat(detail.postingReceipt().positionQuantityAfter()).isEqualTo("1.00000000");
+        assertThat(detail.correctionFinalReceipt().positionQuantityAfter()).isEqualTo("0.00000000");
+        assertThat(detail.correction().reversalTransactionId()).isEqualTo(reversalId);
+        assertThat(detail.correction().createdAt()).isEqualTo(correctedAt);
+        assertThat(detail.currentPosition().quantity()).isEqualTo("2.00000000");
+        assertThat(timeline.events()).extracting(InvestmentTransactionAuditTimeline.AuditEvent::eventKind)
+                .containsExactly("ORIGINAL_POSTING", "STANDALONE_REVERSAL");
+        assertThat(timeline.events().get(1)).satisfies(event -> {
+            assertThat(event.physicalFactId()).isEqualTo(reversalId);
+            assertThat(event.originalFactId()).isEqualTo(originalId);
+            assertThat(event.reason()).isEqualTo("read reversal reason");
+            assertThat(event.receiptApplicability()).isEqualTo("CORRECTION_FINAL");
+            assertThat(event.correctionFinalReceipt().positionQuantityAfter()).isEqualTo("0.00000000");
+        });
+    }
+
+    @Test
+    void transactionDetailAndTimelineKeepReplacementFactsInsideOneOriginalLogicalSlot() {
+        Fixture fixture = fixture();
+        long originalId = insertBuy(fixture, "2026-08-01T10:00:00Z", "detail-replaced");
+        Instant correctedAt = Instant.parse("2026-08-04T10:00:01Z");
+        ReplacementFacts facts = insertReplacement(fixture, originalId, correctedAt);
+        jdbcTemplate.update("UPDATE assets SET quantity = 7.00000000, avg_cost = 10.00000000, total_cost = 70.00, realized_profit_loss = 9.00 WHERE id = ?", fixture.positionId());
+
+        InvestmentTransactionDetail detail = transactionDetailService.get(fixture.userId(), originalId);
+        InvestmentTransactionAuditTimeline timeline = transactionDetailService.auditTimeline(fixture.userId(), originalId);
+
+        assertThat(detail.logicalTransactionId()).isEqualTo(originalId);
+        assertThat(detail.correctionStatus()).isEqualTo("REPLACED");
+        assertThat(detail.effective()).isTrue();
+        assertThat(detail.originalBusinessValues().quantity()).isEqualTo("1.00000000");
+        assertThat(detail.effectiveBusinessValues().quantity()).isEqualTo("3.00000000");
+        assertThat(detail.effectiveBusinessValues().netAmount()).isEqualTo("34.00");
+        assertThat(detail.postingReceipt().positionQuantityAfter()).isEqualTo("1.00000000");
+        assertThat(detail.correctionFinalReceipt().positionQuantityAfter()).isEqualTo("3.00000000");
+        assertThat(detail.correction().createdAt()).isEqualTo(correctedAt);
+        assertThat(detail.correction().reversalTransactionId()).isEqualTo(facts.reversalId());
+        assertThat(detail.correction().replacementTransactionId()).isEqualTo(facts.replacementId());
+        assertThat(detail.currentPosition().quantity()).isEqualTo("7.00000000");
+        assertThat(timeline.events()).extracting(InvestmentTransactionAuditTimeline.AuditEvent::eventKind)
+                .containsExactly("ORIGINAL_POSTING", "REPLACEMENT_COMMAND");
+        assertThat(timeline.events().get(1)).satisfies(event -> {
+            assertThat(event.createdAt()).isEqualTo(correctedAt);
+            assertThat(event.reason()).isEqualTo("read replacement reason");
+            assertThat(event.correctionFinalReceipt().positionQuantityAfter()).isEqualTo("3.00000000");
+            assertThat(event.facts()).extracting(InvestmentTransactionAuditTimeline.ReplacementPhysicalFact::role)
+                    .containsExactly("GROUPED_REVERSAL", "REPLACEMENT_FACT");
+            assertThat(event.facts().get(0).receiptApplicability()).isEqualTo("NOT_APPLICABLE");
+            assertThat(event.facts().get(0).physicalFactId()).isEqualTo(facts.reversalId());
+            assertThat(event.facts().get(1).physicalFactId()).isEqualTo(facts.replacementId());
+        });
+        assertPublicTransactionReadShape(detail, timeline);
+    }
+
+    @Test
+    void transactionDetailAndTimelineRejectPhysicalCorrectionIdsAndForeignLogicalIdsAsNotFound() {
+        Fixture fixture = fixture();
+        long originalId = insertBuy(fixture, "2026-08-01T10:00:00Z", "detail-physical-id");
+        long standaloneReversal = insertStandaloneReversal(fixture, originalId,
+                Instant.parse("2026-08-04T10:00:00Z"), Instant.parse("2026-08-04T10:00:01Z"));
+        Fixture replacementFixture = fixture();
+        long replacementOriginal = insertBuy(replacementFixture, "2026-08-01T10:00:00Z", "detail-replacement-id");
+        ReplacementFacts replacementFacts = insertReplacement(replacementFixture, replacementOriginal, Instant.parse("2026-08-04T10:00:01Z"));
+        Fixture foreign = fixture();
+
+        for (long physicalId : List.of(standaloneReversal, replacementFacts.reversalId(), replacementFacts.replacementId())) {
+            assertThatThrownBy(() -> transactionDetailService.get(fixture.userId(), physicalId))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(error -> ((BusinessException) error).getCode()).isEqualTo(404);
+            assertThatThrownBy(() -> transactionDetailService.auditTimeline(fixture.userId(), physicalId))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(error -> ((BusinessException) error).getCode()).isEqualTo(404);
+        }
+        assertThatThrownBy(() -> transactionDetailService.get(foreign.userId(), originalId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getCode()).isEqualTo(404);
+        assertThatThrownBy(() -> transactionDetailService.auditTimeline(foreign.userId(), originalId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getCode()).isEqualTo(404);
+        for (var read : List.<org.assertj.core.api.ThrowableAssert.ThrowingCallable>of(
+                () -> transactionDetailService.get(fixture.userId(), Long.MAX_VALUE),
+                () -> transactionDetailService.auditTimeline(fixture.userId(), Long.MAX_VALUE))) {
+            assertThatThrownBy(read).isInstanceOf(BusinessException.class)
+                    .extracting(error -> ((BusinessException) error).getCode()).isEqualTo(404);
+        }
+    }
+
+    @Test
+    void transactionDetailAndTimelineUseServiceProxyRepeatableReadAcrossFactAndCurrentProjection() throws Exception {
+        Fixture fixture = fixture();
+        long originalId = insertBuy(fixture, "2026-08-01T10:00:00Z", "detail-snapshot");
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        java.util.concurrent.atomic.AtomicInteger concurrentQuantity = new java.util.concurrent.atomic.AtomicInteger(9);
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            assertThat(TransactionSynchronizationManager.isCurrentTransactionReadOnly()).isTrue();
+            assertThat(TransactionSynchronizationManager.getCurrentTransactionIsolationLevel())
+                    .isEqualTo(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+            int quantity = concurrentQuantity.getAndDecrement();
+            Future<?> writer = executor.submit(() -> jdbcTemplate.update(
+                    "UPDATE assets SET quantity = ?, avg_cost = 20.00000000, total_cost = ? WHERE id = ?",
+                    new BigDecimal(quantity + ".00000000"), new BigDecimal((quantity * 20) + ".00"), fixture.positionId()));
+            writer.get(10, TimeUnit.SECONDS);
+            return selectPositionDetailRow(fixture.userId(), fixture.positionId());
+        }).when(readMapper).selectPositionDetail(fixture.userId(), fixture.positionId());
+        try {
+            assertThat(AopUtils.isAopProxy(transactionDetailService)).isTrue();
+            InvestmentTransactionDetail detail = transactionDetailService.get(fixture.userId(), originalId);
+            assertThat(detail.originalBusinessValues().quantity()).isEqualTo("1.00000000");
+            assertThat(detail.currentPosition().quantity()).isEqualTo("1.00000000");
+            assertThat(detail.currentPosition().totalCost()).isEqualTo("10.00");
+
+            jdbcTemplate.update("UPDATE assets SET quantity = 1.00000000, avg_cost = 10.00000000, total_cost = 10.00 WHERE id = ?",
+                    fixture.positionId());
+            InvestmentTransactionAuditTimeline timeline = transactionDetailService.auditTimeline(fixture.userId(), originalId);
+            assertThat(timeline.currentPosition().quantity()).isEqualTo("1.00000000");
+            assertThat(timeline.currentPosition().totalCost()).isEqualTo("10.00");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void timelineUsesStableRoleOrderingWhenEventTimesTie() {
+        Fixture fixture = fixture();
+        Instant tiedAt = Instant.parse("2026-08-04T10:00:00Z");
+        long originalId = insertBuy(fixture, tiedAt.toString(), "timeline-tie");
+        ReplacementFacts facts = insertReplacement(fixture, originalId, tiedAt);
+
+        InvestmentTransactionAuditTimeline timeline = transactionDetailService.auditTimeline(fixture.userId(), originalId);
+
+        assertThat(timeline.events()).extracting(InvestmentTransactionAuditTimeline.AuditEvent::createdAt)
+                .containsExactly(tiedAt, tiedAt);
+        assertThat(timeline.events()).extracting(InvestmentTransactionAuditTimeline.AuditEvent::eventKind)
+                .containsExactly("ORIGINAL_POSTING", "REPLACEMENT_COMMAND");
+        assertThat(timeline.events().get(1).facts())
+                .extracting(InvestmentTransactionAuditTimeline.ReplacementPhysicalFact::role)
+                .containsExactly("GROUPED_REVERSAL", "REPLACEMENT_FACT");
+        assertThat(timeline.events().get(1).facts())
+                .extracting(InvestmentTransactionAuditTimeline.ReplacementPhysicalFact::physicalFactId)
+                .containsExactly(facts.reversalId(), facts.replacementId());
+    }
+
     private Fixture fixture() {
         long userId = jdbcTemplate.queryForObject("INSERT INTO users (username, email, password_hash) VALUES (?, ?, 'hash') RETURNING id", Long.class,
                 "read-user-" + System.nanoTime(), "read-" + System.nanoTime() + "@example.com");
@@ -531,12 +728,26 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
                     gross_amount, fee_amount, tax_amount, net_amount, released_cost_amount, realized_profit_loss, currency,
                     trade_time, settlement_time, source, idempotency_key, request_hash, account_balance_after,
                     position_quantity_after, position_avg_cost_after, position_total_cost_after, position_realized_profit_loss_after,
-                    position_status_after, projection_version_after)
+                    position_status_after, projection_version_after, created_at)
                 VALUES (?, ?, ?, 'BUY', 'POSTED', 1.00000000, 10.00000000, 10.00, 0.00, 0.00, 10.00, 0.00, 0.00, 'CNY',
-                    ?, ?, 'MANUAL', ?, ?, 0.00, 1.00000000, 10.00000000, 10.00, 0.00, 'OPEN', 1)
+                    ?, ?, 'MANUAL', ?, ?, 0.00, 1.00000000, 10.00000000, 10.00, 0.00, 'OPEN', 1, ?)
                 RETURNING id
                 """, Long.class, fixture.userId(), fixture.positionId(), fixture.accountId(), Timestamp.from(Instant.parse(time)), Timestamp.from(Instant.parse(time)),
-                key + '-' + System.nanoTime(), "a".repeat(64));
+                key + '-' + System.nanoTime(), "a".repeat(64), Timestamp.from(Instant.parse(time)));
+    }
+
+    private InvestmentReadRow selectPositionDetailRow(long userId, long positionId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT a.id AS position_id, a.account_id, ac.name AS account_name, a.instrument_id,
+                       i.symbol AS instrument_symbol, i.name AS instrument_name, i.market AS instrument_market,
+                       i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency,
+                       a.position_mode, a.position_status, a.quantity, a.avg_cost AS average_cost,
+                       a.total_cost, a.realized_profit_loss AS cumulative_realized_profit_loss
+                FROM assets a
+                JOIN accounts ac ON ac.id = a.account_id AND ac.user_id = a.user_id
+                JOIN investment_instruments i ON i.id = a.instrument_id AND i.user_id = a.user_id
+                WHERE a.user_id = ? AND a.id = ? AND a.position_mode = 'TRANSACTION_DRIVEN'
+                """, BeanPropertyRowMapper.newInstance(InvestmentReadRow.class), userId, positionId);
     }
 
     private long insertStandaloneReversal(Fixture fixture, long originalId, Instant tradeTime, Instant createdAt) {
@@ -644,6 +855,13 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
         assertThat(json.toString()).doesNotContain("originalTransactionId", "reversalTransactionId", "replacementTransactionId",
                 "correctionGroupId", "correctionReason", "requestHash", "idempotencyKey", "accountBalanceAfter",
                 "positionQuantityAfter", "receipt", "digest", "trace");
+    }
+
+    private void assertPublicTransactionReadShape(InvestmentTransactionDetail detail,
+                                                  InvestmentTransactionAuditTimeline timeline) {
+        String json = objectMapper.valueToTree(List.of(detail, timeline)).toString();
+        assertThat(json).doesNotContain("correctionGroupId", "requestHash", "idempotencyKey", "replayDigest",
+                "internalTrace", "projectionVersion", "lastTransactionId", "constraintName", "stackTrace", "userId");
     }
 
     private record Fixture(long userId, long accountId, long instrumentId, long positionId) { }
