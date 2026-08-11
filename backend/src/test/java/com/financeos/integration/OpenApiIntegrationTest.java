@@ -56,6 +56,9 @@ class OpenApiIntegrationTest extends PostgresIntegrationTest {
                 "/paths/~1api~1v1~1assets~1{id}/delete",
                 "/paths/~1api~1v1~1assets~1{id}~1price/put",
                 "/paths/~1api~1v1~1assets~1{id}~1close/put",
+                "/paths/~1api~1v1~1investment~1portfolio/get",
+                "/paths/~1api~1v1~1investment~1positions/get",
+                "/paths/~1api~1v1~1investment~1positions~1{positionId}/get",
                 "/paths/~1api~1v1~1categories/get",
                 "/paths/~1api~1v1~1categories/post",
                 "/paths/~1api~1v1~1categories~1init/post",
@@ -73,7 +76,52 @@ class OpenApiIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(document.path("tags"))
                 .extracting(tag -> tag.path("name").asText())
-                .contains("User", "Account", "Asset", "Category", "Transaction", "Dashboard");
+                .contains("User", "Account", "Asset", "Category", "Transaction", "Dashboard", "Investment Read");
+        assertThat(document.at("/paths/~1api~1v1~1investment~1positions/get/parameters"))
+                .extracting(parameter -> parameter.path("name").asText())
+                .containsExactlyInAnyOrder("status", "accountId", "instrumentId", "cursor", "size");
+        JsonNode positionParameters = document.at("/paths/~1api~1v1~1investment~1positions/get/parameters");
+        assertThat(parameter(positionParameters, "cursor").path("description").asText()).containsIgnoringCase("opaque");
+        assertThat(parameter(positionParameters, "size").at("/schema/minimum").asInt()).isEqualTo(1);
+        assertThat(parameter(positionParameters, "size").at("/schema/maximum").asInt()).isEqualTo(100);
+        assertThat(document.at("/paths/~1api~1v1~1investment~1positions~1{positionId}/get/parameters"))
+                .anySatisfy(parameter -> {
+                    assertThat(parameter.path("name").asText()).isEqualTo("positionId");
+                    assertThat(parameter.path("in").asText()).isEqualTo("path");
+                    assertThat(parameter.path("required").asBoolean()).isTrue();
+                });
+        List<String> readOperations = List.of(
+                "/paths/~1api~1v1~1investment~1portfolio/get",
+                "/paths/~1api~1v1~1investment~1positions/get",
+                "/paths/~1api~1v1~1investment~1positions~1{positionId}/get");
+        readOperations.forEach(operation -> assertThat(document.at(operation + "/responses").properties().stream()
+                .map(java.util.Map.Entry::getKey).toList()).contains("200", "400", "401", "404", "500"));
+        assertThat(document.at("/components/schemas/InvestmentPortfolioResponse/properties/openTotalCost/type").asText())
+                .isEqualTo("string");
+        assertThat(document.at("/components/schemas/InvestmentPositionListItem/properties/quantity/type").asText())
+                .isEqualTo("string");
+        assertThat(document.at("/components/schemas/InvestmentPositionDetail/properties/totalCost/type").asText())
+                .isEqualTo("string");
+        String portfolioReferenceSchema = document.at(
+                "/components/schemas/InvestmentPortfolioResponse/properties/referenceValuation/$ref").asText();
+        String listReferenceSchema = document.at(
+                "/components/schemas/InvestmentPositionListItem/properties/referenceValuation/$ref").asText();
+        assertThat(portfolioReferenceSchema).isNotBlank().isNotEqualTo(listReferenceSchema);
+        assertThat(document.at(schemaPointer(portfolioReferenceSchema) + "/properties/valuedPositionCount/type").asText())
+                .isEqualTo("integer");
+        assertThat(document.at(schemaPointer(portfolioReferenceSchema) + "/properties/totalOpenPositionCount/type").asText())
+                .isEqualTo("integer");
+        String readContract = readOperations.stream().map(document::at).map(JsonNode::toString)
+                .collect(java.util.stream.Collectors.joining())
+                + document.at("/components/schemas/InvestmentPortfolioResponse")
+                + document.at("/components/schemas/InvestmentPositionListItem")
+                + document.at("/components/schemas/InvestmentPositionDetail");
+        assertThat(readContract).doesNotContain("projectionVersion", "lastTransactionId", "requestHash",
+                "idempotencyKey", "replayDigest", "correctionGroupId", "internalTrace", "constraintName",
+                "stackTrace");
+        assertThat(document.at("/paths/~1api~1v1~1investment~1transactions/get").isMissingNode()).isTrue();
+        assertThat(document.at("/paths/~1api~1v1~1investment~1transactions~1{id}/get").isMissingNode()).isTrue();
+        assertThat(document.at("/paths/~1api~1v1~1investment~1transactions~1{id}~1audit-timeline/get").isMissingNode()).isTrue();
     }
 
     @Test
@@ -81,5 +129,16 @@ class OpenApiIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("text/html"));
+    }
+
+    private JsonNode parameter(JsonNode parameters, String name) {
+        return java.util.stream.StreamSupport.stream(parameters.spliterator(), false)
+                .filter(parameter -> name.equals(parameter.path("name").asText()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private String schemaPointer(String reference) {
+        return reference.replace("#/components/schemas/", "/components/schemas/");
     }
 }

@@ -243,11 +243,22 @@ BUY、SELL 与 DIVIDEND 返回：
 
 当前没有：
 
-- Portfolio read API；
 - InvestmentTransaction 列表、详情、用户时间线或审计查询 API；
 - generic investment write endpoint；
 - original fact 的 PUT/PATCH/DELETE；
 - Position detail/correction UI contract；
-- Phase 2C-1 候选路径对应的公开 endpoint。
+- 投资前端只读页面与 correction 展示。
 
-Phase 2C-1 已冻结 contract，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础；公开 Controller、认证参数绑定与 OpenAPI 仍须在后续范围中实施，不得从内部 Service 或数据库表名直接外推。
+Phase 2C-1 已冻结 contract，Phase 2C-2A 已实现内部 Position list 与 logical transaction list 基础；Phase 2C-2B 已公开 Portfolio 与 Position 读取端点。未实现的 transaction/audit 能力仍不得从内部 Service 或数据库表名直接外推。
+
+## 10. 投资读取 API（当前实现）
+
+以下 bearer-protected、只读端点已经实现：`GET /api/v1/investment/portfolio`、`GET /api/v1/investment/positions`、`GET /api/v1/investment/positions/{positionId}`。
+
+Portfolio 只包含 transaction-driven Position，不包含 Legacy Asset、Account 现金余额、全部资产或净资产。统计值来自当前 `Asset` 持仓投影；普通 GET 不重放交易。
+
+Position 列表采用 opaque cursor seek pagination，稳定顺序为 `instrumentId ASC, accountId ASC, positionId ASC`；接受 `status=OPEN|CLOSED|ALL`、可选 `accountId` / `instrumentId`、cursor 与 1-100 的 size，不是 offset page/size 分页。
+
+投资读取金额使用固定 scale JSON string。Reference valuation 是非账务数据，只读取缓存 quote 与 FX：GET 不调用 Provider、不刷新或写入数据，也不获取写锁。Portfolio 的缓存估值合计排除 manual Asset price；即使估值不可用，reference 对象也仍然存在。
+
+Logical transaction 列表/详情与 audit timeline API 仍未实现。

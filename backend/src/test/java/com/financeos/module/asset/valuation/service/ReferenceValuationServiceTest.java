@@ -14,8 +14,14 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ReferenceValuationServiceTest {
 
@@ -72,6 +78,29 @@ class ReferenceValuationServiceTest {
         assertThat(result.baseCurrencyMarketValue()).isNull();
         assertThat(result.valuationFreshness()).isEqualTo(ReferenceValuationFreshness.PARTIAL);
         assertThat(result.warnings()).extracting(warning -> warning.code()).contains("QUOTE_MISSING");
+    }
+
+    @Test
+    void batchesOneHundredPositionsAndDeduplicatesFxCurrencies() {
+        com.financeos.module.asset.marketdata.fx.service.ExchangeRateQueryService rateQueries =
+                mock(com.financeos.module.asset.marketdata.fx.service.ExchangeRateQueryService.class);
+        ReferenceValuationService batchService = new ReferenceValuationService(rateQueries, Clock.fixed(NOW, ZoneOffset.UTC));
+        List<Asset> assets = java.util.stream.LongStream.rangeClosed(1, 100).mapToObj(id -> {
+            Asset asset = asset("1.00000000");
+            asset.setId(id);
+            asset.setSymbol("S" + id);
+            return asset;
+        }).toList();
+        Map<String, MarketQuoteSnapshotResponse> quotes = assets.stream().collect(java.util.stream.Collectors.toMap(
+                Asset::getSymbol, asset -> new MarketQuoteSnapshotResponse(asset.getSymbol(), "US", "USD",
+                        BigDecimal.TEN, NOW, NOW, "TEST", MarketQuoteFreshness.FRESH)));
+        when(rateQueries.findAll(List.of("USD"), "CNY")).thenReturn(List.of(rate("7.1", ExchangeRateFreshness.FRESH)));
+        when(rateQueries.freshnessOf(org.mockito.ArgumentMatchers.any())).thenReturn(ExchangeRateFreshness.FRESH);
+
+        Map<Long, ReferenceValuationResponse> values = batchService.calculateAll(assets, quotes);
+
+        assertThat(values).hasSize(100);
+        verify(rateQueries, times(1)).findAll(List.of("USD"), "CNY");
     }
 
     private Asset asset(String quantity) {

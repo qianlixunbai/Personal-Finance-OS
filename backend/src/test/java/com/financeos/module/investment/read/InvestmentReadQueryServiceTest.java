@@ -7,6 +7,8 @@ import com.financeos.module.investment.read.mapper.InvestmentReadRow;
 import com.financeos.module.investment.read.mapper.PositionReadCriteria;
 import com.financeos.module.investment.read.model.PositionListQuery;
 import com.financeos.module.investment.read.service.InvestmentPositionReadQueryService;
+import com.financeos.module.asset.marketdata.service.MarketQuoteQueryService;
+import com.financeos.module.asset.valuation.service.ReferenceValuationService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -31,9 +33,35 @@ class InvestmentReadQueryServiceTest {
 
         assertThat(page.records()).extracting(InvestmentPositionListItem::positionId).containsExactly(1L, 2L);
         assertThat(page.hasMore()).isTrue();
+        assertThat(page.records().getFirst().referenceValuation().freshness()).isEqualTo("UNAVAILABLE");
         assertThat(page.nextCursor()).isNotBlank();
         verify(mapper, times(1)).ownedAccount(7L, 8L);
         verify(mapper, times(1)).selectPositions(any(PositionReadCriteria.class));
+    }
+
+    @Test
+    void oneHundredPositionsUseOnePositionPageOneQuoteBatchAndOneValuationBatch() {
+        InvestmentReadMapper mapper = mock(InvestmentReadMapper.class);
+        MarketQuoteQueryService quoteQueries = mock(MarketQuoteQueryService.class);
+        ReferenceValuationService valuationService = mock(ReferenceValuationService.class);
+        InvestmentPositionReadQueryService service = new InvestmentPositionReadQueryService(mapper, quoteQueries, valuationService);
+        List<InvestmentReadRow> rows = java.util.stream.LongStream.rangeClosed(1, 100)
+                .mapToObj(this::row).toList();
+        rows.forEach(row -> {
+            row.setInstrumentSymbol("S" + row.getPositionId());
+            row.setInstrumentMarket("US");
+        });
+        when(mapper.selectPositions(any(PositionReadCriteria.class))).thenReturn(rows);
+        when(quoteQueries.findCachedUsQuotes(any())).thenReturn(java.util.Map.of());
+        when(valuationService.calculateAll(any(), any())).thenReturn(java.util.Map.of());
+
+        CursorPage<InvestmentPositionListItem> page = service.list(7L,
+                new PositionListQuery("OPEN", null, null, null, 100));
+
+        assertThat(page.records()).hasSize(100);
+        verify(mapper, times(1)).selectPositions(any(PositionReadCriteria.class));
+        verify(quoteQueries, times(1)).findCachedUsQuotes(any());
+        verify(valuationService, times(1)).calculateAll(any(), any());
     }
 
     private InvestmentReadRow row(Long positionId) {

@@ -4,10 +4,54 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import com.financeos.module.asset.entity.Asset;
+
 import java.util.List;
 
 @Mapper
 public interface InvestmentReadMapper {
+    @Select("""
+            SELECT count(*) AS position_count,
+                   count(*) FILTER (WHERE position_status = 'OPEN') AS open_position_count,
+                   count(*) FILTER (WHERE position_status = 'CLOSED') AS closed_position_count,
+                   COALESCE(sum(total_cost) FILTER (WHERE position_status = 'OPEN'), 0.00) AS open_total_cost,
+                   COALESCE(sum(realized_profit_loss), 0.00) AS cumulative_realized_profit_loss
+            FROM assets
+            WHERE user_id = #{userId} AND position_mode = 'TRANSACTION_DRIVEN'
+            """)
+    InvestmentPortfolioStatisticsRow selectPortfolioStatistics(@Param("userId") Long userId);
+
+    @Select("""
+            SELECT a.*, i.symbol AS symbol, i.market AS market
+            FROM assets a
+            JOIN investment_instruments i ON i.id = a.instrument_id AND i.user_id = a.user_id
+            WHERE a.user_id = #{userId}
+              AND a.position_mode = 'TRANSACTION_DRIVEN'
+              AND a.position_status = 'OPEN'
+            ORDER BY a.instrument_id ASC, a.account_id ASC, a.id ASC
+            """)
+    List<Asset> selectOpenTransactionDrivenPositionAssets(@Param("userId") Long userId);
+
+    @Select("""
+            SELECT a.id AS position_id, a.account_id, ac.name AS account_name, a.instrument_id,
+                   i.symbol AS instrument_symbol, i.name AS instrument_name, i.market AS instrument_market,
+                   i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency,
+                   a.position_mode, a.position_status, a.quantity, a.avg_cost AS average_cost,
+                   a.total_cost, a.realized_profit_loss AS cumulative_realized_profit_loss
+            FROM assets a
+            JOIN accounts ac ON ac.id = a.account_id AND ac.user_id = a.user_id
+            JOIN investment_instruments i ON i.id = a.instrument_id AND i.user_id = a.user_id
+            WHERE a.user_id = #{userId} AND a.id = #{positionId} AND a.position_mode = 'TRANSACTION_DRIVEN'
+            """)
+    InvestmentReadRow selectPositionDetail(@Param("userId") Long userId, @Param("positionId") Long positionId);
+
+    @Select("""
+            SELECT a.*, i.symbol AS symbol, i.market AS market
+            FROM assets a
+            JOIN investment_instruments i ON i.id = a.instrument_id AND i.user_id = a.user_id
+            WHERE a.user_id = #{userId} AND a.id = #{positionId} AND a.position_mode = 'TRANSACTION_DRIVEN'
+            """)
+    Asset selectOwnedTransactionDrivenPositionAsset(@Param("userId") Long userId, @Param("positionId") Long positionId);
     @Select("""
             <script>
             SELECT a.id AS position_id, a.account_id, ac.name AS account_name, a.instrument_id,
