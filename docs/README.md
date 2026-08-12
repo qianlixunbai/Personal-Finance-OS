@@ -34,8 +34,9 @@
 - Phase 2C-2B：[Portfolio & Position Read API Closing Review](review/V3.0-Phase2C-2B-Closing-Review.md)
 - Phase 2C-2C：[Transaction & Audit Read API Closing Review](review/V3.0-Phase2C-2C-Closing-Review.md)
 - Phase 2C-3：[Investment Read Frontend Closing Review](review/V3.0-Phase2C-3-Closing-Review.md)
+- 后续候选：[Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md)（FROZEN — GO，implementation not started）、[Design Review](review/V3.0-Investment-Command-Correction-UI-Contract-Review.md)
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。投资写入与纠正操作 UI 仍未实现。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。投资命令与纠正 UI 契约已经冻结并获得 GO，写入与纠正操作 UI 仍未实现。
 
 ## 文档语言与治理
 

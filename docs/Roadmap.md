@@ -62,7 +62,7 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 
 ### 近期候选
 
-- 投资命令与纠正写入 UI；
+- 投资命令与纠正写入 UI：contract frozen，implementation NOT STARTED；
 - 读取体验的按需性能优化。
 
 ### 中期候选

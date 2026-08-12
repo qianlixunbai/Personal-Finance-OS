@@ -168,6 +168,6 @@
 
 ## 18. 未实现能力
 
-当前未实现 Portfolio/read API、InvestmentTransaction 查询/详情/时间线、投资前端、Position 纠正 UI、TRANSFER/REFUND、多币种账务、FIFO/lot、公司行动、历史收益、银行或券商同步、真实交易执行与 AI 写入。
+当前未实现投资命令与纠正写入 UI、TRANSFER/REFUND、多币种账务、FIFO/lot、公司行动、历史收益、银行或券商同步、真实交易执行、AI 写入与原生移动端。
 
-Phase 2C-1 尚未开始；不得在当前规则中提前定义其 endpoint 或读模型。
+Portfolio、Position、InvestmentTransaction 查询/详情/审计时间线 API 与 `/investments` 读取工作区已经完成并随 Phase 2C Investment Read 关闭。[Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md) 已冻结并通过终审；implementation remains not started。
