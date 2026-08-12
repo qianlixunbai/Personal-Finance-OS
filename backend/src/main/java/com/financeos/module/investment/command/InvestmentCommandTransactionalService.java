@@ -75,14 +75,19 @@ class InvestmentCommandTransactionalService {
         TradeAmounts amounts = amounts(request.trade());
         String key = idempotencyKey(idempotencyKey);
         String hash = requestHash("BUY", null, request.accountId(), request.instrumentId(), amounts);
-        Account account = lockAccount(userId, request.accountId());
-        InvestmentInstrument instrument = lockInstrument(userId, request.instrumentId());
-        validateBinding(account, instrument, true);
         InvestmentTransaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
         if (existing != null) {
             verifyHash(existing, hash);
-            return response(existing, instrument.getId(), true);
+            return response(existing, request.instrumentId(), true);
         }
+        Account account = lockAccount(userId, request.accountId());
+        InvestmentInstrument instrument = lockInstrument(userId, request.instrumentId());
+        existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+        if (existing != null) {
+            verifyHash(existing, hash);
+            return response(existing, request.instrumentId(), true);
+        }
+        validateBinding(account, instrument, true);
         if (assetMapper.existsTransactionDrivenPosition(userId, account.getId(), instrument.getId())) {
             throw new BusinessException(409, "Transaction-driven position already exists");
         }

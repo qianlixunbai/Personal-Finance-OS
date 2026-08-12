@@ -3,6 +3,7 @@ package com.financeos.module.investment.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.financeos.module.investment.entity.InvestmentTransaction;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Result;
 import org.apache.ibatis.annotations.ResultMap;
@@ -49,6 +50,7 @@ public interface InvestmentTransactionMapper extends BaseMapper<InvestmentTransa
     boolean existsAnyByUserIdAndAssetId(@Param("userId") Long userId, @Param("assetId") Long assetId);
 
     @Select("SELECT * FROM investment_transactions WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey}")
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     @ResultMap("investmentTransactionResult")
     InvestmentTransaction findByUserIdAndIdempotencyKey(
             @Param("userId") Long userId,
