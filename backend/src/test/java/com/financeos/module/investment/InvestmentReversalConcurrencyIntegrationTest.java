@@ -96,8 +96,7 @@ class InvestmentReversalConcurrencyIntegrationTest extends PostgresIntegrationTe
                 () -> reverse(dividendUser, "reverse", "Broker correction"),
                 () -> dividend(dividendUser, "dividend"));
         assertThat(dividendStatuses).containsExactlyInAnyOrder(200, 409);
-        assertThat(jdbcTemplate.queryForObject("SELECT quantity FROM assets WHERE id = 1", BigDecimal.class)).isEqualByComparingTo("0.00000000");
-        assertThat(jdbcTemplate.queryForObject("SELECT projection_version FROM assets WHERE id = 1", Integer.class)).isEqualTo(2);
+        assertDividendAndReversalRaceFinalState();
     }
 
     @Test
@@ -128,6 +127,23 @@ class InvestmentReversalConcurrencyIntegrationTest extends PostgresIntegrationTe
         assertThat(jdbcTemplate.queryForMap("SELECT quantity, total_cost, projection_version, last_transaction_id FROM assets WHERE id = 1"))
                 .containsEntry("quantity", new BigDecimal("0.00000000")).containsEntry("total_cost", new BigDecimal("0.00"))
                 .containsEntry("projection_version", projectionVersion).containsEntry("last_transaction_id", 2L);
+    }
+
+    private void assertDividendAndReversalRaceFinalState() {
+        int reversals = jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions WHERE transaction_type = 'REVERSAL'", Integer.class);
+        int dividends = jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions WHERE transaction_type = 'DIVIDEND'", Integer.class);
+        assertThat(reversals + dividends).isEqualTo(1);
+        if (reversals == 1) {
+            assertThat(dividends).isZero();
+            assertReversedBuyFinalState(1, "0.00", 2);
+            return;
+        }
+
+        assertThat(dividends).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = 1", BigDecimal.class)).isEqualByComparingTo("-15.00");
+        assertThat(jdbcTemplate.queryForMap("SELECT quantity, total_cost, position_status, projection_version, last_transaction_id FROM assets WHERE id = 1"))
+                .containsEntry("quantity", new BigDecimal("2.00000000")).containsEntry("total_cost", new BigDecimal("20.00"))
+                .containsEntry("position_status", "OPEN").containsEntry("projection_version", 2).containsEntry("last_transaction_id", 2L);
     }
 
     private List<Integer> concurrently(ThrowingSupplier first, ThrowingSupplier second) throws Exception {
