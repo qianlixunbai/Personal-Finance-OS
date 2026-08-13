@@ -166,8 +166,15 @@
 4. 内部 replay/projection/receipt consistency failure 脱敏后为 500，并整体回滚。
 5. 外部 Provider 限流/坏响应/不可用分别映射为 429/502/503。
 
-## 18. 未实现能力
+## 18. 当前能力边界
 
-当前未实现投资命令与纠正写入 UI、TRANSFER/REFUND、多币种账务、FIFO/lot、公司行动、历史收益、银行或券商同步、真实交易执行、AI 写入与原生移动端。
+Investment Command & Correction UI 已完成并获得 GO，覆盖 BUY / SELL / DIVIDEND、standalone reversal、same-type replacement 及对应的确认、服务端权威回执和恢复流程。核心金融真值仍以后端计算与服务端 receipt/read model 为准，前端不重新计算。
 
-Portfolio、Position、InvestmentTransaction 查询/详情/审计时间线 API 与 `/investments` 读取工作区已经完成并随 Phase 2C Investment Read 关闭。[Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md) 已冻结并通过终审；implementation remains not started。
+1. 写入结果以服务端 receipt 和刷新后的 read model 为准；请求结果未知时不得盲目重复 financial write，只能使用同一命令的恢复状态与幂等键收敛。
+2. 401 recovery 只恢复对应命令状态，不绕过认证或用户动作；pending command 在恢复完成前继续保留并保持写入受限。
+3. 409 reconcile 只刷新并核对权威 Portfolio、Position、transaction 和 audit 结果，不自动重发原 financial write。
+4. replacement resumed write 必须重新验证权威原始交易 subtype 证据；证据缺失、未知、读取失败或不一致时 fail-closed。
+
+Portfolio、Position、InvestmentTransaction 查询/详情/审计时间线 API 与 `/investments` 读取工作区已经完成并随 Phase 2C Investment Read 关闭。[Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md) 已冻结并通过终审，当前实现由 [Investment Command & Correction UI Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) 关闭并获得 GO。
+
+当前仍未实现 `TRANSFER` / `REFUND`、多币种账务、FIFO/lot、公司行动、历史收益、银行或券商同步、真实交易执行、AI 写入与原生移动端。

@@ -7,6 +7,7 @@
 > **Phase 2C-2C：CLOSED — GO（Transaction & Audit Read API）**
 > **Phase 2C-3：CLOSED — GO（Investment Read Frontend）**
 > **Phase 2C：CLOSED — GO（Investment Read）**
+> **Investment Command & Correction UI：CLOSED — GO**
 
 本目录以当前实现为准。阅读顺序建议为：根 README → [项目愿景](Project%20Vision.md) → [路线图](Roadmap.md) → 冻结架构与 ADR → Database/API → 业务与金融规则 → 开发/部署指南 → 当前阶段 Closing Review。
 
@@ -36,7 +37,7 @@
 - Phase 2C-3：[Investment Read Frontend Closing Review](review/V3.0-Phase2C-3-Closing-Review.md)
 - [Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md)（CLOSED — GO）、[Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。投资命令与纠正 UI 契约已经冻结并获得 GO，写入与纠正操作 UI 仍未实现。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO，覆盖 BUY / SELL / DIVIDEND、standalone reversal、same-type replacement 及对应的 confirmation、server-authoritative receipt、401/409 recovery、cross-tab 与 duplicate-write protection。
 
 ## 文档语言与治理
 

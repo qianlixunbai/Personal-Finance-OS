@@ -6,7 +6,7 @@ Personal Finance OS 面向个人用户维护自己的财务事实：账户、普
 
 用户负责手动录入财务事实；系统负责可靠计算、审计、汇总和展示。市场行情仅作为参考输入，不替代账务真值。投资交易事实采用追加式、不可变模型，通过确定性重放恢复当前投影。
 
-当前已具备账户/收支、参考估值和 Phase 2B 投资写路径基础；系统不执行真实支付、银行转账或证券交易。
+当前已具备账户/收支、参考估值、Phase 2B 投资写路径、Phase 2C Investment Read 与 Investment Command & Correction UI；系统不执行真实支付、银行转账或证券交易。
 
 ## 数据维护方向
 
@@ -14,4 +14,4 @@ Personal Finance OS 面向个人用户维护自己的财务事实：账户、普
 
 ## 客户端方向
 
-当前以 Web 为先。响应式 PWA、移动端快速录入和共享后端 API 是长期方向，原生移动端尚未实现。Portfolio 读取体验和投资前端也仍属后续阶段。
+当前以 Web 为先。Portfolio 读取体验和 Investment Command & Correction UI 已完成并获得 GO。响应式 PWA、移动端快速录入和共享后端 API 是长期方向，原生移动端尚未实现。

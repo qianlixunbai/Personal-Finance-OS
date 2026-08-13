@@ -6,9 +6,9 @@
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
 
-> **当前阶段：** `v3.0 Phase 2C-3 Investment Read Frontend：CLOSED — GO`
+> **当前阶段：** `Phase 2C Investment Read：CLOSED — GO`
 >
-> **聚合状态：** `v3.0 Phase 2C Investment Read：CLOSED — GO`
+> **当前能力：** `Investment Command & Correction UI：CLOSED — GO`
 
 Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
 
@@ -18,7 +18,7 @@ Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 
 
 [**在线体验静态 Demo →**](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login)
 
-> Demo 使用虚构数据，为静态只读展示，不连接真实后端、数据库或行情 Provider，也不代表投资账本写路径已经实现前端界面。
+> Demo 使用虚构数据，为静态只读展示，不连接真实后端、数据库或行情 Provider；它与 `zh-cn` 主产品的真实实现分离。
 
 <table>
   <tr>
@@ -128,6 +128,8 @@ flowchart TD
 - standalone reversal 与 same-type replacement correction；
 - immutable receipt、request hash、幂等恢复和 append-only audit。
 - Portfolio、Position 列表/详情，以及 logical transaction 列表/详情和 audit timeline 只读 API。
+- Investment Command & Correction UI：First BUY、后续 BUY、partial/full SELL、CLOSED → reopen BUY、DIVIDEND、standalone reversal 与 same-type replacement；
+- confirmation、server-authoritative receipt、401 recovery、409 reconcile、cross-tab/stale-response safety 与 duplicate-write protection。
 
 ## 技术栈与数据边界
 
@@ -146,18 +148,15 @@ flowchart TD
 
 ## 测试与工程验证
 
-| 验证项 | Phase 2C-3 关闭证据 |
+| 验证项 | Investment Command & Correction UI 最新 Closing 证据 |
 | --- | --- |
-| 后端自动化测试 | 98 suites / 540 tests |
-| failures / errors | 0 / 0 |
-| 前端自动化测试 | 27/27 |
-| 前端 lint / build | PASS / PASS |
-| 真实浏览器验收 | 1440 / 1280 / 768 / 375，PASS |
-| 数据库 | PostgreSQL 17.10 |
-| Migration | Flyway V13 |
-| Closing Review | GO，P0/P1 = 0 |
+| 前端 Unit tests | 55/55 PASS |
+| lint / build | PASS / PASS |
+| Real E2E | 27/27 PASS |
+| Frozen Coverage | COMPLETE |
+| Sol Final Review | P0/P1/P2/P3 = 0；GO |
 
-以上是 Phase 2C-3 关闭时记录的验证快照；完整命令、真实数据与浏览器场景见 [Phase 2C-3 Closing Review](docs/review/V3.0-Phase2C-3-Closing-Review.md)。
+以上为 Investment Command & Correction UI 最新 Closing 证据；完整命令、真实数据与浏览器场景见 [Investment Command & Correction UI Closing Review](docs/review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)。Phase 2C-3 的后端 `98 suites / 540 tests`（failures/errors `0 / 0`）仅是当时的历史验证快照，不代表当前项目总测试数。
 
 当前 `zh-cn` 分支的 CI 会运行后端测试、前端测试/lint/build、镜像构建与 Compose 配置校验。
 
@@ -229,4 +228,4 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 
 `Phase 2C Investment Read` 已整体关闭并获得 GO。后端公开 Portfolio、Position 列表/详情、logical transaction 列表/详情与 audit timeline；前端 `/investments` 工作区已提供摘要、筛选、opaque cursor 分页、详情和 correction audit 展示。默认交易列表返回逻辑业务事件，不会把 correction physical fact 暴露为独立逻辑交易。
 
-当前前端只读，不提供 BUY / SELL / DIVIDEND、reversal 或 replacement 写入操作。系统也没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
+`Investment Command & Correction UI` 已完成并获得 GO，主产品提供 BUY / SELL / DIVIDEND、standalone reversal 与 same-type replacement 的确认、提交、回执和恢复流程。系统仍没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。

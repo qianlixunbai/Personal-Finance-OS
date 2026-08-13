@@ -18,9 +18,10 @@ Phase 2C-2B Portfolio & Position Read API：CLOSED — GO
 Phase 2C-2C Transaction & Audit Read API：CLOSED — GO
 Phase 2C-3 Investment Read Frontend：CLOSED — GO
 Phase 2C Investment Read：CLOSED — GO
+Investment Command & Correction UI：CLOSED — GO
 ```
 
-当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。完整功能边界见根 [README](../README.md)，当前阶段证据见 [Phase 2C-3 Closing Review](review/V3.0-Phase2C-3-Closing-Review.md)。
+当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。Investment Command & Correction UI 已完成 BUY / SELL / DIVIDEND、standalone reversal、same-type replacement 及 confirmation、server-authoritative receipt、401/409 recovery、cross-tab 与 duplicate-write protection。完整功能边界见根 [README](../README.md)，当前阶段证据见 [Investment Command & Correction UI Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)。
 
 ## 3. 已完成阶段
 
@@ -38,6 +39,7 @@ Phase 2C Investment Read：CLOSED — GO
 | v3.0 Phase 2C-2C | CLOSED — GO | Logical transaction 列表/详情与 audit timeline API | [Phase 2C-2C Review](review/V3.0-Phase2C-2C-Closing-Review.md) |
 | v3.0 Phase 2C-3 | CLOSED — GO | Investment Read Frontend | [Phase 2C-3 Review](review/V3.0-Phase2C-3-Closing-Review.md) |
 | v3.0 Phase 2C | CLOSED — GO | Investment Read 聚合关闭 | [Phase 2C-3 Review](review/V3.0-Phase2C-3-Closing-Review.md) |
+| Investment Command & Correction UI | CLOSED — GO | 投资命令与纠正操作 UI | [Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) |
 
 各阶段当时的范围、测试数字、风险和 GO / NO-GO 结论以对应 Closing Review 为准，不用当前结果覆盖历史证据。
 
@@ -54,7 +56,7 @@ Phase 2C Investment Read：CLOSED — GO
 
 完整契约见 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md) 与 [ADR-015](ADR/ADR-015-investment-read-model-contract.md)。Phase 2C-2A 已在不新增 migration 或第二套真值的前提下实现内部 DTO、Service、Mapper SQL 与 cursor；Phase 2C-2B 已公开 Portfolio、Position 列表和 Position 详情；Phase 2C-2C 已公开 logical transaction 列表/详情与 audit timeline，并继续以不可变事实和当前 `Asset` 投影分别表达历史回执与请求时点真值。
 
-Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Position、logical transaction、详情与 correction audit，并通过真实后端和多视口浏览器验收。至此 Phase 2C Investment Read 整体 `CLOSED — GO`；投资命令与纠正写入 UI 不属于本阶段交付。
+Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Position、logical transaction、详情与 correction audit，并通过真实后端和多视口浏览器验收。至此 Phase 2C Investment Read 整体 `CLOSED — GO`。随后，Investment Command & Correction UI 已按独立正式名称完成并获得 `CLOSED — GO`。
 
 ## 5. Phase 2C 后续候选
 
@@ -62,7 +64,6 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 
 ### 近期候选
 
-- 投资命令与纠正写入 UI：contract frozen，implementation NOT STARTED；
 - 读取体验的按需性能优化。
 
 ### 中期候选
