@@ -14,7 +14,10 @@ export default function Login() {
         try {
             const res = await api.post('/login', { username, password });
             localStorage.setItem('token', res.data.data.token);
-            navigate('/');
+            const userId = res.data.data.userId;
+            if (!Number.isInteger(userId) || userId <= 0) throw new Error('登录响应缺少可信用户标识。');
+            localStorage.setItem('finance-os:auth-user-id:v1', String(userId));
+            navigate('/investments');
         } catch (err) {
             setError(getErrorMessage(err, '用户名或密码错误'));
         }

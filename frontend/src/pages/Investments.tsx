@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
     fetchInvestmentAuditTimeline, fetchInvestmentPortfolio, fetchInvestmentPosition,
     fetchInvestmentPositions, fetchInvestmentTransaction, fetchInvestmentTransactions,
@@ -6,6 +6,10 @@ import {
 import { AlertMessage, EmptyState, EmptyTableRow } from '../components/Feedback';
 import { PageHeader } from '../components/PageHeader';
 import { Badge, SummaryCard } from '../components/Visual';
+import { InvestmentCommandDialog } from '../components/investment/InvestmentCommandDialog';
+import { PendingCommandRecoveryBanner } from '../components/investment/PendingCommandRecoveryBanner';
+import { useInvestmentCommandCoordinator } from '../hooks/useInvestmentCommandCoordinator';
+import type { InvestmentCommandDraft, InvestmentCommandType, PendingInvestmentCommandV1 } from '../types/investmentCommand';
 import type {
     CursorPage, InvestmentAuditTimeline, InvestmentBusinessValues, InvestmentCorrectionStatus,
     InvestmentCurrentPosition, InvestmentPortfolio, InvestmentPositionDetail, InvestmentPositionListItem,
@@ -18,6 +22,7 @@ import {
     investmentAuditEventLabel, investmentAuditFactRoleLabel, investmentCorrectionStatusLabel, investmentFreshnessLabel,
     investmentReceiptApplicabilityLabel, investmentTransactionTypeLabel, investmentWarningMessages,
 } from '../utils/investmentRead';
+import { canOfferBuyWithAuthoritativeEligibility } from '../utils/investmentCommandValidation';
 
 const PAGE_SIZE = 20;
 const emptyPositionPage: CursorPage<InvestmentPositionListItem> = { records: [], nextCursor: null, hasMore: false, size: PAGE_SIZE };
@@ -45,38 +50,110 @@ export default function Investments() {
     const [positionDetail, setPositionDetail] = useState<InvestmentPositionDetail | null>(null);
     const [positionDetailLoading, setPositionDetailLoading] = useState(false);
     const [transactionDetail, setTransactionDetail] = useState<InvestmentTransactionDetail | null>(null);
+    const [transactionDetailPositionId, setTransactionDetailPositionId] = useState<number | null>(null);
     const [transactionDetailLoading, setTransactionDetailLoading] = useState(false);
     const [auditTimeline, setAuditTimeline] = useState<InvestmentAuditTimeline | null>(null);
     const [auditTimelineLoading, setAuditTimelineLoading] = useState(false);
     const [detailError, setDetailError] = useState<string | null>(null);
+    const [commandType, setCommandType] = useState<InvestmentCommandType | null>(null);
+    const commandOriginRef = useRef<HTMLElement | null>(null);
+    const portfolioRequests = useRef(createLatestRequestGate());
+    const positionListRequests = useRef(createLatestRequestGate());
+    const transactionListRequests = useRef(createLatestRequestGate());
     const positionDetailRequests = useRef(createLatestRequestGate());
     const transactionDetailRequests = useRef(createLatestRequestGate());
     const auditTimelineRequests = useRef(createLatestRequestGate());
+    const refreshAfterCommand = async (record: PendingInvestmentCommandV1) => {
+        portfolioRequests.current.invalidate(); positionListRequests.current.invalidate(); transactionListRequests.current.invalidate();
+        positionDetailRequests.current.invalidate(); transactionDetailRequests.current.invalidate(); auditTimelineRequests.current.invalidate();
+        const portfolioRequest = portfolioRequests.current.begin(); const positionListRequest = positionListRequests.current.begin(); const transactionListRequest = transactionListRequests.current.begin();
+        const positionDetailRequest = positionDetailRequests.current.begin();
+        const transactionDetailRequest = record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT' ? transactionDetailRequests.current.begin() : null;
+        const auditRequest = record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT' ? auditTimelineRequests.current.begin() : null;
+        const positionQuery = { status: positionStatus, cursor: null, size: PAGE_SIZE };
+        const transactionQuery = { positionId: transactionPositionId, type: transactionType, correctionStatus, from: from ? new Date(from).toISOString() : undefined, to: to ? new Date(to).toISOString() : undefined, cursor: null, size: PAGE_SIZE };
+        const reads: Array<Promise<unknown>> = [fetchInvestmentPortfolio(), fetchInvestmentPositions(positionQuery), fetchInvestmentPosition(record.refresh!.assetId), fetchInvestmentTransactions(transactionQuery)];
+        if (record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT') reads.push(fetchInvestmentTransaction(record.refresh!.logicalTransactionId), fetchInvestmentAuditTimeline(record.refresh!.logicalTransactionId));
+        const [nextPortfolio, nextPositions, nextPosition, nextTransactions, nextTransaction, nextAudit] = await Promise.all(reads) as [InvestmentPortfolio, CursorPage<InvestmentPositionListItem>, InvestmentPositionDetail, CursorPage<InvestmentTransactionListItem>, InvestmentTransactionDetail?, InvestmentAuditTimeline?];
+        if (portfolioRequests.current.isCurrent(portfolioRequest)) setPortfolio(nextPortfolio);
+        if (positionListRequests.current.isCurrent(positionListRequest)) { setPositions(nextPositions); setPositionCursor(resetCursorPageState()); }
+        if (positionDetailRequests.current.isCurrent(positionDetailRequest)) setPositionDetail(nextPosition);
+        if (transactionListRequests.current.isCurrent(transactionListRequest)) { setTransactions(nextTransactions); setTransactionCursor(resetCursorPageState()); }
+        if (nextTransaction && transactionDetailRequest !== null && transactionDetailRequests.current.isCurrent(transactionDetailRequest)) setTransactionDetail(nextTransaction);
+        if (nextAudit && auditRequest !== null && auditTimelineRequests.current.isCurrent(auditRequest)) setAuditTimeline(nextAudit);
+    };
+    const reconcileAfterConflict = async (record: PendingInvestmentCommandV1) => {
+        portfolioRequests.current.invalidate(); positionListRequests.current.invalidate(); transactionListRequests.current.invalidate();
+        positionDetailRequests.current.invalidate(); transactionDetailRequests.current.invalidate(); auditTimelineRequests.current.invalidate();
+        const portfolioRequest = portfolioRequests.current.begin(); const positionListRequest = positionListRequests.current.begin(); const transactionListRequest = transactionListRequests.current.begin();
+        const positionDetailRequest = record.commandType !== 'FIRST_BUY' ? positionDetailRequests.current.begin() : null;
+        const transactionDetailRequest = record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT' ? transactionDetailRequests.current.begin() : null;
+        const auditRequest = record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT' ? auditTimelineRequests.current.begin() : null;
+        const positionQuery = record.commandType === 'FIRST_BUY'
+            ? { status: 'ALL' as const, accountId: record.target.accountId, instrumentId: record.target.instrumentId, cursor: null, size: PAGE_SIZE }
+            : { status: positionStatus, cursor: null, size: PAGE_SIZE };
+        const transactionQuery = record.commandType === 'FIRST_BUY'
+            ? { accountId: record.target.accountId, instrumentId: record.target.instrumentId, cursor: null, size: PAGE_SIZE }
+            : { positionId: transactionPositionId, type: transactionType, correctionStatus, from: from ? new Date(from).toISOString() : undefined, to: to ? new Date(to).toISOString() : undefined, cursor: null, size: PAGE_SIZE };
+        const reads: Array<Promise<unknown>> = [fetchInvestmentPortfolio(), fetchInvestmentPositions(positionQuery), fetchInvestmentTransactions(transactionQuery)];
+        if (record.commandType !== 'FIRST_BUY') reads.splice(2, 0, fetchInvestmentPosition(record.target.assetId!));
+        if (record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT') reads.push(fetchInvestmentTransaction(record.target.logicalTransactionId!), fetchInvestmentAuditTimeline(record.target.logicalTransactionId!));
+        const results = await Promise.all(reads);
+        const [nextPortfolio, nextPositions, nextPositionOrTransactions, nextTransactionsOrTransaction, maybeTransaction, maybeAudit] = results as [InvestmentPortfolio, CursorPage<InvestmentPositionListItem>, InvestmentPositionDetail | CursorPage<InvestmentTransactionListItem>, (CursorPage<InvestmentTransactionListItem> | InvestmentTransactionDetail | undefined)?, InvestmentTransactionDetail?, InvestmentAuditTimeline?];
+        const firstBuy = record.commandType === 'FIRST_BUY';
+        const nextTransactions = (firstBuy ? nextPositionOrTransactions : nextTransactionsOrTransaction) as CursorPage<InvestmentTransactionListItem>;
+        if (portfolioRequests.current.isCurrent(portfolioRequest)) setPortfolio(nextPortfolio);
+        if (positionListRequests.current.isCurrent(positionListRequest)) { setPositions(nextPositions); setPositionCursor(resetCursorPageState()); }
+        if (transactionListRequests.current.isCurrent(transactionListRequest)) { setTransactions(nextTransactions); setTransactionCursor(resetCursorPageState()); }
+        if (!firstBuy && positionDetailRequest !== null && positionDetailRequests.current.isCurrent(positionDetailRequest)) setPositionDetail(nextPositionOrTransactions as InvestmentPositionDetail);
+        if (record.commandType === 'REVERSAL' || record.commandType === 'REPLACEMENT') {
+            if (transactionDetailRequest !== null && transactionDetailRequests.current.isCurrent(transactionDetailRequest)) setTransactionDetail(maybeTransaction!);
+            if (auditRequest !== null && auditTimelineRequests.current.isCurrent(auditRequest)) setAuditTimeline(maybeAudit!);
+        }
+    };
+    const coordinator = useInvestmentCommandCoordinator({ refresh: refreshAfterCommand, reconcile: reconcileAfterConflict });
+    const openCommand = (type: InvestmentCommandType) => {
+        if (coordinator.writeDisabled) return;
+        commandOriginRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setCommandType(type);
+    };
+    const submitCommand = async (draft: InvestmentCommandDraft) => { await coordinator.submit(draft); };
+
+    useLayoutEffect(() => {
+        if (!commandType && commandOriginRef.current) {
+            const origin = commandOriginRef.current;
+            commandOriginRef.current = null;
+            origin.focus();
+        }
+    }, [commandType]);
 
     useEffect(() => {
         let active = true;
-        void fetchInvestmentPortfolio().then(data => { if (active) setPortfolio(data); }).catch(error => { if (active) setPortfolioError(getInvestmentReadErrorMessage(error, 'general')); });
+        const requestId = portfolioRequests.current.begin();
+        void fetchInvestmentPortfolio().then(data => { if (active && portfolioRequests.current.isCurrent(requestId)) setPortfolio(data); }).catch(error => { if (active && portfolioRequests.current.isCurrent(requestId)) setPortfolioError(getInvestmentReadErrorMessage(error, 'general')); });
         return () => { active = false; };
     }, []);
 
     useEffect(() => {
         let active = true;
+        const requestId = positionListRequests.current.begin();
         setPositionsLoading(true); setPositionsError(null);
         void fetchInvestmentPositions({ status: positionStatus, cursor: positionCursor.currentCursor, size: PAGE_SIZE })
-            .then(data => { if (active) setPositions(data); })
-            .catch(error => { if (active) { setPositions(emptyPositionPage); setPositionsError(getInvestmentReadErrorMessage(error, 'filter')); } })
-            .finally(() => { if (active) setPositionsLoading(false); });
+            .then(data => { if (active && positionListRequests.current.isCurrent(requestId)) setPositions(data); })
+            .catch(error => { if (active && positionListRequests.current.isCurrent(requestId)) { setPositions(emptyPositionPage); setPositionsError(getInvestmentReadErrorMessage(error, 'filter')); } })
+            .finally(() => { if (active && positionListRequests.current.isCurrent(requestId)) setPositionsLoading(false); });
         return () => { active = false; };
     }, [positionStatus, positionCursor.currentCursor]);
 
     useEffect(() => {
         let active = true;
+        const requestId = transactionListRequests.current.begin();
         setTransactionsLoading(true); setTransactionsError(null);
         const instant = (value: string) => value ? new Date(value).toISOString() : undefined;
         void fetchInvestmentTransactions({ positionId: transactionPositionId, type: transactionType, correctionStatus, from: instant(from), to: instant(to), cursor: transactionCursor.currentCursor, size: PAGE_SIZE })
-            .then(data => { if (active) setTransactions(data); })
-            .catch(error => { if (active) { setTransactions(emptyTransactionPage); setTransactionsError(getInvestmentReadErrorMessage(error, 'filter')); } })
-            .finally(() => { if (active) setTransactionsLoading(false); });
+            .then(data => { if (active && transactionListRequests.current.isCurrent(requestId)) setTransactions(data); })
+            .catch(error => { if (active && transactionListRequests.current.isCurrent(requestId)) { setTransactions(emptyTransactionPage); setTransactionsError(getInvestmentReadErrorMessage(error, 'filter')); } })
+            .finally(() => { if (active && transactionListRequests.current.isCurrent(requestId)) setTransactionsLoading(false); });
         return () => { active = false; };
     }, [transactionPositionId, transactionType, correctionStatus, from, to, transactionCursor.currentCursor]);
 
@@ -93,11 +170,11 @@ export default function Investments() {
             .finally(() => { if (positionDetailRequests.current.isCurrent(requestId)) setPositionDetailLoading(false); });
     }
     function viewPositionTransactions(positionId: number) { setTransactionPositionId(positionId); resetTransactionCursor(); }
-    function viewTransaction(logicalTransactionId: number) {
+    function viewTransaction(logicalTransactionId: number, positionId?: number) {
         const requestId = transactionDetailRequests.current.begin();
         positionDetailRequests.current.invalidate(); auditTimelineRequests.current.invalidate();
         setTransactionDetailLoading(true); setPositionDetailLoading(false); setAuditTimelineLoading(false); setDetailError(null);
-        setPositionDetail(null); setTransactionDetail(null); setAuditTimeline(null);
+        setPositionDetail(null); setTransactionDetail(null); setAuditTimeline(null); setTransactionDetailPositionId(positionId ?? null);
         void fetchInvestmentTransaction(logicalTransactionId)
             .then(data => { if (transactionDetailRequests.current.isCurrent(requestId)) setTransactionDetail(data); })
             .catch(error => { if (transactionDetailRequests.current.isCurrent(requestId)) setDetailError(getInvestmentReadErrorMessage(error, 'detail')); })
@@ -114,7 +191,9 @@ export default function Investments() {
     }
 
     return <div className="investment-workspace">
-        <PageHeader title="投资账本" subtitle="仅统计投资账本中的 transaction-driven Position；不包含账户现金、Legacy 资产或全部净资产。" />
+        <PageHeader title="投资账本" subtitle="仅统计投资账本中的 transaction-driven Position；不包含账户现金、Legacy 资产或全部净资产。" actions={<button type="button" className="button button--primary" disabled={coordinator.writeDisabled} onClick={() => openCommand('FIRST_BUY')}>记录第一笔投资</button>} />
+        <PendingCommandRecoveryBanner pending={coordinator.pending} onRecover={() => void coordinator.recover().catch(error => setDetailError(error instanceof Error ? error.message : '恢复失败'))} onExport={coordinator.exportEvidence} />
+        {coordinator.receipt && <CommandReceipt receipt={coordinator.receipt} refreshed={coordinator.receiptRefreshed} currency={portfolio?.currency ?? 'CNY'} />}
         {portfolioError && <AlertMessage type="error">{portfolioError}</AlertMessage>}
         <section aria-labelledby="portfolio-heading">
             <div className="section-heading"><div><p className="section-heading__eyebrow">PORTFOLIO</p><h2 id="portfolio-heading">投资账本持仓</h2></div><span className="table-secondary">后端聚合的只读账本视图</span></div>
@@ -137,7 +216,7 @@ export default function Investments() {
             <div className="filter-grid investment-filter-grid"><Field label="类型"><select className="field__control" value={transactionType} onChange={event => { setTransactionType(event.target.value as InvestmentTransactionType | ''); resetTransactionCursor(); }}><option value="">全部类型</option><option value="OPENING_POSITION">期初持仓</option><option value="BUY">买入</option><option value="SELL">卖出</option><option value="DIVIDEND">分红</option></select></Field><Field label="纠正状态"><select className="field__control" value={correctionStatus} onChange={event => { setCorrectionStatus(event.target.value as InvestmentCorrectionStatus | ''); resetTransactionCursor(); }}><option value="">全部状态</option><option value="UNCHANGED">原始</option><option value="REVERSED">已冲正</option><option value="REPLACED">已替换</option></select></Field><Field label="起始时间"><input className="field__control" type="datetime-local" value={from} onChange={event => { setFrom(event.target.value); resetTransactionCursor(); }} /></Field><Field label="结束时间"><input className="field__control" type="datetime-local" value={to} onChange={event => { setTo(event.target.value); resetTransactionCursor(); }} /></Field></div>
             {transactionsError && <AlertMessage type="error">{transactionsError}</AlertMessage>}
             {transactionsLoading ? <LoadingState /> : <><div className="table-scroll"><table className="data-table investment-table"><thead><tr><th scope="col">生效交易时间</th><th scope="col">类型</th><th scope="col">标的 / 账户</th><th scope="col">数量</th><th scope="col">单价</th><th scope="col">净额</th><th scope="col">已实现盈亏</th><th scope="col">纠正状态</th><th scope="col">操作</th></tr></thead><tbody>
-                {transactions.records.map(transaction => <tr key={transaction.logicalTransactionId}><td>{formatInvestmentDateTime(transaction.effectiveTradeTime)}<span className="table-secondary">{transaction.effective ? '当前有效' : '已不再有效'}</span></td><td>{investmentTransactionTypeLabel(transaction.transactionType)}</td><td><strong className="table-primary">{transaction.instrument.name}</strong><span className="table-secondary">{transaction.instrument.symbol} · {transaction.account.displayName}</span></td><td className="amount">{formatInvestmentQuantity(transaction.quantity)}</td><td className="amount">{formatInvestmentMoney(transaction.unitPrice, transaction.instrument.quoteCurrency)}</td><td className="amount">{formatInvestmentMoney(transaction.netAmount, portfolio?.currency)}</td><td className="amount">{formatInvestmentMoney(transaction.realizedProfitLoss, portfolio?.currency)}</td><td><Badge tone={badgeTone(transaction.correctionStatus)}>{investmentCorrectionStatusLabel(transaction.correctionStatus)}</Badge>{transaction.correctionCreatedAt && <span className="table-secondary">纠正时间：{formatInvestmentDateTime(transaction.correctionCreatedAt)}</span>}</td><td><button type="button" className="button button--secondary button--small" onClick={() => viewTransaction(transaction.logicalTransactionId)}>详情</button></td></tr>)}
+                {transactions.records.map(transaction => <tr key={transaction.logicalTransactionId}><td>{formatInvestmentDateTime(transaction.effectiveTradeTime)}<span className="table-secondary">{transaction.effective ? '当前有效' : '已不再有效'}</span></td><td>{investmentTransactionTypeLabel(transaction.transactionType)}</td><td><strong className="table-primary">{transaction.instrument.name}</strong><span className="table-secondary">{transaction.instrument.symbol} · {transaction.account.displayName}</span></td><td className="amount">{formatInvestmentQuantity(transaction.quantity)}</td><td className="amount">{formatInvestmentMoney(transaction.unitPrice, transaction.instrument.quoteCurrency)}</td><td className="amount">{formatInvestmentMoney(transaction.netAmount, portfolio?.currency)}</td><td className="amount">{formatInvestmentMoney(transaction.realizedProfitLoss, portfolio?.currency)}</td><td><Badge tone={badgeTone(transaction.correctionStatus)}>{investmentCorrectionStatusLabel(transaction.correctionStatus)}</Badge>{transaction.correctionCreatedAt && <span className="table-secondary">纠正时间：{formatInvestmentDateTime(transaction.correctionCreatedAt)}</span>}</td><td><button type="button" className="button button--secondary button--small" onClick={() => viewTransaction(transaction.logicalTransactionId, transaction.positionId)}>详情</button></td></tr>)}
                 {transactions.records.length === 0 && <EmptyTableRow colSpan={9} message="暂无符合条件的逻辑交易。" />}
             </tbody></table></div><CursorPager cursor={transactionCursor} page={transactions} onPrevious={() => setTransactionCursor(goToPreviousCursorPage)} onNext={() => transactions.nextCursor && setTransactionCursor(value => goToNextCursorPage(value, transactions.nextCursor!))} /></>}
         </section>
@@ -145,9 +224,10 @@ export default function Investments() {
         <section className="investment-details" aria-live="polite">
             {(positionDetailLoading || transactionDetailLoading) && <LoadingState />}
             {detailError && <AlertMessage type="error">{detailError}</AlertMessage>}
-            {positionDetail && <PositionDetail detail={positionDetail} />}
-            {transactionDetail && <TransactionDetail detail={transactionDetail} auditTimeline={auditTimeline} auditTimelineLoading={auditTimelineLoading} onLoadAudit={loadAudit} />}
+            {positionDetail && <PositionDetail detail={positionDetail} writeDisabled={coordinator.writeDisabled} onCommand={openCommand} />}
+            {transactionDetail && <TransactionDetail detail={transactionDetail} auditTimeline={auditTimeline} auditTimelineLoading={auditTimelineLoading} onLoadAudit={loadAudit} writeDisabled={coordinator.writeDisabled} onCommand={openCommand} />}
         </section>
+        {commandType && <InvestmentCommandDialog commandType={commandType} position={positionDetail ?? undefined} transaction={transactionDetail ?? undefined} transactionPositionId={transactionDetailPositionId ?? undefined} onClose={() => setCommandType(null)} onSubmit={submitCommand} />}
     </div>;
 }
 
@@ -161,17 +241,23 @@ function CursorPager<T>({ cursor, page, onPrevious, onNext }: { cursor: CursorPa
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span className="field__label">{label}</span>{children}</label>; }
 function LoadingState() { return <div className="investment-loading" role="status">正在加载投资账本数据…</div>; }
 
-function PositionDetail({ detail }: { detail: InvestmentPositionDetail }) {
+function CommandReceipt({ receipt, refreshed, currency }: { receipt: import('../types/investmentCommand').InvestmentCommandReceipt; refreshed: boolean; currency: string; }) {
+    return <AlertMessage type="success"><div role="status"><p>{receipt.idempotentReplay ? '已恢复此前提交结果，系统没有重复执行该操作。' : '投资记录已提交。'} {refreshed ? '当前数据已从后端刷新。' : '当前账本数据尚未完成刷新，请继续刷新。'}</p><dl className="detail-grid"><div><dt>交易类型</dt><dd>{receipt.transactionType ?? '不适用'}</dd></div><div><dt>现金影响</dt><dd>{formatInvestmentMoney(receipt.cashDelta ?? null, currency)}</dd></div><div><dt>账户余额（提交时）</dt><dd>{formatInvestmentMoney(receipt.balanceAfter ?? null, currency)}</dd></div><div><dt>提交时间</dt><dd>{formatInvestmentDateTime(receipt.createdAt ?? null)}</dd></div></dl></div></AlertMessage>;
+}
+
+function PositionDetail({ detail, writeDisabled, onCommand }: { detail: InvestmentPositionDetail; writeDisabled: boolean; onCommand: (type: InvestmentCommandType) => void }) {
     const reference = detail.referenceValuation;
-    return <article className="content-card investment-detail"><div className="section-heading"><div><p className="section-heading__eyebrow">POSITION DETAIL</p><h2>持仓详情</h2></div><Badge tone={detail.status === 'OPEN' ? 'success' : 'primary'}>{detail.status === 'OPEN' ? '持仓中' : '已关闭'}</Badge></div><DetailGrid items={[['账户', detail.account.displayName], ['标的', `${detail.instrument.name} (${detail.instrument.symbol})`], ['市场 / 资产类别', `${detail.instrument.market} · ${detail.instrument.assetClass}`], ['报价货币', detail.instrument.quoteCurrency], ['当前持仓数量', formatInvestmentQuantity(detail.quantity)], ['平均成本', formatInvestmentMoney(detail.averageCost, detail.instrument.quoteCurrency)], ['总成本', formatInvestmentMoney(detail.totalCost, detail.instrument.quoteCurrency)], ['累计已实现盈亏', formatInvestmentMoney(detail.cumulativeRealizedProfitLoss)]]} />
+    const eligible = canOfferBuyWithAuthoritativeEligibility(detail.account.status, detail.account.type, detail.instrument.status, detail.instrument.assetClass);
+    return <article className="content-card investment-detail"><div className="section-heading"><div><p className="section-heading__eyebrow">POSITION DETAIL</p><h2>持仓详情</h2></div><Badge tone={detail.status === 'OPEN' ? 'success' : 'primary'}>{detail.status === 'OPEN' ? '持仓中' : '已关闭'}</Badge></div><div className="data-table__actions"><button type="button" className="button button--secondary button--small" disabled={writeDisabled || !eligible} onClick={() => onCommand('BUY')}>{detail.status === 'CLOSED' ? '记录买入并重新打开' : '记录买入'}</button><button type="button" className="button button--secondary button--small" disabled={writeDisabled || !eligible || detail.status === 'CLOSED'} onClick={() => onCommand('SELL')}>记录卖出</button><button type="button" className="button button--secondary button--small" disabled={writeDisabled || !eligible} onClick={() => onCommand('DIVIDEND')}>记录分红</button></div>{!eligible && <p className="investment-detail__note" role="alert">账户或标的当前不可用于投资命令。</p>}{detail.status === 'CLOSED' && <p className="investment-detail__note">当前持仓为零，无法记录卖出。</p>}<DetailGrid items={[['账户', detail.account.displayName], ['标的', `${detail.instrument.name} (${detail.instrument.symbol})`], ['市场 / 资产类别', `${detail.instrument.market} · ${detail.instrument.assetClass}`], ['报价货币', detail.instrument.quoteCurrency], ['当前持仓数量', formatInvestmentQuantity(detail.quantity)], ['平均成本', formatInvestmentMoney(detail.averageCost, detail.instrument.quoteCurrency)], ['总成本', formatInvestmentMoney(detail.totalCost, detail.instrument.quoteCurrency)], ['累计已实现盈亏', formatInvestmentMoney(detail.cumulativeRealizedProfitLoss)]]} />
         {detail.manualReference && <DetailSection title="人工参考数据"><DetailGrid items={[[`人工参考价格 (${detail.instrument.quoteCurrency})`, formatInvestmentMoney(detail.manualReference.currentPrice, detail.instrument.quoteCurrency)], [`人工参考市值 (${detail.instrument.quoteCurrency})`, formatInvestmentMoney(detail.manualReference.marketValue, detail.instrument.quoteCurrency)]]} /></DetailSection>}
         <DetailSection title="缓存市场参考估值"><p className="investment-detail__note">非账务数据，不构成当前持仓真值。</p><DetailGrid items={[[`行情价格 (${reference.quoteCurrency ?? detail.instrument.quoteCurrency})`, formatInvestmentMoney(reference.quotePrice, reference.quoteCurrency ?? detail.instrument.quoteCurrency)], ['行情时间', formatInvestmentDateTime(reference.quoteTime)], ['行情来源', reference.quoteProvider ?? '暂无'], ['汇率', reference.fxRate ?? '暂无'], ['市场参考估值', formatInvestmentMoney(reference.baseCurrencyValue, reference.baseCurrency)], ['估值新鲜度', investmentFreshnessLabel(reference.freshness)]]} />{investmentWarningMessages(reference.warnings).length > 0 && <ul className="investment-warnings">{investmentWarningMessages(reference.warnings).map(warning => <li key={warning}>{warning}</li>)}</ul>}</DetailSection>
     </article>;
 }
 
-function TransactionDetail({ detail, auditTimeline, auditTimelineLoading, onLoadAudit }: { detail: InvestmentTransactionDetail; auditTimeline: InvestmentAuditTimeline | null; auditTimelineLoading: boolean; onLoadAudit: () => void; }) {
+function TransactionDetail({ detail, auditTimeline, auditTimelineLoading, onLoadAudit, writeDisabled, onCommand }: { detail: InvestmentTransactionDetail; auditTimeline: InvestmentAuditTimeline | null; auditTimelineLoading: boolean; onLoadAudit: () => void; writeDisabled: boolean; onCommand: (type: InvestmentCommandType) => void; }) {
     const correctionCopy = detail.correctionStatus === 'REVERSED' ? '此交易已冲正。原始事实保留用于审计，冲正通过追加不可变事实完成。' : detail.correctionStatus === 'REPLACED' ? '此交易已被替换。原始记录与替换后的有效记录分别保留。' : null;
-    return <article className="content-card investment-detail"><div className="section-heading"><div><p className="section-heading__eyebrow">LOGICAL TRANSACTION DETAIL</p><h2>投资交易详情</h2></div><Badge tone={badgeTone(detail.correctionStatus)}>{investmentCorrectionStatusLabel(detail.correctionStatus)}</Badge></div>{correctionCopy && <AlertMessage type="warning">{correctionCopy}</AlertMessage>}<DetailGrid items={[["交易类型", investmentTransactionTypeLabel(detail.transactionType)], ['生效交易时间', formatInvestmentDateTime(detail.effectiveTradeTime)], ['结算时间', formatInvestmentDateTime(detail.settlementTime)], ['账户', detail.account.displayName], ['标的', `${detail.instrument.name} (${detail.instrument.symbol})`], ['当前有效', detail.effective ? '是' : '否']]} />
+    const eligible = detail.correctionStatus === 'UNCHANGED' && detail.transactionType !== 'OPENING_POSITION';
+    return <article className="content-card investment-detail"><div className="section-heading"><div><p className="section-heading__eyebrow">LOGICAL TRANSACTION DETAIL</p><h2>投资交易详情</h2></div><Badge tone={badgeTone(detail.correctionStatus)}>{investmentCorrectionStatusLabel(detail.correctionStatus)}</Badge></div>{correctionCopy && <AlertMessage type="warning">{correctionCopy}</AlertMessage>}{eligible && <div className="data-table__actions"><button type="button" className="button button--danger button--small" disabled={writeDisabled} onClick={() => onCommand('REVERSAL')}>冲正交易</button><button type="button" className="button button--secondary button--small" disabled={writeDisabled} onClick={() => onCommand('REPLACEMENT')}>更正交易</button></div>}<DetailGrid items={[["交易类型", investmentTransactionTypeLabel(detail.transactionType)], ['生效交易时间', formatInvestmentDateTime(detail.effectiveTradeTime)], ['结算时间', formatInvestmentDateTime(detail.settlementTime)], ['账户', detail.account.displayName], ['标的', `${detail.instrument.name} (${detail.instrument.symbol})`], ['当前有效', detail.effective ? '是' : '否']]} />
         <DetailSection title="原始记录"><BusinessValues values={detail.originalBusinessValues} currency={detail.instrument.quoteCurrency} /></DetailSection>
         {detail.effectiveBusinessValues && <DetailSection title="替换后的有效记录"><BusinessValues values={detail.effectiveBusinessValues} currency={detail.instrument.quoteCurrency} /></DetailSection>}
         {detail.correction && <DetailSection title="纠正信息"><DetailGrid items={[["纠正原因", detail.correction.reason], ['纠正时间', formatInvestmentDateTime(detail.correction.createdAt)]]} /></DetailSection>}

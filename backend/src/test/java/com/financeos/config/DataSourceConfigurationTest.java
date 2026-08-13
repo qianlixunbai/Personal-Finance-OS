@@ -30,6 +30,17 @@ class DataSourceConfigurationTest {
         assertThat(resolveDataSourceUrl(Map.of("DB_URL", configuredUrl))).isEqualTo(configuredUrl);
     }
 
+    @Test
+    void e2eProfileUsesTheDedicatedDatabaseWithoutDefaultFallback() throws IOException {
+        MutablePropertySources propertySources = new MutablePropertySources();
+        List<PropertySource<?>> yamlSources = new YamlPropertySourceLoader()
+                .load("application-e2e.yml", new ClassPathResource("application-e2e.yml"));
+        yamlSources.forEach(propertySources::addLast);
+
+        assertThat(new PropertySourcesPropertyResolver(propertySources).getProperty("spring.datasource.url"))
+                .isEqualTo("jdbc:postgresql://localhost:5432/finance_os_e2e");
+    }
+
     private String resolveDataSourceUrl(Map<String, Object> environmentValues) throws IOException {
         MutablePropertySources propertySources = new MutablePropertySources();
         propertySources.addFirst(new MapPropertySource("test-environment", environmentValues));

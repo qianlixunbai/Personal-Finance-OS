@@ -15,10 +15,11 @@ public record InvestmentPositionDetail(
         ManualReference manualReference,
         CachedReferenceValuation referenceValuation
 ) {
-    public record Account(Long id, String displayName) {
+    public record Account(Long id, String displayName, String type, String status) {
     }
 
-    public record Instrument(Long id, String symbol, String name, String market, String assetClass, String quoteCurrency) {
+    public record Instrument(Long id, String symbol, String name, String market, String assetClass, String quoteCurrency,
+                             String status) {
     }
 
     public record ManualReference(String currentPrice, String marketValue) {

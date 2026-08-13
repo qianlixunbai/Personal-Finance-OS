@@ -10,8 +10,17 @@ public record InvestmentPositionListItem(Long positionId, String positionMode, A
         this(positionId, positionMode, account, instrument, quantity, averageCost, totalCost,
                 cumulativeRealizedProfitLoss, status, new PositionReferenceValuation("CNY", null, "UNAVAILABLE", java.util.List.of()));
     }
-    public record Account(Long id, String displayName) { }
-    public record Instrument(Long id, String symbol, String name, String market, String assetClass, String quoteCurrency) { }
+    public record Account(Long id, String displayName, String type, String status) {
+        public Account(Long id, String displayName) {
+            this(id, displayName, null, null);
+        }
+    }
+    public record Instrument(Long id, String symbol, String name, String market, String assetClass, String quoteCurrency,
+                             String status) {
+        public Instrument(Long id, String symbol, String name, String market, String assetClass, String quoteCurrency) {
+            this(id, symbol, name, market, assetClass, quoteCurrency, null);
+        }
+    }
     public record PositionReferenceValuation(String baseCurrency, String value, String freshness,
                                              java.util.List<Warning> warnings) {
         public PositionReferenceValuation {

@@ -1,10 +1,16 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 import type { MarketQuoteRefreshResponse } from '../types/market-data';
 import type { ReferenceValuationResponse } from '../types/reference-valuation';
 
 const api = axios.create({
     baseURL: '/api/v1',
 });
+
+export type CommandAwareRequestConfig = AxiosRequestConfig & {
+    investmentCommandUnauthorized?: () => void;
+    skipGlobal401Redirect?: boolean;
+};
 
 function isPublicAuthRequest(url?: string) {
     const path = url?.split('?')[0];
@@ -26,8 +32,12 @@ api.interceptors.response.use(
     (res) => res,
     (err) => {
         const token = localStorage.getItem('token');
+        const commandConfig = err.config as CommandAwareRequestConfig | undefined;
         if (err.response?.status === 401 && token && !isPublicAuthRequest(err.config?.url)) {
+            commandConfig?.investmentCommandUnauthorized?.();
             localStorage.removeItem('token');
+            localStorage.removeItem('finance-os:auth-user-id:v1');
+            if (commandConfig?.skipGlobal401Redirect) return Promise.reject(err);
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';
             }

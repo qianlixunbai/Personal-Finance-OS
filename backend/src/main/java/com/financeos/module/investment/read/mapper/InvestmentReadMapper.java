@@ -33,9 +33,9 @@ public interface InvestmentReadMapper {
     List<Asset> selectOpenTransactionDrivenPositionAssets(@Param("userId") Long userId);
 
     @Select("""
-            SELECT a.id AS position_id, a.account_id, ac.name AS account_name, a.instrument_id,
+            SELECT a.id AS position_id, a.account_id, ac.name AS account_name, ac.type AS account_type, ac.status AS account_status, a.instrument_id,
                    i.symbol AS instrument_symbol, i.name AS instrument_name, i.market AS instrument_market,
-                   i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency,
+                   i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency, i.status AS instrument_status,
                    a.position_mode, a.position_status, a.quantity, a.avg_cost AS average_cost,
                    a.total_cost, a.realized_profit_loss AS cumulative_realized_profit_loss
             FROM assets a
@@ -54,9 +54,9 @@ public interface InvestmentReadMapper {
     Asset selectOwnedTransactionDrivenPositionAsset(@Param("userId") Long userId, @Param("positionId") Long positionId);
     @Select("""
             <script>
-            SELECT a.id AS position_id, a.account_id, ac.name AS account_name, a.instrument_id,
+            SELECT a.id AS position_id, a.account_id, ac.name AS account_name, ac.type AS account_type, ac.status AS account_status, a.instrument_id,
                    i.symbol AS instrument_symbol, i.name AS instrument_name, i.market AS instrument_market,
-                   i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency,
+                   i.asset_class AS instrument_asset_class, i.quote_currency AS instrument_quote_currency, i.status AS instrument_status,
                    a.position_mode, a.position_status, a.quantity, a.avg_cost AS average_cost,
                    a.total_cost, a.realized_profit_loss AS cumulative_realized_profit_loss
             FROM assets a

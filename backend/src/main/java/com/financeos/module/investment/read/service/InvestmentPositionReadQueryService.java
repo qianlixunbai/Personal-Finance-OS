@@ -87,9 +87,9 @@ public class InvestmentPositionReadQueryService {
 
     private InvestmentPositionListItem map(InvestmentReadRow row, ReferenceValuationResponse valuation) {
         return new InvestmentPositionListItem(row.getPositionId(), row.getPositionMode(),
-                new InvestmentPositionListItem.Account(row.getAccountId(), row.getAccountName()),
+                new InvestmentPositionListItem.Account(row.getAccountId(), row.getAccountName(), row.getAccountType(), row.getAccountStatus()),
                 new InvestmentPositionListItem.Instrument(row.getInstrumentId(), row.getInstrumentSymbol(), row.getInstrumentName(),
-                        row.getInstrumentMarket(), row.getInstrumentAssetClass(), row.getInstrumentQuoteCurrency()),
+                        row.getInstrumentMarket(), row.getInstrumentAssetClass(), row.getInstrumentQuoteCurrency(), row.getInstrumentStatus()),
                 InvestmentReadSupport.decimal(row.getQuantity(), 8), InvestmentReadSupport.decimal(row.getAverageCost(), 8),
                 InvestmentReadSupport.decimal(row.getTotalCost(), 2), InvestmentReadSupport.decimal(row.getCumulativeRealizedProfitLoss(), 2),
                 row.getPositionStatus(), valuation == null

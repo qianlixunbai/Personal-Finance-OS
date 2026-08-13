@@ -10,12 +10,15 @@ public class InvestmentReadRow {
     private Long positionId;
     private Long accountId;
     private String accountName;
+    private String accountType;
+    private String accountStatus;
     private Long instrumentId;
     private String instrumentSymbol;
     private String instrumentName;
     private String instrumentMarket;
     private String instrumentAssetClass;
     private String instrumentQuoteCurrency;
+    private String instrumentStatus;
     private String positionMode;
     private String positionStatus;
     private BigDecimal quantity;

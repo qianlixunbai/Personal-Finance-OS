@@ -5,8 +5,8 @@ export type InvestmentFreshness = 'FRESH' | 'STALE' | 'PARTIAL' | 'UNAVAILABLE';
 export type InvestmentReceiptApplicability = 'POSTING_TIME' | 'CORRECTION_FINAL' | 'NOT_APPLICABLE';
 
 export interface InvestmentWarning { code: string; component: string; }
-export interface InvestmentAccount { id: number; displayName: string; }
-export interface InvestmentInstrument { id: number; symbol: string; name: string; market: string; assetClass: string; quoteCurrency: string; }
+export interface InvestmentAccount { id: number; displayName: string; type?: string; status?: string; currency?: string; }
+export interface InvestmentInstrument { id: number; symbol: string; name: string; market: string; assetClass: string; quoteCurrency: string; status?: string; }
 export interface InvestmentReferenceValuation { baseCurrency: string; value: string | null; freshness: InvestmentFreshness; warnings: InvestmentWarning[]; }
 
 export interface InvestmentPortfolio {

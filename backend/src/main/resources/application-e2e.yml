@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: e2e
+  datasource:
+    # Deliberately fixed: an E2E run must never inherit the default finance_os URL.
+    url: jdbc:postgresql://localhost:5432/finance_os_e2e
+    username: ${E2E_DB_USERNAME:}
+    password: ${E2E_DB_PASSWORD:}
+
+jwt:
+  secret: ${E2E_JWT_SECRET:}
+
+migration:
+  preview:
+    secret: ${E2E_MIGRATION_PREVIEW_SECRET:}
+
+server:
+  port: ${E2E_BACKEND_PORT:8081}

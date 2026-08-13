@@ -47,9 +47,9 @@ public class InvestmentPositionDetailQueryService {
         Map<Long, ReferenceValuationResponse> valuations = valuationService.calculateAll(List.of(asset), quotes);
         ReferenceValuationResponse valuation = valuations == null ? null : valuations.get(asset.getId());
         return new InvestmentPositionDetail(row.getPositionId(), row.getPositionMode(),
-                new InvestmentPositionDetail.Account(row.getAccountId(), row.getAccountName()),
+                new InvestmentPositionDetail.Account(row.getAccountId(), row.getAccountName(), row.getAccountType(), row.getAccountStatus()),
                 new InvestmentPositionDetail.Instrument(row.getInstrumentId(), row.getInstrumentSymbol(), row.getInstrumentName(),
-                        row.getInstrumentMarket(), row.getInstrumentAssetClass(), row.getInstrumentQuoteCurrency()),
+                        row.getInstrumentMarket(), row.getInstrumentAssetClass(), row.getInstrumentQuoteCurrency(), row.getInstrumentStatus()),
                 InvestmentReadSupport.decimal(row.getQuantity(), 8), InvestmentReadSupport.decimal(row.getAverageCost(), 8),
                 InvestmentReadSupport.decimal(row.getTotalCost(), 2),
                 InvestmentReadSupport.decimal(row.getCumulativeRealizedProfitLoss(), 2), row.getPositionStatus(),

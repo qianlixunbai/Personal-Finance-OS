@@ -29,12 +29,15 @@ class InvestmentPositionDetailQueryServiceTest {
         row.setPositionMode("TRANSACTION_DRIVEN");
         row.setAccountId(3L);
         row.setAccountName("Brokerage");
+        row.setAccountType("BROKERAGE");
+        row.setAccountStatus("ACTIVE");
         row.setInstrumentId(4L);
         row.setInstrumentSymbol("AAPL");
         row.setInstrumentName("Apple");
         row.setInstrumentMarket("US");
         row.setInstrumentAssetClass("STOCK");
         row.setInstrumentQuoteCurrency("USD");
+        row.setInstrumentStatus("ACTIVE");
         row.setQuantity(new BigDecimal("2.00000000"));
         row.setAverageCost(new BigDecimal("10.00000000"));
         row.setTotalCost(new BigDecimal("20.00"));
@@ -52,6 +55,9 @@ class InvestmentPositionDetailQueryServiceTest {
         assertThat(response.positionId()).isEqualTo(11L);
         assertThat(response.positionMode()).isEqualTo("TRANSACTION_DRIVEN");
         assertThat(response.account().displayName()).isEqualTo("Brokerage");
+        assertThat(response.account().type()).isEqualTo("BROKERAGE");
+        assertThat(response.account().status()).isEqualTo("ACTIVE");
+        assertThat(response.instrument().status()).isEqualTo("ACTIVE");
         assertThat(response.quantity()).isEqualTo("2.00000000");
         assertThat(response.manualReference().currentPrice()).isEqualTo("11.00000000");
         assertThat(response.referenceValuation().accountingTruth()).isFalse();
