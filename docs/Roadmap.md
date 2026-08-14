@@ -20,10 +20,11 @@ Phase 2C-3 Investment Read Frontend：CLOSED — GO
 Phase 2C Investment Read：CLOSED — GO
 Investment Command & Correction UI：CLOSED — GO
 Phase 3A Transaction Import Contract Design：CLOSED — GO
-Transaction Import Implementation：NOT STARTED
+Phase 3B Transaction Import Backend Foundation：CLOSED — GO
+Transaction Import Preview / Confirm / Frontend：NOT STARTED
 ```
 
-当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。Investment Command & Correction UI 已完成。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约，但 Transaction Import Implementation 尚未开始。完整功能边界见根 [README](../README.md)，导入契约见 [Phase 3A Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)。
+当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。Investment Command & Correction UI 已完成。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约；Phase 3B 已交付其后端数据、隔离、幂等与临时存储基础，但 Preview、Confirm、解析和前端尚未开始。完整功能边界见根 [README](../README.md)，导入契约见 [Phase 3A Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)。
 
 ## 3. 已完成阶段
 
@@ -43,6 +44,7 @@ Transaction Import Implementation：NOT STARTED
 | v3.0 Phase 2C | CLOSED — GO | Investment Read 聚合关闭 | [Phase 2C-3 Review](review/V3.0-Phase2C-3-Closing-Review.md) |
 | Investment Command & Correction UI | CLOSED — GO | 投资命令与纠正操作 UI | [Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) |
 | v3.0 Phase 3A | CLOSED — GO | 普通 Transaction CSV / XLSX Import Contract Design | [Phase 3A Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md) |
+| v3.0 Phase 3B | CLOSED — GO | Transaction Import Backend Foundation | [Phase 3B Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md) |
 
 各阶段当时的范围、测试数字、风险和 GO / NO-GO 结论以对应 Closing Review 为准，不用当前结果覆盖历史证据。
 
@@ -72,7 +74,7 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 ### 中期候选
 
 - `TRANSFER` / `REFUND`；
-- Transaction CSV / Excel Import Implementation（Contract 已冻结，`NOT STARTED`）；
+- Transaction Import Preview / Confirm / Frontend（3B 后端基础已关闭，功能流程 `NOT STARTED`）；
 - 银行或券商账单导入；
 - 历史持仓与收益曲线；
 - 对账、去重和余额校准；
@@ -89,7 +91,7 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 
 ## 6. 中期产品方向
 
-中期重点是在已关闭的可理解、可审计读取体验上降低手工数据录入成本。普通 Transaction 的 CSV / XLSX Import Contract 已冻结字段映射、重复检测、幂等、原子性与错误恢复规则；实现仍为 `NOT STARTED`，后续必须按该契约复用现有业务不变量。银行或券商账单导入仍是未冻结候选。
+中期重点是在已关闭的可理解、可审计读取体验上降低手工数据录入成本。普通 Transaction 的 CSV / XLSX Import Contract 已冻结字段映射、重复检测、幂等、原子性与错误恢复规则；Phase 3B 已完成其后端基础，后续 Preview、Confirm 与前端必须按该契约复用现有业务不变量。银行或券商账单导入仍是未冻结候选。
 
 ## 7. 长期演进方向
 

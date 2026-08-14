@@ -8,7 +8,8 @@
 > **Phase 2C-3：CLOSED — GO（Investment Read Frontend）**
 > **Phase 2C：CLOSED — GO（Investment Read）**
 > **Investment Command & Correction UI：CLOSED — GO**
-> **Phase 3A Transaction Import Contract Design：CLOSED — GO（仅契约；实现 NOT STARTED）**
+> **Phase 3A Transaction Import Contract Design：CLOSED — GO（仅契约）**
+> **Phase 3B Transaction Import Backend Foundation：CLOSED — GO（仅后端基础；Preview / Confirm / 前端 NOT STARTED）**
 
 本目录以当前实现为准。阅读顺序建议为：根 README → [项目愿景](Project%20Vision.md) → [路线图](Roadmap.md) → 冻结架构与 ADR → Database/API → 业务与金融规则 → 开发/部署指南 → 当前阶段 Closing Review。
 
@@ -17,7 +18,8 @@
 - [项目愿景](Project%20Vision.md)、[路线图](Roadmap.md)、[SRS](SRS.md)、[需求索引](SRS详解.md)
 - [Database](03-Architecture/Database.md)、[API](03-Architecture/API.md)
 - [业务规则](Business%20Rules.md)、[金融规则](Financial%20Rules.md)
-- [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO；实现 NOT STARTED）
+- [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
+- [Phase 3B Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO；未启用完整导入流程）
 - [开发指南](Development-Guide.md)、[部署指南](Deployment-Guide.md)、[项目结构](项目结构.md)
 - [Definition of Done](Definition%20of%20Done.md)、[Code Review Checklist](Code%20Review%20Checklist.md)、[AI Rules](AI-Rules.md)、[Prompt Guide](Prompt%20Guide.md)
 
@@ -38,9 +40,10 @@
 - Phase 2C-2C：[Transaction & Audit Read API Closing Review](review/V3.0-Phase2C-2C-Closing-Review.md)
 - Phase 2C-3：[Investment Read Frontend Closing Review](review/V3.0-Phase2C-3-Closing-Review.md)
 - [Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md)（CLOSED — GO）、[Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)
-- Phase 3A：[Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO；Transaction Import Implementation `NOT STARTED`）
+- Phase 3A：[Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
+- Phase 3B：[Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO；Preview / Confirm / Frontend `NOT STARTED`）
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约、安全、幂等、原子性与 Preview/Confirm 边界，但 Transaction Import Implementation 尚未开始。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约、安全、幂等、原子性与 Preview/Confirm 边界；Phase 3B 已交付后端 foundation，但完整 Transaction Import Implementation（上传、解析、Preview、Confirm、前端）尚未开始。
 
 ## 文档语言与治理
 

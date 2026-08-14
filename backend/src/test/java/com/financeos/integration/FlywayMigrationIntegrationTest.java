@@ -42,7 +42,7 @@ class FlywayMigrationIntegrationTest {
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments', 'investment_transaction_corrections')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments', 'investment_transaction_corrections', 'transaction_import_sessions', 'transaction_import_batches', 'transaction_import_items')
                 """, Integer.class);
         Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -99,6 +99,10 @@ class FlywayMigrationIntegrationTest {
         Integer versionThirteenMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM flyway_schema_history
                 WHERE version = '13' AND description = 'add investment transaction replacements' AND success = true
+                """, Integer.class);
+        Integer versionFourteenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '14' AND description = 'add transaction import backend foundation' AND success = true
                 """, Integer.class);
         Integer ratePrecision = jdbcTemplate.queryForObject("""
                 SELECT numeric_precision FROM information_schema.columns
@@ -178,8 +182,16 @@ class FlywayMigrationIntegrationTest {
                 JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
                 WHERE index_definition.indrelid = 'investment_transactions'::regclass
                 """, String.class);
+        List<String> importSessionConstraints = jdbcTemplate.queryForList("""
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'transaction_import_sessions'::regclass
+                """, String.class);
+        List<String> importBatchConstraints = jdbcTemplate.queryForList("""
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'transaction_import_batches'::regclass
+                """, String.class);
 
-        assertThat(applicationTableCount).isEqualTo(11);
+        assertThat(applicationTableCount).isEqualTo(14);
         assertThat(versionOneMigrationCount).isEqualTo(1);
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);
@@ -192,6 +204,7 @@ class FlywayMigrationIntegrationTest {
         assertThat(versionElevenMigrationCount).isEqualTo(1);
         assertThat(versionTwelveMigrationCount).isEqualTo(1);
         assertThat(versionThirteenMigrationCount).isEqualTo(1);
+        assertThat(versionFourteenMigrationCount).isEqualTo(1);
         assertThat(ratePrecision).isEqualTo(24);
         assertThat(rateScale).isEqualTo(12);
         assertThat(columns).containsEntry("id", "bigint")
@@ -262,5 +275,15 @@ class FlywayMigrationIntegrationTest {
                 "idx_investment_transactions_user_account_trade_time_desc",
                 "idx_investment_transactions_user_type_trade_time_desc",
                 "uk_investment_transactions_reversal_original");
+        assertThat(importSessionConstraints).contains(
+                "transaction_import_sessions_pkey",
+                "uk_transaction_import_sessions_preallocated_batch",
+                "ck_transaction_import_sessions_status",
+                "ck_transaction_import_sessions_file_digest");
+        assertThat(importBatchConstraints).contains(
+                "transaction_import_batches_pkey",
+                "uk_transaction_import_batches_user_idempotency",
+                "uk_transaction_import_batches_exact_duplicate",
+                "ck_transaction_import_batches_status");
     }
 }
