@@ -49,6 +49,21 @@ class TransactionImportSessionStateTest {
     }
 
     @Test
+    void rejectsAReadySessionAtTheExactFifteenMinuteExpiryBoundary() {
+        TransactionImportSessionMapper mapper = mock(TransactionImportSessionMapper.class);
+        UUID sessionId = UUID.randomUUID();
+        TransactionImportSession session = readySession(sessionId, CLOCK.instant());
+        when(mapper.findByIdAndUserId(sessionId, 1L)).thenReturn(session);
+
+        TransactionImportSessionService service = new TransactionImportSessionService(mapper, CLOCK);
+
+        assertThatThrownBy(() -> service.requireUsableSession(1L, sessionId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("expired");
+        verify(mapper).markExpired(sessionId, 1L, CLOCK.instant());
+    }
+
+    @Test
     void rejectsCrossUserAndInvalidStateWithoutRevealingTheSession() {
         TransactionImportSessionMapper mapper = mock(TransactionImportSessionMapper.class);
         UUID sessionId = UUID.randomUUID();

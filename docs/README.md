@@ -1,5 +1,7 @@
 # 文档中心
 
+> **Phase 3C Transaction Import Preview & Validation：CLOSED — GO（Confirm 金融写入与前端 NOT STARTED）**
+
 > **Phase 2B：CLOSED — GO**
 > **Phase 2C-1：CLOSED — GO（仅契约）**
 > **Phase 2C-2A：CLOSED — GO（内部读取基础）**

@@ -1,5 +1,7 @@
 # 当前产品需求基线
 
+> Phase 3C Transaction Import Preview & Validation 已 `CLOSED — GO`；本阶段不包含 Confirm 金融写入或前端，它们仍为 `NOT STARTED`。
+
 > 覆盖 `Phase 2C Investment Read`、`Investment Command & Correction UI`、`Phase 3A Transaction Import Contract Design` 与 `Phase 3B Transaction Import Backend Foundation`；均已关闭并获得 GO。Phase 3B 仅交付后端基础，Preview、Confirm、解析和前端仍为 `NOT STARTED`。
 
 ## 已实现需求

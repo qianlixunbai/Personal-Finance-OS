@@ -1,5 +1,7 @@
 # 路线图
 
+> 当前状态更新：**Phase 3C Transaction Import Preview & Validation：CLOSED — GO**；Confirm 金融写入与前端仍为 `NOT STARTED`。
+
 ## 1. 项目长期方向
 
 Personal Finance OS 以 Web 为主要使用方式，由用户自主维护账户、普通流水、资产和投资账本等财务事实。Java 后端是计算、事务和审计的唯一权威；系统负责可靠计算、审计、汇总和展示，不执行真实支付、资金划转或证券交易。

@@ -4,6 +4,7 @@ import com.financeos.common.BusinessException;
 import com.financeos.module.importing.entity.TransactionImportSession;
 import com.financeos.module.importing.mapper.TransactionImportSessionMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,8 @@ public class TransactionImportSessionService {
     private final Clock clock;
 
     @Autowired
-    public TransactionImportSessionService(TransactionImportSessionMapper sessionMapper) {
-        this(sessionMapper, Clock.systemUTC());
-    }
-
-    TransactionImportSessionService(TransactionImportSessionMapper sessionMapper, Clock clock) {
+    public TransactionImportSessionService(TransactionImportSessionMapper sessionMapper,
+                                           @Qualifier("businessClock") Clock clock) {
         this.sessionMapper = sessionMapper;
         this.clock = clock;
     }

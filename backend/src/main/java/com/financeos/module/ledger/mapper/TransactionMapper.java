@@ -22,6 +22,20 @@ public interface TransactionMapper extends BaseMapper<Transaction> {
             """)
     Transaction selectOwnedForUpdate(@Param("userId") Long userId, @Param("transactionId") Long transactionId);
 
+    @Select("""
+            SELECT EXISTS (
+                SELECT 1 FROM transactions
+                WHERE user_id = #{userId} AND account_id = #{accountId} AND category_id = #{categoryId}
+                  AND type = #{type} AND amount = #{amount} AND transacted_at = #{transactedAt}
+                  AND COALESCE(description, '') = COALESCE(#{description}, '')
+            )
+            """)
+    boolean existsProbableDuplicate(@Param("userId") Long userId, @Param("accountId") Long accountId,
+                                    @Param("categoryId") Long categoryId, @Param("type") String type,
+                                    @Param("amount") BigDecimal amount,
+                                    @Param("transactedAt") java.time.LocalDateTime transactedAt,
+                                    @Param("description") String description);
+
     @Select("SELECT COALESCE(SUM(amount), 0) FROM transactions " +
             "WHERE user_id = #{userId} AND type = #{type} AND currency = 'CNY'")
     BigDecimal sumByType(@Param("userId") Long userId, @Param("type") String type);

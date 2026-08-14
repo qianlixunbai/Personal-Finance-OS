@@ -137,7 +137,8 @@ public class TransactionService {
 
     private void validateCategory(Long userId, Long categoryId, String type) {
         Category category = categoryMapper.selectById(categoryId);
-        if (category == null || !(userId.equals(category.getUserId()) || Boolean.TRUE.equals(category.getIsSystem()))) {
+        if (category == null || !(userId.equals(category.getUserId())
+                || (category.getUserId() == null && Boolean.TRUE.equals(category.getIsSystem())))) {
             throw new BusinessException(404, "分类不存在");
         }
         if (TYPE_INCOME.equals(type) && !TYPE_INCOME.equals(category.getType())) {
