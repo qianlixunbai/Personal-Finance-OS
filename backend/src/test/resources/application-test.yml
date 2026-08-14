@@ -5,3 +5,8 @@ migration:
   preview:
     secret: integration-test-migration-preview-secret-at-least-32-chars
     ttl: 10m
+
+finance:
+  import:
+    cleanup:
+      enabled: false

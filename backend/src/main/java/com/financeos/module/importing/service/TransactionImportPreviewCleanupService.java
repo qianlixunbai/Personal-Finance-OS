@@ -9,8 +9,11 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
 @Service
@@ -19,6 +22,8 @@ public class TransactionImportPreviewCleanupService {
     private final TemporaryImportFileStorage storage;
     private final TemporaryImportFileStorage planStorage;
     private final Clock clock;
+    private final AtomicBoolean acceptingCleanup = new AtomicBoolean(true);
+    private final ReentrantReadWriteLock cleanupLifecycleLock = new ReentrantReadWriteLock();
 
     public TransactionImportPreviewCleanupService(TransactionImportSessionMapper sessionMapper,
                                                   TemporaryImportFileStorage storage,
@@ -36,6 +41,36 @@ public class TransactionImportPreviewCleanupService {
     }
 
     public void cleanupExpired() {
+        if (!acceptingCleanup.get()) {
+            return;
+        }
+        cleanupLifecycleLock.readLock().lock();
+        try {
+            if (!acceptingCleanup.get()) {
+                return;
+            }
+            cleanupExpiredSessions();
+        } finally {
+            cleanupLifecycleLock.readLock().unlock();
+        }
+    }
+
+    void stopAcceptingCleanup() {
+        acceptingCleanup.set(false);
+        cleanupLifecycleLock.writeLock().lock();
+        try {
+            // Acquiring the write lock drains cleanup work that already holds the read lock.
+        } finally {
+            cleanupLifecycleLock.writeLock().unlock();
+        }
+    }
+
+    @PreDestroy
+    void stopAcceptingCleanupDuringBeanDestruction() {
+        stopAcceptingCleanup();
+    }
+
+    private void cleanupExpiredSessions() {
         Instant now = clock.instant();
         for (TransactionImportSession session : sessionMapper.findExpiredForCleanup(now)) {
             try {
@@ -46,7 +81,7 @@ public class TransactionImportPreviewCleanupService {
                 sessionMapper.markExpired(session.getId(), session.getUserId(), now);
                 sessionMapper.clearCleanupReferences(session.getId(), session.getUserId());
             } catch (RuntimeException exception) {
-                log.warn("Transaction import preview cleanup failed for session {}", session.getId());
+                log.warn("Transaction import preview cleanup failed for session {}", session.getId(), exception);
             }
         }
     }

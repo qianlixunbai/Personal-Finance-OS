@@ -26,6 +26,11 @@ migration:
     secret: ${MIGRATION_PREVIEW_SECRET:}
     ttl: ${MIGRATION_PREVIEW_TTL:10m}
 
+finance:
+  import:
+    cleanup:
+      enabled: ${FINANCE_IMPORT_CLEANUP_ENABLED:true}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000

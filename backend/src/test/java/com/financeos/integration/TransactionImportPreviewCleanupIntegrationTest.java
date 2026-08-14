@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.TestPropertySource;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+@TestPropertySource(properties = "finance.import.cleanup.enabled=true")
 class TransactionImportPreviewCleanupIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
@@ -31,6 +33,9 @@ class TransactionImportPreviewCleanupIntegrationTest extends PostgresIntegration
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @Autowired
+    private com.financeos.module.importing.service.TransactionImportPreviewCleanupScheduler cleanupScheduler;
 
     @Test
     void expiresPersistedSessionAndDeletesItsPrivatePayloads() {
@@ -52,6 +57,24 @@ class TransactionImportPreviewCleanupIntegrationTest extends PostgresIntegration
         assertThat(storage.exists(upload.reference())).isFalse();
         assertThat(planStorage.exists(plan.reference())).isFalse();
         assertThatCode(this::invokeCleanup).doesNotThrowAnyException();
+    }
+
+    @Test
+    void schedulerPathCleansExpiredPersistedSessionAndItsPayloads() {
+        long userId = createUser("import-scheduled-cleanup@example.com");
+        StoredImportFile upload = storage.save(bytes("date,type,amount,account,category\n2026-08-14,expense,1,Cash,Food\n"), "statement.csv");
+        StoredImportFile plan = planStorage.save(bytes("{}"), "preview-plan.json");
+        TransactionImportSession session = expiredSession(userId, upload.reference(), plan.reference());
+        sessionMapper.insert(session);
+
+        cleanupScheduler.runCleanup();
+
+        TransactionImportSession cleaned = sessionMapper.findByIdAndUserId(session.getId(), userId);
+        assertThat(cleaned.getStatus()).isEqualTo("EXPIRED");
+        assertThat(cleaned.getTemporaryStorageReference()).isNull();
+        assertThat(cleaned.getPlanStorageReference()).isNull();
+        assertThat(storage.exists(upload.reference())).isFalse();
+        assertThat(planStorage.exists(plan.reference())).isFalse();
     }
 
     private void invokeCleanup() throws Exception {
