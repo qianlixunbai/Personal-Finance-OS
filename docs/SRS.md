@@ -1,6 +1,6 @@
 # 当前产品需求基线
 
-> 覆盖 `Phase 2C Investment Read` 与 `Investment Command & Correction UI`；两者均已关闭并获得 GO。
+> 覆盖 `Phase 2C Investment Read`、`Investment Command & Correction UI` 与 `Phase 3A Transaction Import Contract Design`；三者均已关闭并获得 GO。Phase 3A 仅关闭契约，Transaction Import Implementation 仍为 `NOT STARTED`。
 
 ## 已实现需求
 
@@ -19,6 +19,12 @@
 普通流水只支持 `INCOME`、`EXPENSE`、`ADJUSTMENT`；账户余额由后端事务维护。投资事实为不可变账本，不是普通 Transaction，也不执行真实交易。报价、FX 与参考估值不改变账务真值。
 
 投资读取模型契约与各层实现分别由 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)、[ADR-015](ADR/ADR-015-investment-read-model-contract.md)、[Phase 2C-2A Review](review/V3.0-Phase2C-2A-Closing-Review.md)、[Phase 2C-2B Review](review/V3.0-Phase2C-2B-Closing-Review.md)、[Phase 2C-2C Review](review/V3.0-Phase2C-2C-Closing-Review.md) 与 [Phase 2C-3 Review](review/V3.0-Phase2C-3-Closing-Review.md) 冻结并验收；Investment Command & Correction UI 的当前实现由 [Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md) 与 [Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) 约束并验收。
+
+## 已冻结但未实现
+
+`Phase 3A Transaction Import Contract Design` 已 `CLOSED — GO`，冻结普通 `Transaction` 的 CSV / XLSX 格式、canonical row、显式 Account / Category mapping、只读 Preview、Confirm binding、duplicate、batch idempotency、unknown-outcome recovery、atomicity、audit、文件生命周期与安全边界。契约见 [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)。
+
+Transaction Import Implementation 仍为 `NOT STARTED`；当前没有 Import API、Migration、前端页面或批量导入运行能力。
 
 ## 仍规划但未实现
 
