@@ -51,7 +51,7 @@ $env:MIGRATION_PREVIEW_SECRET = "another-32-characters-secret"
 ```powershell
 cd backend
 
-# 启动后端；Flyway 会执行 V1–V13
+# 启动后端；Flyway 会执行 V1–V15
 .\mvnw.cmd spring-boot:run
 
 # 全部后端测试
