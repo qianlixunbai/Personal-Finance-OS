@@ -99,11 +99,11 @@ docker compose --env-file docker/.env -f docker/compose.yml down
 
 Compose 服务顺序为 PostgreSQL healthy → backend ready → frontend。默认前端端口由 `FRONTEND_PORT` 指定；数据库数据保存在 named volume。
 
-## 7. Flyway V1–V13
+## 7. Flyway V1–V15
 
 1. `backend/src/main/resources/db/migration/` 是 schema 唯一来源。
-2. 不编辑已应用的 V1–V13，不恢复 `schema.sql` 并行初始化。
-3. 新变化使用下一个版本号和可读说明，例如 `V14__...sql`。
+2. 不编辑已应用的 V1–V15，不恢复 `schema.sql` 并行初始化。
+3. 新变化使用下一个版本号和可读说明，例如 `V16__...sql`。
 4. migration 必须在 DDL 前检查无法安全升级的历史状态，并明确 fail-fast。
 5. 不为缺失历史事实、receipt、Instrument binding 或 correction group 猜测数据。
 6. 空库至少验证 V1→最新；升级风险还需验证相关旧版本→最新。

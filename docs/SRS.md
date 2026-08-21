@@ -2,7 +2,7 @@
 
 > Phase 3C Transaction Import Preview & Validation 已 `CLOSED — GO`；本阶段不包含 Confirm 金融写入或前端，它们仍为 `NOT STARTED`。
 
-> 覆盖 `Phase 2C Investment Read`、`Investment Command & Correction UI`、`Phase 3A Transaction Import Contract Design` 与 `Phase 3B Transaction Import Backend Foundation`；均已关闭并获得 GO。Phase 3B 仅交付后端基础，Preview、Confirm、解析和前端仍为 `NOT STARTED`。
+> 覆盖 `Phase 2C Investment Read`、`Investment Command & Correction UI`、`Phase 3A Transaction Import Contract Design`、`Phase 3B Transaction Import Backend Foundation` 与 `Phase 3C Transaction Import Preview & Validation`；均已关闭并获得 GO。Confirm 金融写入与前端仍为 `NOT STARTED`。
 
 ## 已实现需求
 
@@ -15,6 +15,7 @@
 - `/investments` 读取工作区，包含 Position / logical transaction 筛选与 opaque cursor 分页、详情、三层回执/快照及 correction audit 展示；
 - Investment Command & Correction UI：First BUY、后续 BUY、partial/full SELL、CLOSED → reopen BUY、DIVIDEND、standalone reversal 与 same-type replacement；
 - confirmation、server-authoritative receipt、401 recovery、409 reconcile、cross-tab recovery、duplicate-write protection 与 authoritative eligibility fail-closed；
+- Transaction Import Preview：CSV / XLSX 上传、格式校验、mapping、canonical row 规范化、字段/账户/类别校验、probable duplicate warning、分页预览、Session TTL、取消与临时 payload 清理；
 - 后端权威计算、追加式审计、幂等、并发与确定性重放；
 - Flyway、Docker Compose、CI 与 PostgreSQL Testcontainers 验证基础。
 
@@ -22,11 +23,13 @@
 
 投资读取模型契约与各层实现分别由 [Phase 2C-1 design](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)、[ADR-015](ADR/ADR-015-investment-read-model-contract.md)、[Phase 2C-2A Review](review/V3.0-Phase2C-2A-Closing-Review.md)、[Phase 2C-2B Review](review/V3.0-Phase2C-2B-Closing-Review.md)、[Phase 2C-2C Review](review/V3.0-Phase2C-2C-Closing-Review.md) 与 [Phase 2C-3 Review](review/V3.0-Phase2C-3-Closing-Review.md) 冻结并验收；Investment Command & Correction UI 的当前实现由 [Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md) 与 [Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) 约束并验收。
 
-## 已冻结但未实现
+## 已冻结与尚未完成的导入能力
 
 `Phase 3A Transaction Import Contract Design` 已 `CLOSED — GO`，冻结普通 `Transaction` 的 CSV / XLSX 格式、canonical row、显式 Account / Category mapping、只读 Preview、Confirm binding、duplicate、batch idempotency、unknown-outcome recovery、atomicity、audit、文件生命周期与安全边界。契约见 [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)。
 
-Phase 3B 已实现 Import Session / Batch / Item 的 Flyway schema、用户隔离、持久化幂等约束、预分配 Batch ID、15 分钟服务端 Session TTL、60 秒 Confirm guard 事务、临时文件本地存储基础，以及已确认 Batch 的用户域状态查询。它不包含上传端点、CSV / XLSX 解析、Mapping、Preview、Confirm 财务写入或前端页面；完整导入流程仍为 `NOT STARTED`。
+Phase 3B 已实现 Import Session / Batch / Item 的 Flyway schema、用户隔离、持久化幂等约束、预分配 Batch ID、15 分钟服务端 Session TTL、60 秒 Confirm guard 事务、临时文件本地存储基础，以及已确认 Batch 的用户域状态查询。
+
+Phase 3C 已实现上传端点、CSV / XLSX 解析、Mapping、canonical row 与字段校验、账户/类别可见性校验、probable duplicate warning、分页 Preview、取消、过期清理与临时 payload 生命周期。Preview 仅处理 Import Session 与私有临时 payload，不创建 `Transaction`、不写 `transactions`、不修改 `Account.balance`。Confirm 的原子金融写入、receipt、幂等恢复和前端页面仍为 `NOT STARTED`。
 
 ## 仍规划但未实现
 

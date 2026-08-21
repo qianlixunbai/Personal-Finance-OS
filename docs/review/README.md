@@ -15,5 +15,6 @@
 - [Phase 2C-3 Investment Read Frontend Closing Review](V3.0-Phase2C-3-Closing-Review.md)
 - [Investment Command & Correction UI Contract Design Review](V3.0-Investment-Command-Correction-UI-Contract-Review.md)
 - [Investment Command & Correction UI Closing Review](V3.0-Investment-Command-Correction-UI-Closing-Review.md)
+- Transaction Import：[Phase 3A Contract](../design/V3.0-Phase3A-Transaction-Import-Contract.md)、[Phase 3B Backend Foundation](V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)、[Phase 3C Preview & Validation](V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)
 
 当前状态请看 [文档中心](../README.md)；重大架构决策请看 [ADR](../ADR/)。
