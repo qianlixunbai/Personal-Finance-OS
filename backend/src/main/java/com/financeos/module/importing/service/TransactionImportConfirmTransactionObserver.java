@@ -21,4 +21,12 @@ public class TransactionImportConfirmTransactionObserver {
     public void sessionLockAcquired(UUID sessionId) {
         // Hook for lock-wait observability and deterministic PostgreSQL concurrency tests.
     }
+
+    /**
+     * Observability seam after all affected Account rows are locked in ascending ID order.
+     * It deliberately has no business side effect.
+     */
+    public void accountLocksAcquired(UUID sessionId) {
+        // Hook for deterministic duplicate-evidence serialization tests.
+    }
 }

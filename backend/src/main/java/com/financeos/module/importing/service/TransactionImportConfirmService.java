@@ -88,13 +88,13 @@ public class TransactionImportConfirmService {
         TransactionImportSession preflightSession = sessionMapper.findByIdAndUserId(sessionId, userId);
         if (preflightSession == null) throw new BusinessException(404, "IMPORT_SESSION_NOT_FOUND");
         List<String> acknowledged = canonicalWarnings(request.acknowledgedWarningIds());
-        tokenService.verify(request.previewToken(), userId, preflightSession);
         String requestHash = requestHash(userId, preflightSession, acknowledged);
 
         TransactionImportBatch existingForSession = batchMapper.findConfirmedByUserIdAndSessionId(userId, sessionId);
         if (existingForSession != null) return replayOrBatchConflict(existingForSession, idempotencyKey, requestHash);
         TransactionImportBatch existingForKey = batchMapper.findConfirmedByUserIdAndIdempotencyKey(userId, idempotencyKey);
         if (existingForKey != null) return replayOrIdempotencyConflict(existingForKey, requestHash);
+        tokenService.verify(request.previewToken(), userId, preflightSession);
         if ("CANCELLED".equals(preflightSession.getStatus())) throw new BusinessException(409, "IMPORT_SESSION_CANCELLED");
         Instant preflightNow = clock.instant();
         if (!preflightSession.getExpiresAt().isAfter(preflightNow)) {
@@ -107,6 +107,7 @@ public class TransactionImportConfirmService {
         if (preflightSession.getPlanStorageReference() == null) throw new BusinessException(409, "IMPORT_PREVIEW_UNAVAILABLE");
         TransactionImportPreviewPlan plan = previewService.loadFrozenPlan(preflightSession.getPlanStorageReference());
         validatePlan(plan, acknowledged);
+        tokenService.verify(request.previewToken(), userId, preflightSession, acknowledged);
         TransactionImportConfirmResponse response;
         long[] transactionStartedNanos = {0L};
         try {
@@ -140,7 +141,6 @@ public class TransactionImportConfirmService {
         if (existingKey != null) return replayOrIdempotencyConflict(existingKey, requestHash);
         verifyFrozenBinding(userId, session, preflight, request.previewToken(), acknowledged);
         if (findExactDuplicate(userId, session) != null) throw new BusinessException(409, "IMPORT_EXACT_DUPLICATE");
-        verifyDuplicateEvidence(userId, session, plan);
         Instant now = clock.instant();
         if (!session.getExpiresAt().isAfter(now)) {
             sessionMapper.markExpired(sessionId, userId, now);
@@ -151,6 +151,8 @@ public class TransactionImportConfirmService {
 
         List<Long> accountIds = plan.rows().stream().map(row -> plan.mapping().accountMappings().get(row.normalizedValues().get("account"))).distinct().sorted().toList();
         LockedAccounts lockedAccounts = lockCurrentOwnedAccounts(userId, accountIds);
+        transactionObserver.accountLocksAcquired(sessionId);
+        verifyDuplicateEvidence(userId, session, plan);
         Map<Long, Category> categories = loadCurrentVisibleCategories(userId, plan);
         Map<Long, BigDecimal> balanceBefore = lockedAccounts.accounts().stream().collect(Collectors.toMap(Account::getId, Account::getBalance));
         List<TransactionImportReceipt.TransactionReference> references = new ArrayList<>();
@@ -215,17 +217,16 @@ public class TransactionImportConfirmService {
                                                                   DataIntegrityViolationException exception) {
         TransactionImportSession session = sessionMapper.findByIdAndUserId(sessionId, userId);
         if (session == null) throw inconsistent();
-        String constraint = postgresConstraintName(exception);
-        if ("uk_transaction_import_batches_user_idempotency".equals(constraint)) {
+        if (isExpectedUniqueConstraint(exception, "uk_transaction_import_batches_user_idempotency")) {
             TransactionImportBatch batch = batchMapper.findConfirmedByUserIdAndIdempotencyKey(userId, key);
             return replayForCurrentIntent(batch, session, key, requestHash);
         }
-        if ("uk_transaction_import_batches_exact_duplicate".equals(constraint)) {
+        if (isExpectedUniqueConstraint(exception, "uk_transaction_import_batches_exact_duplicate")) {
             TransactionImportBatch batch = findExactDuplicate(userId, session);
             if (!isCommittedExactDuplicate(batch, userId, session)) throw inconsistent();
             throw new BusinessException(409, "IMPORT_EXACT_DUPLICATE");
         }
-        if ("uk_transaction_import_batches_user_session".equals(constraint)) {
+        if (isExpectedUniqueConstraint(exception, "uk_transaction_import_batches_user_session")) {
             TransactionImportBatch batch = batchMapper.findConfirmedByUserIdAndSessionId(userId, sessionId);
             return replayForCurrentIntent(batch, session, key, requestHash);
         }
@@ -249,13 +250,17 @@ public class TransactionImportConfirmService {
                 && java.util.Objects.equals(batch.getNormalizedRowsDigest(), session.getNormalizedRowsDigest());
     }
     private BusinessException inconsistent() { return new BusinessException(500, "IMPORT_CONFIRM_INCONSISTENT"); }
-    private String postgresConstraintName(Throwable throwable) {
+    private boolean isExpectedUniqueConstraint(Throwable throwable, String expectedConstraint) {
         for (Throwable current = throwable; current != null; current = current.getCause()) {
             if (current instanceof org.postgresql.util.PSQLException sqlException && sqlException.getServerErrorMessage() != null) {
-                return sqlException.getServerErrorMessage().getConstraint();
+                org.postgresql.util.ServerErrorMessage message = sqlException.getServerErrorMessage();
+                return "23505".equals(sqlException.getSQLState())
+                        && "public".equals(message.getSchema())
+                        && "transaction_import_batches".equals(message.getTable())
+                        && expectedConstraint.equals(message.getConstraint());
             }
         }
-        return null;
+        return false;
     }
     private boolean isPostgresLockConflict(Throwable throwable) {
         for (Throwable current = throwable; current != null; current = current.getCause()) {
@@ -297,7 +302,7 @@ public class TransactionImportConfirmService {
     }
     private void verifyFrozenBinding(Long userId, TransactionImportSession current, TransactionImportSession preflight, String token, List<String> warnings) {
         if (!current.getRevision().equals(preflight.getRevision()) || !current.getFileDigest().equals(preflight.getFileDigest()) || !current.getMappingDigest().equals(preflight.getMappingDigest()) || !current.getOptionsDigest().equals(preflight.getOptionsDigest()) || !current.getNormalizedRowsDigest().equals(preflight.getNormalizedRowsDigest()) || !java.util.Objects.equals(current.getPlanStorageReference(), preflight.getPlanStorageReference())) throw new BusinessException(409, "IMPORT_PREVIEW_STALE");
-        tokenService.verify(token, userId, current);
+        tokenService.verify(token, userId, current, warnings);
     }
     private void validatePlan(TransactionImportPreviewPlan plan, List<String> acknowledged) {
         if (plan.rows().isEmpty() || plan.rows().size() > 10_000 || plan.rows().stream().anyMatch(row -> !row.importable() || !row.errors().isEmpty())) throw new BusinessException(409, "IMPORT_PREVIEW_STALE");
