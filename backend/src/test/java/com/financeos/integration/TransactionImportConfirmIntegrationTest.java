@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -86,6 +87,56 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void confirmNeverAcceptsStaleDuplicateEvidenceWhenAManualWriteRacesTheFinalEvidenceCheck() throws Exception {
+        long userId = createUser("evidence-lock-race@example.com");
+        long accountId = createAccount(userId);
+        long categoryId = createCategory(userId, "Food", "EXPENSE");
+        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"),
+                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
+        CountDownLatch accountLocksAcquired = new CountDownLatch(1);
+        CountDownLatch releaseFinalEvidenceCheck = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            accountLocksAcquired.countDown();
+            if (!releaseFinalEvidenceCheck.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("final duplicate evidence check was not released");
+            }
+            return invocation.callRealMethod();
+        }).when(transactionObserver).accountLocksAcquired(any());
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<com.financeos.module.importing.dto.TransactionImportConfirmResponse> confirm = executor.submit(() ->
+                    confirmService.confirm(userId, preview.importSessionId(), "evidence-lock-race-key",
+                            new TransactionImportConfirmRequest(preview.previewToken(), List.of())));
+            assertThat(accountLocksAcquired.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> manual = executor.submit(() -> transactionService.create(userId,
+                    new TransactionRequest(accountId, categoryId, "EXPENSE", new java.math.BigDecimal("10.00"), "CNY", "lunch",
+                            LocalDateTime.of(2026, 8, 1, 0, 0))));
+
+            boolean manualCommittedBeforeEvidenceCheckReleased;
+            try {
+                manual.get(2, TimeUnit.SECONDS);
+                manualCommittedBeforeEvidenceCheckReleased = true;
+            } catch (TimeoutException expected) {
+                manualCommittedBeforeEvidenceCheckReleased = false;
+            }
+            releaseFinalEvidenceCheck.countDown();
+
+            if (manualCommittedBeforeEvidenceCheckReleased) {
+                assertThatThrownBy(() -> confirm.get(20, TimeUnit.SECONDS))
+                        .hasCauseInstanceOf(BusinessException.class)
+                        .hasRootCauseMessage("IMPORT_DUPLICATE_EVIDENCE_CHANGED");
+            } else {
+                assertThat(confirm.get(20, TimeUnit.SECONDS).idempotentReplay()).isFalse();
+                manual.get(20, TimeUnit.SECONDS);
+            }
+        } finally {
+            releaseFinalEvidenceCheck.countDown();
+            reset(transactionObserver);
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(2);
+    }
+
+    @Test
     void confirmRejectsSecondSessionWithTheSameFrozenImportAsAnExactDuplicate() {
         long userId = createUser("exact@example.com");
         long accountId = createAccount(userId);
@@ -138,6 +189,54 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         assertThat(replay.idempotentReplay()).isTrue();
         assertThat(replay.receipt().resultDigest()).isEqualTo(first.receipt().resultDigest());
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
+    }
+
+    @Test
+    void confirmAcceptsTenThousandRowsAcrossOneHundredAccountsWithinTheFrozenTransactionTimeout() {
+        long userId = createUser("ten-thousand-multi-account@example.com");
+        long categoryId = createCategory(userId, "Food", "EXPENSE");
+        Map<String, Long> accounts = new java.util.LinkedHashMap<>();
+        StringBuilder rows = new StringBuilder();
+        for (int account = 1; account <= 100; account++) {
+            String accountName = "Cash-" + account;
+            accounts.put(accountName, createAccount(userId, accountName));
+            for (int row = 1; row <= 100; row++) {
+                rows.append("2026-08-01,expense,1.00,").append(accountName).append(",Food,")
+                        .append(accountName).append('-').append(row).append('\n');
+            }
+        }
+        AtomicLong transactionDurationNanos = new AtomicLong();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            transactionDurationNanos.set(invocation.getArgument(1));
+            return invocation.callRealMethod();
+        }).when(transactionObserver).committed(any(), org.mockito.ArgumentMatchers.anyLong());
+        long started = System.nanoTime();
+        var preview = previewService.create(userId, csv(rows.toString()), new TransactionImportPreviewRequest(null,
+                new TransactionImportMapping(Map.of("date", "date", "type", "type", "amount", "amount", "account", "account", "category", "category", "description", "description"),
+                        Map.of("expense", "EXPENSE"), accounts, Map.of("Food", categoryId))));
+        var first = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-multi-account-key",
+                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
+        long elapsedMillis = java.time.Duration.ofNanos(System.nanoTime() - started).toMillis();
+        var replay = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-multi-account-key",
+                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
+
+        System.out.println("phase3d-10k-multi-account rows=10000 accounts=100 rowsPerAccount=100 totalMillis=" + elapsedMillis
+                + " transactionMillis=" + java.time.Duration.ofNanos(transactionDurationNanos.get()).toMillis());
+        assertThat(elapsedMillis).isLessThan(60_000);
+        assertThat(transactionDurationNanos.get()).isPositive().isLessThan(java.time.Duration.ofSeconds(60).toNanos());
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_items WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(10_000);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batch_account_impacts WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(100);
+        for (long accountId : accounts.values()) {
+            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("-100.00");
+        }
+        assertThat(first.receipt().accountImpacts().stream().map(impact -> impact.accountId()).toList())
+                .isSorted();
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM transaction_import_sessions WHERE id = ?", String.class, preview.importSessionId())).isEqualTo("CONSUMED");
+        assertThat(replay.idempotentReplay()).isTrue();
+        assertThat(replay.receipt().resultDigest()).isEqualTo(first.receipt().resultDigest());
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
+        reset(transactionObserver);
     }
 
     @Test
@@ -594,8 +693,30 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches WHERE user_id = ?", Integer.class, userId)).isZero();
     }
 
+    @Test
+    void namedConstraintFallbackRequiresTheExpectedSqlStateSchemaTableAndConstraint() {
+        long userId = createUser("fallback-relation-identity@example.com");
+        long accountId = createAccount(userId);
+        long categoryId = createCategory(userId, "Food", "EXPENSE");
+        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,committed"),
+                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
+        var first = confirmService.confirm(userId, preview.importSessionId(), "fallback-relation-identity-key",
+                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
+        String requestHash = jdbcTemplate.queryForObject("SELECT request_hash FROM transaction_import_batches WHERE id = ?", String.class,
+                first.receipt().importBatchId());
+
+        for (DataIntegrityViolationException exception : List.of(
+                namedConstraint("23505", "other_schema", "transaction_import_batches", "uk_transaction_import_batches_user_idempotency"),
+                namedConstraint("23505", "public", "transaction_import_items", "uk_transaction_import_batches_user_idempotency"),
+                namedConstraint("23514", "public", "transaction_import_batches", "uk_transaction_import_batches_user_idempotency"))) {
+            assertThatThrownBy(() -> invokeRecovery(userId, preview.importSessionId(), "fallback-relation-identity-key", requestHash, exception))
+                    .isInstanceOf(BusinessException.class).hasMessage("IMPORT_CONFIRM_INCONSISTENT");
+        }
+    }
+
     private long createUser(String email) { return jdbcTemplate.queryForObject("INSERT INTO users (username, password_hash, email) VALUES (?, 'password', ?) RETURNING id", Long.class, email, email); }
-    private long createAccount(long userId) { return jdbcTemplate.queryForObject("INSERT INTO accounts (user_id, name, type, currency, balance, status) VALUES (?, 'Cash', 'CASH', 'CNY', 0, 'ACTIVE') RETURNING id", Long.class, userId); }
+    private long createAccount(long userId) { return createAccount(userId, "Cash"); }
+    private long createAccount(long userId, String name) { return jdbcTemplate.queryForObject("INSERT INTO accounts (user_id, name, type, currency, balance, status) VALUES (?, ?, 'CASH', 'CNY', 0, 'ACTIVE') RETURNING id", Long.class, userId, name); }
     private long createCategory(long userId, String name, String type) { return jdbcTemplate.queryForObject("INSERT INTO categories (user_id, name, type, is_system) VALUES (?, ?, ?, false) RETURNING id", Long.class, userId, name, type); }
     private TransactionImportMapping mapping(long accountId, long expenseCategoryId) { return new TransactionImportMapping(Map.of("date", "date", "type", "type", "amount", "amount", "account", "account", "category", "category", "description", "description"), Map.of("expense", "EXPENSE"), Map.of("Cash", accountId), Map.of("Food", expenseCategoryId)); }
     private MockMultipartFile csv(String content) { return new MockMultipartFile("file", "statement.csv", "text/csv", ("date,type,amount,account,category,description\n" + content).getBytes(StandardCharsets.UTF_8)); }
@@ -649,7 +770,11 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         return ReflectionTestUtils.invokeMethod(confirmService, "recoverKnownUnique", userId, sessionId, key, requestHash, exception);
     }
     private DataIntegrityViolationException namedConstraint(String sqlState, String constraint) {
-        String message = "SERROR\0VERROR\0C" + sqlState + "\0Mphase-3d controlled constraint branch\0n" + constraint + "\0\0";
+        return namedConstraint(sqlState, "public", "transaction_import_batches", constraint);
+    }
+    private DataIntegrityViolationException namedConstraint(String sqlState, String schema, String table, String constraint) {
+        String message = "SERROR\0VERROR\0C" + sqlState + "\0Mphase-3d controlled constraint branch\0s" + schema
+                + "\0t" + table + "\0n" + constraint + "\0\0";
         return new DataIntegrityViolationException("controlled PostgreSQL constraint", new PSQLException(new ServerErrorMessage(message)));
     }
     private void awaitSessionLockWait() throws Exception {

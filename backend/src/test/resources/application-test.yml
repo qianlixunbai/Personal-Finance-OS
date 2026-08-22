@@ -8,5 +8,7 @@ migration:
 
 finance:
   import:
+    confirm:
+      token-secret: transaction-import-confirm-test-secret-at-least-32-characters
     cleanup:
       enabled: false
