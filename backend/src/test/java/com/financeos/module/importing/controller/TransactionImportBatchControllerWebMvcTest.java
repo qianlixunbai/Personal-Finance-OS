@@ -5,8 +5,8 @@ import com.financeos.common.GlobalExceptionHandler;
 import com.financeos.module.auth.config.SecurityConfig;
 import com.financeos.module.auth.config.SecurityErrorResponseHandler;
 import com.financeos.module.auth.util.JwtAuthFilter;
-import com.financeos.module.importing.dto.TransactionImportBatchStatusResponse;
-import com.financeos.module.importing.service.TransactionImportBatchQueryService;
+import com.financeos.module.importing.dto.TransactionImportReceipt;
+import com.financeos.module.importing.service.TransactionImportConfirmService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -46,7 +46,7 @@ class TransactionImportBatchControllerWebMvcTest {
     private JwtAuthFilter jwtAuthFilter;
 
     @MockBean
-    private TransactionImportBatchQueryService queryService;
+    private TransactionImportConfirmService confirmService;
 
     @BeforeEach
     void passThroughJwtFilter() throws Exception {
@@ -65,15 +65,15 @@ class TransactionImportBatchControllerWebMvcTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
 
-        verifyNoInteractions(queryService);
+        verifyNoInteractions(confirmService);
     }
 
     @Test
     void statusQueryReturnsOnlyTheCurrentUsersConfirmedBatch() throws Exception {
         UUID batchId = UUID.randomUUID();
-        when(queryService.getConfirmedBatch(USER_ID, batchId)).thenReturn(new TransactionImportBatchStatusResponse(
-                batchId, "CONFIRMED", "statement.csv", "a".repeat(64), 2, 2, 2, 0, 0,
-                Instant.parse("2026-08-14T12:00:00Z"), "3.0"));
+        when(confirmService.getReceipt(USER_ID, batchId)).thenReturn(new TransactionImportReceipt(
+                UUID.randomUUID(), batchId, "CONFIRMED", "statement.csv", "a".repeat(64), 2, 2, 2, 0, 0,
+                java.util.List.of(), java.util.List.of(), Instant.parse("2026-08-14T12:00:00Z"), "3.0", "b".repeat(64)));
 
         mockMvc.perform(get("/api/v1/imports/transactions/batches/{batchId}", batchId)
                         .with(authentication(new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList()))))
@@ -82,13 +82,13 @@ class TransactionImportBatchControllerWebMvcTest {
                 .andExpect(jsonPath("$.data.importBatchId").value(batchId.toString()))
                 .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
 
-        verify(queryService).getConfirmedBatch(USER_ID, batchId);
+        verify(confirmService).getReceipt(USER_ID, batchId);
     }
 
     @Test
     void statusQueryMapsForeignOrMissingBatchToNotFound() throws Exception {
         UUID batchId = UUID.randomUUID();
-        when(queryService.getConfirmedBatch(USER_ID, batchId)).thenThrow(new BusinessException(404, "Import batch not found"));
+        when(confirmService.getReceipt(USER_ID, batchId)).thenThrow(new BusinessException(404, "Import batch not found"));
 
         mockMvc.perform(get("/api/v1/imports/transactions/batches/{batchId}", batchId)
                         .with(authentication(new UsernamePasswordAuthenticationToken(USER_ID, null, Collections.emptyList()))))

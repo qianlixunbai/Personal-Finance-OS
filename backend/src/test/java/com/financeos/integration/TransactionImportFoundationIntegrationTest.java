@@ -154,9 +154,12 @@ class TransactionImportFoundationIntegrationTest extends PostgresIntegrationTest
     }
 
     private TransactionImportBatch batch(UUID id, long userId, String key, String fileDigest) {
+        TransactionImportSession session = session(UUID.randomUUID(), userId, id);
+        sessionMapper.insert(session);
         TransactionImportBatch batch = new TransactionImportBatch();
         batch.setId(id);
         batch.setUserId(userId);
+        batch.setSessionId(session.getId());
         batch.setOriginalFileName("statement.csv");
         batch.setFileDigest(fileDigest);
         batch.setMappingDigest("c".repeat(64));
@@ -165,6 +168,7 @@ class TransactionImportFoundationIntegrationTest extends PostgresIntegrationTest
         batch.setContractVersion("3.0");
         batch.setIdempotencyKey(key);
         batch.setRequestHash("e".repeat(64));
+        batch.setResultDigest("f".repeat(64));
         batch.setStatus("CONFIRMED");
         batch.setTotalRows(1);
         batch.setWarningCount(0);
