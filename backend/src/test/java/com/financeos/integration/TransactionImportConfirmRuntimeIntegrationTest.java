@@ -52,11 +52,16 @@ class TransactionImportConfirmRuntimeIntegrationTest extends PostgresIntegration
         JsonNode preview = preview(user, "statement.csv", "text/csv", CSV.getBytes(StandardCharsets.UTF_8), mapping(accountId, categoryId));
         JsonNode first = confirm(user, preview, "runtime-csv-key");
         JsonNode replay = confirm(user, preview, "runtime-csv-key");
+        ResponseEntity<String> receiptGet = exchange(HttpMethod.GET,
+                "/api/v1/imports/transactions/batches/" + first.at("/data/receipt/importBatchId").asText(), bearer(user, null), null);
+        JsonNode retrieved = objectMapper.readTree(receiptGet.getBody());
 
         assertThat(first.at("/data/idempotentReplay").asBoolean()).isFalse();
         assertThat(replay.at("/data/idempotentReplay").asBoolean()).isTrue();
         assertThat(replay.at("/data/receipt/importBatchId").asText()).isEqualTo(first.at("/data/receipt/importBatchId").asText());
         assertThat(replay.at("/data/receipt/resultDigest").asText()).isEqualTo(first.at("/data/receipt/resultDigest").asText());
+        assertThat(receiptGet.getStatusCode().value()).isEqualTo(200);
+        assertThat(retrieved.at("/data/resultDigest").asText()).isEqualTo(first.at("/data/receipt/resultDigest").asText());
         assertReceiptMatchesDatabase(user.id(), accountId, preview, first);
 
         JsonNode conflictPreview = preview(user, "conflict.csv", "text/csv", CSV.replace("lunch", "dinner").getBytes(StandardCharsets.UTF_8), mapping(accountId, categoryId));

@@ -35,7 +35,7 @@ class FlywayVersionTenUpgradeIntegrationTest {
         flyway(null).migrate();
 
         try (Connection connection = connection()) {
-            assertThat(appliedVersion(connection)).isEqualTo("16");
+            assertThat(appliedVersion(connection)).isEqualTo("17");
             assertThat(columnExists(connection, "account_balance_after")).isTrue();
             assertThat(columnExists(connection, "position_quantity_after")).isTrue();
             assertThat(columnExists(connection, "position_avg_cost_after")).isTrue();

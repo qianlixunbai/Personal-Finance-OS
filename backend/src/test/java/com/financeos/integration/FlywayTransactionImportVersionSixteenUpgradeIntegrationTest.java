@@ -65,7 +65,7 @@ class FlywayTransactionImportVersionSixteenUpgradeIntegrationTest {
         flyway(null).migrate();
 
         try (Connection connection = connection()) {
-            assertThat(appliedVersion(connection)).isEqualTo("16");
+            assertThat(appliedVersion(connection)).isEqualTo("17");
             assertThat(queryString(connection, "SELECT session_id::text FROM transaction_import_batches WHERE id = '" + BATCH_ID + "'"))
                     .isEqualTo(SESSION_ID);
             assertThat(queryString(connection, "SELECT result_digest FROM transaction_import_batches WHERE id = '" + BATCH_ID + "'"))
