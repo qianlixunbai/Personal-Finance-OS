@@ -17,10 +17,14 @@ import com.financeos.module.importing.dto.TransactionImportValidationMessage;
 import com.financeos.module.importing.entity.TransactionImportSession;
 import com.financeos.module.importing.mapper.TransactionImportSessionMapper;
 import com.financeos.module.importing.service.TransactionImportSessionService;
+import com.financeos.module.importing.service.TransactionImportPreviewTokenService;
 import com.financeos.module.importing.storage.StoredImportFile;
 import com.financeos.module.importing.storage.TemporaryImportFileStorage;
 import com.financeos.module.ledger.mapper.TransactionMapper;
+import com.financeos.module.ledger.dto.TransactionDuplicateProbe;
+import com.financeos.module.ledger.entity.Transaction;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -62,13 +66,16 @@ public class TransactionImportPreviewService {
     private final TransactionMapper transactionMapper;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final TransactionImportPreviewTokenService previewTokenService;
 
+    @Autowired
     public TransactionImportPreviewService(TransactionImportSessionService sessionService,
                                            TransactionImportSessionMapper sessionMapper,
                                            TemporaryImportFileStorage storage, AccountMapper accountMapper,
                                            CategoryMapper categoryMapper, TransactionMapper transactionMapper,
                                            @Qualifier("transactionImportPreviewPlanStorage") TemporaryImportFileStorage planStorage,
-                                           ObjectMapper objectMapper, @Qualifier("businessClock") Clock clock) {
+                                           ObjectMapper objectMapper, @Qualifier("businessClock") Clock clock,
+                                           TransactionImportPreviewTokenService previewTokenService) {
         this.sessionService = sessionService;
         this.sessionMapper = sessionMapper;
         this.storage = storage;
@@ -78,6 +85,17 @@ public class TransactionImportPreviewService {
         this.transactionMapper = transactionMapper;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.previewTokenService = previewTokenService;
+    }
+
+    /** Compatibility constructor for focused unit tests that do not bootstrap Spring. */
+    public TransactionImportPreviewService(TransactionImportSessionService sessionService,
+                                           TransactionImportSessionMapper sessionMapper,
+                                           TemporaryImportFileStorage storage, AccountMapper accountMapper,
+                                           CategoryMapper categoryMapper, TransactionMapper transactionMapper,
+                                           TemporaryImportFileStorage planStorage, ObjectMapper objectMapper, Clock clock) {
+        this(sessionService, sessionMapper, storage, accountMapper, categoryMapper, transactionMapper, planStorage,
+                objectMapper, clock, new TransactionImportPreviewTokenService(objectMapper, "transaction-import-preview-test-token-secret"));
     }
 
     public TransactionImportPreviewResponse create(Long userId, MultipartFile file, TransactionImportPreviewRequest request) {
@@ -117,7 +135,7 @@ public class TransactionImportPreviewService {
     public List<TransactionImportPreviewRow> getRows(Long userId, java.util.UUID sessionId, int page, int size) {
         TransactionImportSession session = requireUsableSession(userId, sessionId);
         if (session.getPlanStorageReference() == null) throw new BusinessException(409, "Import mapping is required");
-        PreviewPlan plan = readPlan(session.getPlanStorageReference());
+        TransactionImportPreviewPlan plan = readPlan(session.getPlanStorageReference());
         int safeSize = Math.min(Math.max(size, 1), 500);
         int from = Math.min((Math.max(page, 1) - 1) * safeSize, plan.rows().size());
         return plan.rows().subList(from, Math.min(from + safeSize, plan.rows().size()));
@@ -161,11 +179,14 @@ public class TransactionImportPreviewService {
 
     private TransactionImportPreviewResponse materialize(Long userId, TransactionImportSession session, ParsedImportFile parsed,
                                                           TransactionImportMapping mapping) {
-        List<TransactionImportPreviewRow> rows = validate(userId, parsed, mapping);
+        // The session revision changes as this preview is committed.  Bind every warning to
+        // that resulting revision, so an acknowledgement cannot be reused for another plan.
+        List<TransactionImportPreviewRow> rows = bindWarningIdentities(validate(userId, parsed, mapping), session,
+                session.getRevision() + 1);
         TransactionImportPreviewSummary summary = summarize(rows);
         String mappingDigest = digest(canonicalMapping(mapping));
         String rowsDigest = digest(canonicalRows(rows));
-        PreviewPlan plan = new PreviewPlan(parsed.headers(), mapping, rows, summary);
+        TransactionImportPreviewPlan plan = new TransactionImportPreviewPlan(parsed.headers(), mapping, rows, summary);
         StoredImportFile storedPlan = storePlan(plan);
         int updated = sessionMapper.markPreviewReady(session.getId(), userId, mappingDigest, rowsDigest,
                 storedPlan.reference(), clock.instant());
@@ -180,6 +201,10 @@ public class TransactionImportPreviewService {
 
     private List<TransactionImportPreviewRow> validate(Long userId, ParsedImportFile parsed, TransactionImportMapping mapping) {
         List<TransactionImportPreviewRow> rows = new ArrayList<>();
+        Map<Long, Account> accounts = accountMapper.findOwnedByIds(userId, mapping.accountMappings().values().stream().distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(Account::getId, account -> account));
+        Map<Long, Category> categories = categoryMapper.selectVisibleByIds(userId, mapping.categoryMappings().values().stream().distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(Category::getId, category -> category));
         Map<String, Integer> headerIndex = new HashMap<>();
         for (int index = 0; index < parsed.headers().size(); index++) headerIndex.put(parsed.headers().get(index), index);
         Map<String, List<Integer>> fingerprintRows = new HashMap<>();
@@ -196,8 +221,8 @@ public class TransactionImportPreviewService {
             String time = normalizeTime(rawValue(sourceValues, mapping.columnMappings().get("time")), errors, source.rowNumber());
             String currency = normalizeCurrency(rawValue(sourceValues, mapping.columnMappings().get("currency")), errors, source.rowNumber());
             String description = normalizeDescription(rawValue(sourceValues, mapping.columnMappings().get("description")), type, errors, source.rowNumber());
-            validateAccount(userId, accountValue, mapping.accountMappings(), errors, source.rowNumber());
-            validateCategory(userId, categoryValue, type, mapping.categoryMappings(), errors, source.rowNumber());
+            validateAccount(accountValue, mapping.accountMappings(), accounts, errors, source.rowNumber());
+            validateCategory(categoryValue, type, mapping.categoryMappings(), categories, errors, source.rowNumber());
             normalized.put("type", type == null ? "" : type);
             normalized.put("amount", amount == null ? "" : amount);
             normalized.put("date", date == null ? "" : date);
@@ -220,26 +245,42 @@ public class TransactionImportPreviewService {
 
     private List<TransactionImportPreviewRow> applyDatabaseDuplicateWarnings(Long userId, List<TransactionImportPreviewRow> rows,
                                                                                TransactionImportMapping mapping) {
+        List<TransactionDuplicateProbe> probes = rows.stream().filter(row -> row.errors().isEmpty())
+                .map(row -> duplicateProbe(row, mapping)).toList();
+        Map<String, List<Long>> candidateIds = probes.isEmpty() ? Map.of()
+                : transactionMapper.findProbableDuplicateCandidates(userId, probes).stream()
+                .collect(java.util.stream.Collectors.groupingBy(this::duplicateKey,
+                        java.util.stream.Collectors.mapping(Transaction::getId, java.util.stream.Collectors.toList())));
         List<TransactionImportPreviewRow> result = new ArrayList<>(rows.size());
         for (TransactionImportPreviewRow row : rows) {
             if (!row.errors().isEmpty()) { result.add(row); continue; }
             try {
-                Long accountId = mapping.accountMappings().get(row.normalizedValues().get("account"));
-                Long categoryId = mapping.categoryMappings().get(row.normalizedValues().get("category"));
-                boolean duplicate = transactionMapper.existsProbableDuplicate(userId, accountId, categoryId,
-                        row.normalizedValues().get("type"), new BigDecimal(row.normalizedValues().get("amount")),
-                        LocalDateTime.parse(row.normalizedValues().get("date") + "T" + row.normalizedValues().get("time")),
-                        row.normalizedValues().get("description"));
-                if (duplicate) {
+                List<Long> matches = candidateIds.getOrDefault(duplicateKey(duplicateProbe(row, mapping)), List.of());
+                if (!matches.isEmpty()) {
                     List<TransactionImportValidationMessage> warnings = new ArrayList<>(row.warnings());
                     warnings.add(message("DATABASE_PROBABLE", "row", row.rowNumber(), "duplicate",
-                            "This row is a probable duplicate of an existing transaction"));
+                            "This row is a probable duplicate of an existing transaction", matches.toString()));
                     result.add(new TransactionImportPreviewRow(row.rowNumber(), row.sourceValues(), row.normalizedValues(),
                             row.mappingStatus(), row.errors(), warnings, "DATABASE_PROBABLE", true));
                 } else result.add(row);
             } catch (RuntimeException exception) { throw exception; }
         }
         return result;
+    }
+
+    private TransactionDuplicateProbe duplicateProbe(TransactionImportPreviewRow row, TransactionImportMapping mapping) {
+        return new TransactionDuplicateProbe(mapping.accountMappings().get(row.normalizedValues().get("account")),
+                mapping.categoryMappings().get(row.normalizedValues().get("category")), row.normalizedValues().get("type"),
+                new BigDecimal(row.normalizedValues().get("amount")), LocalDateTime.parse(row.normalizedValues().get("transactedAt")),
+                row.normalizedValues().get("description"));
+    }
+    private String duplicateKey(TransactionDuplicateProbe probe) {
+        return probe.accountId() + "|" + probe.categoryId() + "|" + probe.type() + "|" + probe.amount().toPlainString()
+                + "|" + probe.transactedAt() + "|" + probe.description();
+    }
+    private String duplicateKey(Transaction transaction) {
+        return duplicateKey(new TransactionDuplicateProbe(transaction.getAccountId(), transaction.getCategoryId(), transaction.getType(),
+                transaction.getAmount(), transaction.getTransactedAt(), transaction.getDescription()));
     }
 
     private List<TransactionImportPreviewRow> applyInFileDuplicateWarnings(List<TransactionImportPreviewRow> rows,
@@ -250,7 +291,7 @@ public class TransactionImportPreviewService {
             List<Integer> matching = fingerprintRows.get(fingerprintsByRow.get(row.rowNumber()));
             if (row.errors().isEmpty() && matching.size() > 1) {
                 TransactionImportValidationMessage warning = message("IN_FILE_PROBABLE", "row", row.rowNumber(), "duplicate",
-                        "This row is a probable duplicate within the uploaded file");
+                        "This row is a probable duplicate within the uploaded file", matching.toString());
                 result.add(new TransactionImportPreviewRow(row.rowNumber(), row.sourceValues(), row.normalizedValues(),
                         row.mappingStatus(), row.errors(), List.of(warning), "IN_FILE_PROBABLE", true));
             } else result.add(row);
@@ -327,20 +368,19 @@ public class TransactionImportPreviewService {
         return value;
     }
 
-    private void validateAccount(Long userId, String raw, Map<String, Long> mappings, List<TransactionImportValidationMessage> errors, int rowNumber) {
+    private void validateAccount(String raw, Map<String, Long> mappings, Map<Long, Account> accounts, List<TransactionImportValidationMessage> errors, int rowNumber) {
         Long id = mappings.get(normalizeKey(raw));
-        Account account = id == null ? null : accountMapper.findByUserIdAndId(userId, id);
+        Account account = id == null ? null : accounts.get(id);
         if (id == null) errors.add(message("ACCOUNT_NOT_MAPPED", "row", rowNumber, "account", "Account mapping is required"));
         else if (account == null) errors.add(message("ACCOUNT_NOT_FOUND", "row", rowNumber, "account", "Account is not available"));
         else if (!"ACTIVE".equals(account.getStatus())) errors.add(message("ACCOUNT_INACTIVE", "row", rowNumber, "account", "Account is inactive"));
         else if (!"CNY".equals(account.getCurrency())) errors.add(message("UNSUPPORTED_CURRENCY", "row", rowNumber, "account", "Account currency must be CNY"));
     }
 
-    private void validateCategory(Long userId, String raw, String type, Map<String, Long> mappings, List<TransactionImportValidationMessage> errors, int rowNumber) {
+    private void validateCategory(String raw, String type, Map<String, Long> mappings, Map<Long, Category> categories, List<TransactionImportValidationMessage> errors, int rowNumber) {
         Long id = mappings.get(normalizeKey(raw));
-        Category category = id == null ? null : categoryMapper.selectById(id);
-        boolean visible = category != null && (userId.equals(category.getUserId())
-                || (category.getUserId() == null && Boolean.TRUE.equals(category.getIsSystem())));
+        Category category = id == null ? null : categories.get(id);
+        boolean visible = category != null;
         if (id == null) errors.add(message("CATEGORY_NOT_MAPPED", "row", rowNumber, "category", "Category mapping is required"));
         else if (!visible) errors.add(message("CATEGORY_NOT_MAPPED", "row", rowNumber, "category", "Category is not available"));
         else if (("INCOME".equals(type) || "EXPENSE".equals(type)) && !type.equals(category.getType()))
@@ -364,14 +404,15 @@ public class TransactionImportPreviewService {
     private TransactionImportPreviewResponse mappingRequired(TransactionImportSession session, List<String> headers) {
         return new TransactionImportPreviewResponse(session.getId(), null, session.getStatus(), session.getRevision(), headers,
                 null, List.of(), new TransactionImportPreviewSummary(0, 0, 0, 0, 0, 0), session.getFileDigest(), null,
-                session.getOptionsDigest(), null, session.getExpiresAt(), false);
+                session.getOptionsDigest(), null, session.getExpiresAt(), false, null);
     }
 
     private TransactionImportPreviewResponse response(TransactionImportSession session, List<String> headers, TransactionImportMapping mapping,
                                                        List<TransactionImportPreviewRow> rows, TransactionImportPreviewSummary summary) {
         return new TransactionImportPreviewResponse(session.getId(), session.getPreallocatedBatchId(), session.getStatus(), session.getRevision(),
                 headers, mapping, rows.subList(0, Math.min(100, rows.size())), summary, session.getFileDigest(), session.getMappingDigest(),
-                session.getOptionsDigest(), session.getNormalizedRowsDigest(), session.getExpiresAt(), summary.errorRows() == 0);
+                session.getOptionsDigest(), session.getNormalizedRowsDigest(), session.getExpiresAt(), summary.errorRows() == 0,
+                previewTokenService.issue(session, rows.stream().flatMap(row -> row.warnings().stream()).map(TransactionImportValidationMessage::id).toList()));
     }
 
     private ParsedImportFile parse(TransactionImportFormat format, String reference) {
@@ -397,15 +438,19 @@ public class TransactionImportPreviewService {
         return detected;
     }
 
-    private StoredImportFile storePlan(PreviewPlan plan) {
+    private StoredImportFile storePlan(TransactionImportPreviewPlan plan) {
         try {
             byte[] payload = objectMapper.writeValueAsBytes(plan);
             return planStorage.save(new ByteArrayInputStream(payload), "preview-plan.json");
         } catch (JsonProcessingException exception) { throw new IllegalStateException("Cannot serialize import preview plan", exception); }
     }
 
-    private PreviewPlan readPlan(String reference) {
-        try (var input = planStorage.open(reference)) { return objectMapper.readValue(input, PreviewPlan.class); }
+    public TransactionImportPreviewPlan loadFrozenPlan(String reference) {
+        return readPlan(reference);
+    }
+
+    private TransactionImportPreviewPlan readPlan(String reference) {
+        try (var input = planStorage.open(reference)) { return objectMapper.readValue(input, TransactionImportPreviewPlan.class); }
         catch (IOException exception) { throw new BusinessException(409, "Import preview plan is unavailable"); }
     }
 
@@ -424,15 +469,28 @@ public class TransactionImportPreviewService {
 
     private String rawValue(Map<String, String> values, String header) { return header == null ? null : values.get(header); }
     private String normalizeKey(String value) { return value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFC).trim(); }
+    private List<TransactionImportPreviewRow> bindWarningIdentities(List<TransactionImportPreviewRow> rows,
+                                                                      TransactionImportSession session, int revision) {
+        return rows.stream().map(row -> new TransactionImportPreviewRow(row.rowNumber(), row.sourceValues(), row.normalizedValues(),
+                row.mappingStatus(), row.errors(), row.warnings().stream()
+                .map(warning -> new TransactionImportValidationMessage(digest(session.getId() + "|" + revision + "|"
+                        + canonicalMap(row.normalizedValues()) + "|" + warning.id()), warning.code(), warning.scope(),
+                        warning.field(), warning.rowNumber(), warning.message(), warning.retryable())).toList(),
+                row.duplicateStatus(), row.importable())).toList();
+    }
     private TransactionImportValidationMessage message(String code, String scope, int row, String field, String text) {
-        return new TransactionImportValidationMessage(digest(code + "|" + row + "|" + field), code, scope, field, row, text, false);
+        return message(code, scope, row, field, text, "");
+    }
+    private TransactionImportValidationMessage message(String code, String scope, int row, String field, String text, String evidence) {
+        return new TransactionImportValidationMessage(digest(code + "|" + row + "|" + field + "|" + evidence), code, scope, field, row, text, false);
     }
     private String canonicalMapping(TransactionImportMapping mapping) { return canonicalMap(new TreeMap<>(Map.of("columns", canonicalMap(mapping.columnMappings()), "types", canonicalMap(mapping.typeMappings()), "accounts", canonicalMap(mapping.accountMappings()), "categories", canonicalMap(mapping.categoryMappings())))); }
-    private String canonicalRows(List<TransactionImportPreviewRow> rows) { return rows.stream().sorted(Comparator.comparingInt(TransactionImportPreviewRow::rowNumber)).map(row -> atom(String.valueOf(row.rowNumber())) + atom(canonicalMap(row.normalizedValues())) + atom(row.warnings().stream().map(TransactionImportValidationMessage::id).sorted().reduce("", (left, right) -> left + right))).reduce("", (left, right) -> left + right); }
+    // Duplicate evidence is dynamic and is validated separately at Confirm.  The immutable
+    // import identity must describe canonical input, not the set of transactions visible
+    // when a preview happened to be generated.
+    private String canonicalRows(List<TransactionImportPreviewRow> rows) { return rows.stream().sorted(Comparator.comparingInt(TransactionImportPreviewRow::rowNumber)).map(row -> atom(String.valueOf(row.rowNumber())) + atom(canonicalMap(row.normalizedValues()))).reduce("", (left, right) -> left + right); }
     private String canonicalMap(Map<?, ?> map) { return map.entrySet().stream().sorted(Comparator.comparing(entry -> String.valueOf(entry.getKey()))).map(entry -> atom(String.valueOf(entry.getKey())) + atom(String.valueOf(entry.getValue()))).reduce("", (left, right) -> left + right); }
     private String atom(String value) { return value.length() + ":" + value; }
     private String digest(String value) { try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); } }
 
-    private record PreviewPlan(List<String> headers, TransactionImportMapping mapping, List<TransactionImportPreviewRow> rows,
-                               TransactionImportPreviewSummary summary) { }
 }

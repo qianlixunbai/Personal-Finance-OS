@@ -55,6 +55,17 @@ public class TransactionImportPreviewCleanupService {
         }
     }
 
+    /** Runs only after the financial transaction has committed; cleanup never participates in receipt atomicity. */
+    public void cleanupCommittedPayloads(TransactionImportSession session) {
+        try {
+            if (session.getTemporaryStorageReference() != null) storage.delete(session.getTemporaryStorageReference());
+            if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
+            sessionMapper.clearCleanupReferences(session.getId(), session.getUserId());
+        } catch (RuntimeException exception) {
+            log.warn("Transaction import committed payload cleanup failed for session {}", session.getId());
+        }
+    }
+
     void stopAcceptingCleanup() {
         acceptingCleanup.set(false);
         cleanupLifecycleLock.writeLock().lock();

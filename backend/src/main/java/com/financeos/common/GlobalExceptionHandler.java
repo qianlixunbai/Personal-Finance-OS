@@ -55,6 +55,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         log.warn("Business exception: {}", e.getMessage());
+        if (e.getMessage() != null && e.getMessage().startsWith("IMPORT_")) {
+            return ResponseEntity.status(resolveHttpStatus(e.getCode()))
+                    .body(ApiResponse.domainError(e.getCode(), e.getMessage(), importRetryable(e.getMessage())));
+        }
         return ResponseEntity.status(resolveHttpStatus(e.getCode()))
                 .body(ApiResponse.error(e.getCode(), e.getMessage()));
     }
@@ -152,5 +156,13 @@ public class GlobalExceptionHandler {
             }
         }
         return false;
+    }
+
+    private boolean importRetryable(String errorCode) {
+        return switch (errorCode) {
+            case "IMPORT_LOCK_CONFLICT" -> true;
+            case "IMPORT_PREVIEW_STALE", "IMPORT_PREVIEW_EXPIRED", "IMPORT_DUPLICATE_EVIDENCE_CHANGED" -> true;
+            default -> false;
+        };
     }
 }

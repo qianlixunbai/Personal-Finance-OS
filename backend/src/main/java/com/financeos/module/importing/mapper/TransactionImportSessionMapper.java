@@ -69,7 +69,7 @@ public interface TransactionImportSessionMapper extends BaseMapper<TransactionIm
             SELECT * FROM transaction_import_sessions
             WHERE (temporary_storage_reference IS NOT NULL OR plan_storage_reference IS NOT NULL)
               AND ((expires_at <= #{now} AND status IN ('MAPPING_REQUIRED', 'PREVIEW_READY'))
-                   OR status IN ('EXPIRED', 'CANCELLED'))
+                   OR status IN ('EXPIRED', 'CANCELLED', 'CONSUMED'))
             """)
     List<TransactionImportSession> findExpiredForCleanup(@Param("now") Instant now);
 

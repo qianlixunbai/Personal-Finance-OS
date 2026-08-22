@@ -18,6 +18,7 @@ public class TransactionImportBatch {
     @TableField(typeHandler = PostgresUuidTypeHandler.class, jdbcType = JdbcType.OTHER)
     private UUID id;
     private Long userId;
+    private UUID sessionId;
     private String originalFileName;
     private String fileDigest;
     private String mappingDigest;
@@ -26,6 +27,7 @@ public class TransactionImportBatch {
     private String contractVersion;
     private String idempotencyKey;
     private String requestHash;
+    private String resultDigest;
     private String status;
     private Integer totalRows;
     private Integer warningCount;

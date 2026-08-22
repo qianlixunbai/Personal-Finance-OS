@@ -16,6 +16,14 @@ public interface AccountMapper extends BaseMapper<Account> {
     @Select("SELECT * FROM accounts WHERE user_id = #{userId} AND id = #{accountId}")
     Account findByUserIdAndId(@Param("userId") Long userId, @Param("accountId") Long accountId);
 
+    @Select("""
+            <script>
+            SELECT * FROM accounts WHERE user_id = #{userId} AND id IN
+            <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">#{accountId}</foreach>
+            </script>
+            """)
+    List<Account> findOwnedByIds(@Param("userId") Long userId, @Param("accountIds") List<Long> accountIds);
+
     @Select("SELECT set_config('lock_timeout', #{timeout}, true)")
     String configureLocalLockTimeout(@Param("timeout") String timeout);
 

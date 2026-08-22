@@ -11,7 +11,7 @@ public record TransactionImportPreviewResponse(UUID importSessionId, UUID import
                                                TransactionImportPreviewSummary summary,
                                                String fileDigest, String mappingDigest,
                                                String optionsDigest, String normalizedRowsDigest,
-                                               Instant expiresAt, boolean confirmable) {
+                                               Instant expiresAt, boolean confirmable, String previewToken) {
     public TransactionImportPreviewResponse {
         detectedColumns = List.copyOf(detectedColumns);
         rows = List.copyOf(rows);
