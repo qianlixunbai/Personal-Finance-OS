@@ -6,9 +6,9 @@
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
 
-> **当前阶段：** `Phase 3D Transaction Import Confirm：CLOSED — GO`
+> **当前阶段：** `Phase 3D Transaction Import Confirm：NO-GO（独立 Closing Review 发现 P1）`
 >
-> **下一核心能力：** `Transaction Import Frontend：NOT STARTED`
+> **下一核心能力：** `Phase 3D P1 remediation`；`Transaction Import Frontend：NOT STARTED`
 
 Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
 
@@ -133,9 +133,8 @@ flowchart TD
 
 ### 普通流水导入预览
 
-- `Phase 3A Transaction Import Contract Design`、`Phase 3B Transaction Import Backend Foundation`、`Phase 3C Transaction Import Preview & Validation` 与 `Phase 3D Transaction Import Confirm` 均已 `CLOSED — GO`；
-- 现已支持 CSV / XLSX → upload → mapping → preview → validation → confirm → authoritative receipt；
-- Preview 只处理 Import Session 与私有临时 payload；Confirm 只执行服务端 frozen `PreviewPlan`，在单一 PostgreSQL transaction 内写入正式 `Transaction`、`Account.balance`、Batch、Items、Account Impacts 与 Session consume；
+- `Phase 3A Transaction Import Contract Design`、`Phase 3B Transaction Import Backend Foundation` 与 `Phase 3C Transaction Import Preview & Validation` 均已 `CLOSED — GO`；
+- Phase 3D 服务端 Confirm implementation 已完成初步验证，但独立 Closing Review 发现 P1，当前为 `NO-GO`；不得将 CSV / XLSX Confirm 表述为已关闭能力；
 - Import Frontend 尚未完成；当前不可表述为用户已能通过正式 UI 完整使用 Import。
 
 ## 技术栈与数据边界
@@ -236,4 +235,4 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 
 `Phase 2C Investment Read` 已整体关闭并获得 GO。后端公开 Portfolio、Position 列表/详情、logical transaction 列表/详情与 audit timeline；前端 `/investments` 工作区已提供摘要、筛选、opaque cursor 分页、详情和 correction audit 展示。默认交易列表返回逻辑业务事件，不会把 correction physical fact 暴露为独立逻辑交易。
 
-`Investment Command & Correction UI` 已完成并获得 GO，主产品提供 BUY / SELL / DIVIDEND、standalone reversal 与 same-type replacement 的确认、提交、回执和恢复流程。普通 Transaction Import 已完成 CSV / XLSX 上传、mapping、Preview、validation、Confirm 与 authoritative receipt；Confirm 在服务端执行 frozen `PreviewPlan` 并以单一数据库事务保证金融写入与幂等恢复。Import Frontend 尚未完成，Preview 不会自行创建 `Transaction` 或修改 `Account.balance`。系统仍没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
+`Investment Command & Correction UI` 已完成并获得 GO，主产品提供 BUY / SELL / DIVIDEND、standalone reversal 与 same-type replacement 的确认、提交、回执和恢复流程。普通 Transaction Import 已完成 CSV / XLSX 上传、mapping、Preview 与 validation；Phase 3D Confirm implementation 仍有独立 Closing Review 发现的 P1，当前不得作为已关闭能力对外表述。Import Frontend 尚未开始，Preview 不会自行创建 `Transaction` 或修改 `Account.balance`。系统仍没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。

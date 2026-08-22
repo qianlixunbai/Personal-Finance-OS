@@ -1,6 +1,6 @@
 # 文档中心
 
-> **Phase 3D Transaction Import Confirm：CLOSED — GO（Transaction Import Frontend NOT STARTED）**
+> **Phase 3D Transaction Import Confirm：NO-GO（独立 Closing Review 发现 P1；Transaction Import Frontend NOT STARTED）**
 
 > **Phase 2B：CLOSED — GO**
 > **Phase 2C-1：CLOSED — GO（仅契约）**
@@ -23,8 +23,8 @@
 - [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
 - [Phase 3B Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO；仅后端基础）
 - [Phase 3C Preview & Validation Closing Review](review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)（CLOSED — GO；Confirm 金融写入与前端 `NOT STARTED`）
-- [Phase 3D Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)（CLOSED — GO；保留 Named Constraint Recovery Amendment 历史）
-- [Phase 3D Confirm Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（CLOSED — GO；Import Frontend `NOT STARTED`）
+- [Phase 3D Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)（保留 Named Constraint Recovery Amendment 历史）
+- [Phase 3D Confirm Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（NO-GO；P1 remediation required；Import Frontend `NOT STARTED`）
 - [开发指南](Development-Guide.md)、[部署指南](Deployment-Guide.md)、[项目结构](项目结构.md)
 - [Definition of Done](Definition%20of%20Done.md)、[Code Review Checklist](Code%20Review%20Checklist.md)、[AI Rules](AI-Rules.md)、[Prompt Guide](Prompt%20Guide.md)
 
@@ -48,9 +48,9 @@
 - Phase 3A：[Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
 - Phase 3B：[Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO）
 - Phase 3C：[Preview & Validation Closing Review](review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)（CLOSED — GO；Confirm 金融写入与 Frontend `NOT STARTED`）
-- Phase 3D：[Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)、[Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（CLOSED — GO；Import Frontend `NOT STARTED`）
+- Phase 3D：[Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)、[Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（NO-GO；P1 remediation required；Import Frontend `NOT STARTED`）
 
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约、安全、幂等、原子性与 Preview/Confirm 边界；Phase 3B 已交付后端 foundation；Phase 3C 已完成上传、解析、mapping、校验、分页 Preview、Session 生命周期与临时 payload 清理；Phase 3D 已完成执行 frozen PreviewPlan 的原子 Confirm、authoritative receipt 与幂等恢复。Transaction Import Frontend 尚未开始。
+Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约、安全、幂等、原子性与 Preview/Confirm 边界；Phase 3B 已交付后端 foundation；Phase 3C 已完成上传、解析、mapping、校验、分页 Preview、Session 生命周期与临时 payload 清理；Phase 3D Confirm implementation 的独立 Closing Review 为 NO-GO，需 P1 remediation 后重新复审。Transaction Import Frontend 尚未开始。
 
 ## 文档语言与治理
 

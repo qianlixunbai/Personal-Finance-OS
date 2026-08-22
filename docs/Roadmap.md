@@ -1,6 +1,6 @@
 # 路线图
 
-> 当前状态更新：**Phase 3D Transaction Import Confirm：CLOSED — GO**；Transaction Import Frontend 为 `NOT STARTED`。
+> 当前状态更新：**Phase 3D Transaction Import Confirm：NO-GO（独立 Closing Review 发现 P1）**；Transaction Import Frontend 为 `NOT STARTED`。
 
 ## 1. 项目长期方向
 
@@ -24,11 +24,11 @@ Investment Command & Correction UI：CLOSED — GO
 Phase 3A Transaction Import Contract Design：CLOSED — GO
 Phase 3B Transaction Import Backend Foundation：CLOSED — GO
 Phase 3C Transaction Import Preview & Validation：CLOSED — GO
-Phase 3D Transaction Import Confirm：CLOSED — GO
+Phase 3D Transaction Import Confirm：NO-GO（P1 remediation required）
 Transaction Import Frontend：NOT STARTED
 ```
 
-当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。Investment Command & Correction UI 已完成。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约；Phase 3B 已交付后端数据、隔离、幂等与临时存储基础；Phase 3C 已交付 CSV / XLSX 解析、映射、校验、账户/类别可见性与 probable duplicate 检测、分页 Preview、Session TTL/取消和临时 payload 清理；Phase 3D 已交付服务端 frozen PreviewPlan 的原子 Confirm、authoritative receipt 与幂等恢复。Transaction Import Frontend 尚未开始。完整功能边界见根 [README](../README.md)，导入设计与 Amendment 见 [Phase 3D Contract](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)。
+当前已具备账户与普通流水、Dashboard、市场行情与参考估值、不可变投资账本、Legacy opening migration、`BUY` / `SELL` / `DIVIDEND`、standalone reversal、replacement，以及公开 Portfolio、Position、logical transaction 和 audit timeline 只读 API 与 `/investments` 读取工作区、幂等、并发与锁、PostgreSQL Testcontainers、Docker Compose 和 CI。Investment Command & Correction UI 已完成。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约；Phase 3B 已交付后端数据、隔离、幂等与临时存储基础；Phase 3C 已交付 CSV / XLSX 解析、映射、校验、账户/类别可见性与 probable duplicate 检测、分页 Preview、Session TTL/取消和临时 payload 清理。Phase 3D Confirm implementation 已完成初步验证，但独立 Closing Review 发现 P1，尚未关闭。Transaction Import Frontend 尚未开始。完整功能边界见根 [README](../README.md)，导入设计与 Amendment 见 [Phase 3D Contract](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)。
 
 ## 3. 已完成阶段
 
@@ -50,7 +50,6 @@ Transaction Import Frontend：NOT STARTED
 | v3.0 Phase 3A | CLOSED — GO | 普通 Transaction CSV / XLSX Import Contract Design | [Phase 3A Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md) |
 | v3.0 Phase 3B | CLOSED — GO | Transaction Import Backend Foundation | [Phase 3B Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md) |
 | v3.0 Phase 3C | CLOSED — GO | Transaction Import Preview & Validation | [Phase 3C Closing Review](review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md) |
-| v3.0 Phase 3D | CLOSED — GO | Transaction Import Confirm | [Phase 3D Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md) |
 
 各阶段当时的范围、测试数字、风险和 GO / NO-GO 结论以对应 Closing Review 为准，不用当前结果覆盖历史证据。
 
@@ -80,7 +79,7 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 ### 中期候选
 
 - `TRANSFER` / `REFUND`；
-- Transaction Import Frontend（Phase 3D Confirm 已关闭；前端 `NOT STARTED`）；
+- Phase 3D Transaction Import Confirm P1 remediation，以及 Transaction Import Frontend（前端 `NOT STARTED`）；
 - 银行或券商账单导入；
 - 历史持仓与收益曲线；
 - 对账、去重和余额校准；
@@ -97,7 +96,7 @@ Phase 2C-3 已交付 `/investments` 只读工作区，覆盖 Portfolio、Positio
 
 ## 6. 中期产品方向
 
-中期重点是在已关闭的可理解、可审计读取体验上降低手工数据录入成本。普通 Transaction 的 CSV / XLSX Import Contract 已冻结字段映射、重复检测、幂等、原子性与错误恢复规则；Phase 3D 已完成服务端 Confirm，Import Frontend 必须按该契约复用现有业务不变量。银行或券商账单导入仍是未冻结候选。
+中期重点是在已关闭的可理解、可审计读取体验上降低手工数据录入成本。普通 Transaction 的 CSV / XLSX Import Contract 已冻结字段映射、重复检测、幂等、原子性与错误恢复规则；Phase 3D Confirm 必须先完成 P1 remediation 并重新独立复审，之后才可进入 Import Frontend。银行或券商账单导入仍是未冻结候选。
 
 ## 7. 长期演进方向
 
