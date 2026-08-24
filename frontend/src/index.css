@@ -301,6 +301,33 @@ a { color: inherit; }
 .auth-footer { margin: 20px 0 0; color: var(--color-text-secondary); font-size: 14px; text-align: center; }
 .auth-footer a { color: var(--color-primary); font-weight: 700; text-decoration: none; }
 .investment-pending { display: grid; gap: 8px; margin-bottom: 18px; }
+.import-workspace { display: grid; gap: var(--space-4); }
+.import-workspace > .page-header { margin-bottom: 0; }
+.import-workspace > .alert { margin-bottom: 0; }
+.import-progress { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface-panel); }
+.import-progress__step { position: relative; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 12px; color: var(--color-text-tertiary); font-size: 12px; font-weight: 650; }
+.import-progress__step + .import-progress__step::before { position: absolute; top: 13px; left: -1px; width: 1px; height: 22px; background: var(--color-border); content: ''; }
+.import-progress__step > span:first-child { display: grid; width: 21px; height: 21px; flex: 0 0 auto; place-items: center; border: 1px solid var(--color-border-strong); border-radius: 50%; font-family: "IBM Plex Mono", Consolas, monospace; font-size: 10px; }
+.import-progress__step--active { color: var(--color-text-primary); background: rgba(34, 211, 238, .08); box-shadow: inset 0 -2px 0 var(--color-primary); }
+.import-progress__step--active > span:first-child, .import-progress__step--complete > span:first-child { border-color: var(--color-primary); color: var(--color-primary); }
+.import-progress__step--complete { color: #a5f3fc; }
+.import-panel { display: grid; gap: var(--space-4); margin-bottom: 0; }
+.import-panel h2, .import-panel h3, .import-panel h4 { margin: 0; color: var(--color-text-primary); }
+.import-copy { margin: -4px 0 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.65; }
+.import-file-picker { display: grid; gap: 8px; padding: 16px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); color: var(--color-text-secondary); font-size: 13px; }
+.import-file-picker span { color: var(--color-text-primary); font-weight: 700; }
+.import-file-picker input { color: var(--color-text-secondary); }
+.import-file-meta, .import-session-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: rgba(6, 9, 13, .42); font-size: 13px; }
+.import-file-meta strong { color: var(--color-text-primary); overflow-wrap: anywhere; }
+.import-file-meta span, .import-session-note span { color: var(--color-text-secondary); }
+.import-session-note { border-color: rgba(245, 158, 11, .30); color: #fcd34d; background: var(--color-warning-subtle); }
+.import-session-note button { margin-left: auto; }
+.import-mapping-table select { min-width: 190px; }
+.import-value-mappings { display: grid; gap: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+.import-value-group { display: grid; gap: var(--space-3); }
+.import-value-group h4 { font-size: 14px; }
+.import-inline-error { margin: 0; color: #fda4af; font-size: 13px; }
+.import-actions { margin-top: 0; }
 .command-modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(3, 8, 14, .78); }
 .command-modal { display: grid; gap: 18px; width: min(100%, 640px); max-height: calc(100vh - 40px); overflow: auto; padding: 24px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-card-background); box-shadow: var(--shadow-panel); }
 .command-modal h2 { margin: 0; }
@@ -344,6 +371,10 @@ a { color: inherit; }
   .page-panel, .content-card { padding: 16px; }
   .summary-grid, .form-grid, .filter-grid { grid-template-columns: 1fr; }
   .investment-summary-grid, .investment-filter-grid, .investment-receipt-grid { grid-template-columns: 1fr; }
+  .import-progress { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .import-progress__step { min-height: 44px; padding: 7px 9px; font-size: 11px; }
+  .import-progress__step + .import-progress__step::before { display: none; }
+  .import-session-note button { width: 100%; margin-left: 0; }
   .section-heading { align-items: flex-start; flex-direction: column; }
   .investment-status-filter { width: 100%; }
   .mobile-bottom-nav__link { min-width: 0; padding: 0 2px; font-size: 9px; }
