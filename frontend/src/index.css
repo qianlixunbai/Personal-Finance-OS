@@ -349,6 +349,10 @@ a { color: inherit; }
 .import-warning-group small { color: var(--color-text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
 .import-ready-boundary { display: grid; gap: 4px; padding: 14px; border: 1px solid rgba(16, 185, 129, .35); border-radius: var(--radius-sm); color: #a7f3d0; background: var(--color-success-subtle); }
 .import-ready-boundary span { color: var(--color-text-secondary); font-size: 13px; }
+.import-confirm-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.import-confirm-summary div { min-width: 0; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.import-confirm-summary dt { color: var(--color-text-tertiary); font-size: 12px; }
+.import-confirm-summary dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--color-text-primary); font-family: "IBM Plex Mono", Consolas, monospace; font-size: 13px; }
 .command-modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(3, 8, 14, .78); }
 .command-modal { display: grid; gap: 18px; width: min(100%, 640px); max-height: calc(100vh - 40px); overflow: auto; padding: 24px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-card-background); box-shadow: var(--shadow-panel); }
 .command-modal h2 { margin: 0; }
@@ -396,6 +400,7 @@ a { color: inherit; }
   .import-progress__step { min-height: 44px; padding: 7px 9px; font-size: 11px; }
   .import-progress__step + .import-progress__step::before { display: none; }
   .import-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .import-confirm-summary { grid-template-columns: 1fr; }
   .import-warning-group { padding: 12px; }
   .import-session-note button { width: 100%; margin-left: 0; }
   .section-heading { align-items: flex-start; flex-direction: column; }

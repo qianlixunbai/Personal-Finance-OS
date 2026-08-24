@@ -18,13 +18,14 @@ interface Props {
     onRetryHydration: () => void;
     onToggleWarningGroup: (code: string, checked: boolean) => void;
     onRepreview: () => Promise<void>;
+    onConfirm: () => void;
 }
 
 const labels: Record<string, string> = { INVALID_TRANSACTION_TYPE: '交易类型无效', INVALID_AMOUNT: '金额格式无效', INVALID_DATE: '日期或时间无效', UNSUPPORTED_CURRENCY: '币种不受支持', MISSING_REQUIRED_FIELD: '缺少必填字段', ACCOUNT_NOT_MAPPED: '账户未映射', ACCOUNT_NOT_FOUND: '账户不存在或不可见', ACCOUNT_INACTIVE: '账户未启用', CATEGORY_NOT_MAPPED: '分类未映射', CATEGORY_TYPE_MISMATCH: '分类与交易类型不匹配', IN_FILE_PROBABLE: '文件内可能重复', DATABASE_PROBABLE: '与已有流水可能重复' };
 const statusText = (row: TransactionImportPreviewRow) => ({ ERROR: '错误（阻塞）', WARNING: '警告（需复核）', VALID: '有效' })[previewRowStatus(row)];
 function text(values: Record<string, string>, ...keys: string[]) { for (const key of keys) if (values[key]) return values[key]; return '—'; }
 
-export function ImportPreviewPanel({ preview, rows, page, pageLast, busy, workflow, warnings, acknowledged, hydrationError, readyForConfirm, onPage, onBackToMapping, onRetryHydration, onToggleWarningGroup, onRepreview }: Props) {
+export function ImportPreviewPanel({ preview, rows, page, pageLast, busy, workflow, warnings, acknowledged, hydrationError, readyForConfirm, onPage, onBackToMapping, onRetryHydration, onToggleWarningGroup, onRepreview, onConfirm }: Props) {
     const totalPages = Math.max(1, Math.ceil(preview.summary.totalRows / 100));
     const groups = [...new Set(warnings.map(warning => warning.code))].map(code => ({ code, items: warnings.filter(warning => warning.code === code) }));
     const expired = workflow === 'EXPIRED'; const cancelled = workflow === 'CANCELLED'; const recovery = workflow === 'RECOVERY_REQUIRED';
@@ -42,7 +43,7 @@ export function ImportPreviewPanel({ preview, rows, page, pageLast, busy, workfl
         </section>
         <section className="page-panel import-panel" aria-labelledby="import-warning-review"><h2 id="import-warning-review">警告复核</h2><p className="import-copy">以下内容完全来自服务端 Preview；每个分组都需要显式确认。错误行不能通过确认警告绕过。</p>{workflow === 'WARNING_HYDRATING' && <p role="status">正在扫描全部 Preview 页以加载完整警告证据……</p>}{hydrationError && <div className="import-inline-error" role="alert">{hydrationError} <button type="button" className="button button--secondary" onClick={onRetryHydration}>重新扫描</button></div>}{groups.map(group => { const allAcknowledged = group.items.every(item => acknowledged.has(item.id)); return <label className="import-warning-group" key={group.code}><input type="checkbox" checked={allAcknowledged} onChange={event => onToggleWarningGroup(group.code, event.target.checked)} disabled={busy || Boolean(hydrationError)} /><span><strong>我已复核“{labels[group.code] ?? `服务端警告 ${group.code}`}”的 {group.items.length} 项警告</strong><small>{group.items.map(item => `第 ${item.rowNumber ?? '—'} 行：${item.message} (${item.code})`).join('；')}</small></span></label>; })}{!busy && !hydrationError && groups.length === 0 && <p role="status">服务端未返回需要确认的警告。</p>}
             {preview.summary.errorRows > 0 && <p className="import-inline-error" role="alert">存在 {preview.summary.errorRows} 行阻塞错误。请返回映射或修正源文件后重新生成 Preview。</p>}
-            {readyForConfirm && <div className="import-ready-boundary" role="status"><strong>Ready to confirm</strong><span>本阶段仅到达 UI 边界；未展示 Confirm 控件，也不会发起 Confirm 请求。</span></div>}
+            {readyForConfirm && <div className="import-ready-boundary" role="status"><strong>Ready to confirm</strong><span>所有服务端警告均已完成复核。确认后将只提交冻结 token 与警告确认 ID。</span><button type="button" className="button button--primary" disabled={busy || !preview.importBatchId} onClick={onConfirm}>打开最终确认</button>{!preview.importBatchId && <small>当前服务端预览缺少预分配批次标识，不能安全确认。</small>}</div>}
         </section>
     </>;
 }

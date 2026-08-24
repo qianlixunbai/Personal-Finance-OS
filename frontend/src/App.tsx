@@ -6,6 +6,7 @@ import Accounts from './pages/Accounts';
 import Assets from './pages/Assets';
 import Transactions from './pages/Transactions';
 import TransactionImport from './pages/TransactionImport';
+import TransactionImportReceipt from './pages/TransactionImportReceipt';
 import Investments from './pages/Investments';
 import Layout from './components/Layout';
 
@@ -25,6 +26,7 @@ export default function App() {
                 <Route path="assets" element={<Assets />} />
                 <Route path="transactions" element={<Transactions />} />
                 <Route path="transactions/import" element={<TransactionImport />} />
+                <Route path="transactions/import/receipts/:batchId" element={<TransactionImportReceipt />} />
                 <Route path="investments" element={<Investments />} />
             </Route>
         </Routes>

@@ -2,6 +2,8 @@ import axios from 'axios';
 import type { AxiosRequestConfig } from 'axios';
 import type { MarketQuoteRefreshResponse } from '../types/market-data';
 import type { ReferenceValuationResponse } from '../types/reference-valuation';
+import type { PendingTransactionImportV1 } from '../types/transactionImport';
+import { writePendingTransactionImport } from '../utils/transactionImportStorage.ts';
 
 const api = axios.create({
     baseURL: '/api/v1',
@@ -9,6 +11,8 @@ const api = axios.create({
 
 export type CommandAwareRequestConfig = AxiosRequestConfig & {
     investmentCommandUnauthorized?: () => void;
+    transactionImportUnauthorized?: () => void;
+    transactionImportAuthRecord?: PendingTransactionImportV1;
     skipGlobal401Redirect?: boolean;
 };
 
@@ -35,6 +39,8 @@ api.interceptors.response.use(
         const commandConfig = err.config as CommandAwareRequestConfig | undefined;
         if (err.response?.status === 401 && token && !isPublicAuthRequest(err.config?.url)) {
             commandConfig?.investmentCommandUnauthorized?.();
+            commandConfig?.transactionImportUnauthorized?.();
+            if (commandConfig?.transactionImportAuthRecord) writePendingTransactionImport(localStorage, commandConfig.transactionImportAuthRecord);
             localStorage.removeItem('token');
             localStorage.removeItem('finance-os:auth-user-id:v1');
             if (commandConfig?.skipGlobal401Redirect) return Promise.reject(err);

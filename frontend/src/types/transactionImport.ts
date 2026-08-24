@@ -1,7 +1,47 @@
 export type ImportCanonicalTarget = 'date' | 'time' | 'type' | 'amount' | 'account' | 'category' | 'description' | 'currency';
 export type ImportTransactionType = 'INCOME' | 'EXPENSE' | 'ADJUSTMENT';
 export type ImportSessionStatus = 'MAPPING_REQUIRED' | 'PREVIEW_READY' | string;
-export type ImportWorkflowState = 'IDLE' | 'FILE_SELECTED' | 'UPLOADING' | 'MAPPING_EDITING' | 'MAPPING_SUBMITTING' | 'MAPPING_DISCOVERY' | 'PREVIEW_LOADING' | 'WARNING_HYDRATING' | 'WARNING_REVIEW' | 'READY_FOR_CONFIRM' | 'EXPIRED' | 'CANCELLED' | 'RECOVERY_REQUIRED';
+export type ImportWorkflowState = 'IDLE' | 'FILE_SELECTED' | 'UPLOADING' | 'MAPPING_EDITING' | 'MAPPING_SUBMITTING' | 'MAPPING_DISCOVERY' | 'PREVIEW_LOADING' | 'WARNING_HYDRATING' | 'WARNING_REVIEW' | 'READY_FOR_CONFIRM' | 'CONFIRMING' | 'UNKNOWN_OUTCOME' | 'RECOVERING' | 'CONFIRMED' | 'RECEIPT_LOADING' | 'RECEIPT_READY' | 'CONFLICT' | 'INCONSISTENT' | 'EXPIRED' | 'CANCELLED' | 'RECOVERY_REQUIRED';
+
+export type DecimalText = string;
+
+export interface TransactionImportReceipt {
+    importSessionId: string;
+    importBatchId: string;
+    status: 'CONFIRMED';
+    sourceFileName: string;
+    fileDigest: string;
+    totalRows: number;
+    acceptedRows: number;
+    createdCount: number;
+    skippedCount: number;
+    warningCount: number;
+    transactions: Array<{ rowNumber: number; transactionId: number }>;
+    accountImpacts: Array<{ accountId: number; rowCount: number; balanceBefore: DecimalText; delta: DecimalText; balanceAfter: DecimalText }>;
+    confirmedAt: string;
+    contractVersion: string;
+    resultDigest: string;
+}
+
+export interface TransactionImportConfirmResponse { receipt: TransactionImportReceipt; idempotentReplay: boolean; }
+
+export type PendingTransactionImportState = 'SUBMITTING' | 'OUTCOME_UNKNOWN' | 'RECOVERING_LOOKUP' | 'RECOVERING_CONFIRM' | 'COMMITTED_AWAITING_RECEIPT' | 'AUTH_REQUIRED';
+export type PendingTransactionImportResumeState = 'SUBMITTING' | 'OUTCOME_UNKNOWN' | 'RECOVERING_CONFIRM' | 'COMMITTED_AWAITING_RECEIPT';
+
+export interface PendingTransactionImportV1 {
+    schemaVersion: 1;
+    userId: number;
+    state: PendingTransactionImportState;
+    resumeState?: PendingTransactionImportResumeState;
+    method: 'POST';
+    path: string;
+    importSessionId: string;
+    importBatchId: string;
+    idempotencyKey: string;
+    bodyJson: string;
+    submittedAt: string;
+    updatedAt: string;
+}
 
 export type TransactionImportColumnSelection = Record<ImportCanonicalTarget, string>;
 
