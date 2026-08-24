@@ -1,11 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const sessionId = '9c7fcbe8-c16b-4d61-a7f4-521a6bb6d091';
 const expiresAt = '2026-12-31T23:59:59.000Z';
 
 function previewResponse(revision: number, status: 'MAPPING_REQUIRED' | 'PREVIEW_READY', mapping: object | null, confirmable = false) {
     return { code: 200, message: 'ok', data: {
-        importSessionId: sessionId, importBatchId: null, sessionStatus: status, revision, detectedColumns: ['日期', '类型', '金额', '账户', '分类', '说明'], mapping, rows: [],
+        importSessionId: sessionId, importBatchId: confirmable ? '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091' : null, sessionStatus: status, revision, detectedColumns: ['日期', '类型', '金额', '账户', '分类', '说明'], mapping, rows: [],
         summary: { totalRows: 2, validRows: 2, warningRows: 0, errorRows: 0, importableRows: 2, duplicateCandidates: 0 },
         fileDigest: 'file-digest', mappingDigest: null, optionsDigest: 'options-digest', normalizedRowsDigest: null, expiresAt, confirmable, previewToken: confirmable ? 'opaque-preview-token' : null,
     } };
@@ -68,7 +68,7 @@ test('warning acknowledgement is explicit and still makes zero confirm requests'
     await page.setViewportSize({ width: 375, height: 812 });
     await page.addInitScript(({ expiresAt: snapshotExpiry, sessionId: snapshotSessionId }) => {
         localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
-        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: 'demo.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: null, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 2, validRows: 2, warningRows: 2, errorRows: 0, importableRows: 2, duplicateCandidates: 2 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: 'demo.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091', sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 2, validRows: 2, warningRows: 2, errorRows: 0, importableRows: 2, duplicateCandidates: 2 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
     }, { expiresAt, sessionId });
     await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
     await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
@@ -126,12 +126,12 @@ test('a late old-revision hydration page cannot overwrite the next revision warn
     const rows = (count: number) => Array.from({ length: count }, (_, index) => ({ rowNumber: index + 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }));
     await page.addInitScript(({ snapshotExpiry, snapshotSessionId }) => {
         localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
-        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: 'demo.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: null, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 501, validRows: 501, warningRows: 1, errorRows: 0, importableRows: 501, duplicateCandidates: 1 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: 'demo.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091', sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 501, validRows: 501, warningRows: 1, errorRows: 0, importableRows: 501, duplicateCandidates: 1 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
     }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId });
     await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
     await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
     await page.route(`**/api/v1/imports/transactions/${sessionId}`, route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: 409, message: 'unresolved' }) }));
-    await page.route(`**/api/v1/imports/transactions/${sessionId}/preview`, route => { revisionTwo = true; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...previewResponse(4, 'PREVIEW_READY', { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }), data: { ...previewResponse(4, 'PREVIEW_READY', { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }).data, summary: { totalRows: 1, validRows: 1, warningRows: 1, errorRows: 0, importableRows: 1, duplicateCandidates: 1 } } }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/preview`, route => { revisionTwo = true; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...previewResponse(4, 'PREVIEW_READY', { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, true), data: { ...previewResponse(4, 'PREVIEW_READY', { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, true).data, summary: { totalRows: 1, validRows: 1, warningRows: 1, errorRows: 0, importableRows: 1, duplicateCandidates: 1 } } }) }); });
     await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, async route => {
         const url = new URL(route.request().url()); const requestedPage = Number(url.searchParams.get('page')); const size = Number(url.searchParams.get('size'));
         if (revisionTwo) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [{ id: 'new-warning', code: 'DATABASE_PROBABLE', scope: 'ROW', field: null, rowNumber: 2, message: '新 revision 警告', retryable: false }], duplicateStatus: 'DATABASE_PROBABLE', importable: true }] }) });
@@ -155,7 +155,7 @@ test('10k Preview hydration scans twenty 500-row pages while retaining only the 
     const rows = (count: number) => Array.from({ length: count }, (_, index) => ({ rowNumber: index + 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }));
     await page.addInitScript(({ snapshotExpiry, snapshotSessionId }) => {
         localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
-        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: '10k.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: null, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 10000, validRows: 10000, warningRows: 0, errorRows: 0, importableRows: 10000, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: { name: '10k.csv', size: 10, type: 'text/csv' }, sessionId: snapshotSessionId, batchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091', sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: { columnMappings: {}, typeMappings: {}, accountMappings: {}, categoryMappings: {} }, summary: { totalRows: 10000, validRows: 10000, warningRows: 0, errorRows: 0, importableRows: 10000, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: 'mapping', optionsDigest: 'options', normalizedRowsDigest: 'rows', expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-24T00:00:00.000Z' }));
     }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId });
     await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
     await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
@@ -275,3 +275,248 @@ for (const [label, message, expected] of [['过期', 'IMPORT_PREVIEW_EXPIRED', '
         expect(confirmCount).toBe(0);
     });
 }
+
+const batchId = '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091';
+function receipt() { return { importSessionId: sessionId, importBatchId: batchId, status: 'CONFIRMED', sourceFileName: 'demo.csv', fileDigest: 'file', totalRows: 1, acceptedRows: 1, createdCount: 1, skippedCount: 0, warningCount: 0, transactions: [{ rowNumber: 2, transactionId: 99 }], accountImpacts: [{ accountId: 1, rowCount: 1, balanceBefore: '9007199254740993.01', delta: '-0.01', balanceAfter: '9007199254740993.00' }], confirmedAt: '2026-08-25T08:00:00Z', contractVersion: 'v3', resultDigest: 'digest' }; }
+
+async function installReadyConfirmState(page: Page, userId = 7) {
+    await page.addInitScript(({ snapshotExpiry, snapshotSessionId, importBatchId: importBatchIdValue, owner }) => {
+        localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', String(owner));
+        sessionStorage.setItem(`finance-os:transaction-import:draft:v1:${owner}`, JSON.stringify({ schemaVersion: 1, userId: owner, activeStep: 'PREVIEW_READY', file: null, sessionId: snapshotSessionId, batchId: importBatchIdValue, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
+    }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId, importBatchId: batchId, owner: userId });
+    await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
+}
+
+function pendingIntent(owner = 7, state: 'OUTCOME_UNKNOWN' | 'RECOVERING_CONFIRM' = 'OUTCOME_UNKNOWN') {
+    return { schemaVersion: 1, userId: owner, state, method: 'POST', path: `/imports/transactions/${sessionId}/confirm`, importSessionId: sessionId, importBatchId: batchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' };
+}
+
+test('Confirm freezes one intent for double click and navigates to the authoritative receipt', async ({ page }) => {
+    const requests: Array<{ key: string | undefined; body: string }> = [];
+    await page.addInitScript(({ snapshotExpiry, snapshotSessionId, importBatchId }) => {
+        localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: null, sessionId: snapshotSessionId, batchId: importBatchId, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
+    }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, async route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: false } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }));
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '打开最终确认' }).click();
+    const confirmButton = page.getByRole('button', { name: '确认导入 1 条流水' }); await confirmButton.dblclick();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect(requests).toHaveLength(1); expect(requests[0]?.key).toMatch(/^[0-9a-f-]{36}$/); expect(requests[0]?.body).toBe('{"previewToken":"opaque","acknowledgedWarningIds":[]}');
+    await expect(page.getByText('9007199254740993.01')).toBeVisible();
+});
+
+test('unknown reload recovers with GET 404 then the exact same pending POST', async ({ page }) => {
+    const body = '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}'; const requests: Array<{ key: string | undefined; body: string }> = []; let receiptGets = 0;
+    await page.addInitScript(({ importSessionId, importBatchId, bodyJson }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson, submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId, bodyJson: body });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.goto('/transactions/import'); await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); expect(receiptGets).toBe(1); expect(requests).toEqual([{ key: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', body }]);
+});
+
+test('Confirm dialog traps keyboard focus, supports safe Escape, and restores the trigger focus', async ({ page }) => {
+    await page.addInitScript(({ snapshotExpiry, snapshotSessionId, importBatchId }) => {
+        localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: null, sessionId: snapshotSessionId, batchId: importBatchId, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
+    }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
+    await page.goto('/transactions/import');
+    const trigger = page.getByRole('button', { name: '打开最终确认' });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: '确认导入' });
+    const cancel = dialog.getByRole('button', { name: '返回预览' });
+    const confirm = dialog.getByRole('button', { name: '确认导入 1 条流水' });
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+});
+
+test('initial Confirm 401 resumes the exact original POST after same-user login without a receipt lookup', async ({ page }) => {
+    const requests: Array<{ key: string | undefined; body: string }> = []; let receiptGets = 0;
+    await page.addInitScript(({ snapshotExpiry, snapshotSessionId, importBatchId }) => {
+        localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: null, sessionId: snapshotSessionId, batchId: importBatchId, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
+    }, { snapshotExpiry: expiresAt, snapshotSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return requests.length === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '打开最终确认' }).click();
+    await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await expect(page).toHaveURL(/\/transactions\/import$/);
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect(receiptGets).toBe(0);
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+});
+
+test('unknown-outcome receipt GET 401 resumes the same GET and never posts', async ({ page }) => {
+    let receiptGets = 0; let confirmPosts = 0;
+    await page.addInitScript(({ importSessionId, importBatchId }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect({ receiptGets, confirmPosts }).toEqual({ receiptGets: 2, confirmPosts: 0 });
+});
+
+test('fallback recovery POST 401 resumes the same frozen POST without another receipt lookup', async ({ page }) => {
+    const requests: Array<{ key: string | undefined; body: string }> = []; const sequence: string[] = [];
+    await page.addInitScript(({ importSessionId, importBatchId }) => { const pendingKey = 'finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90'; if (!localStorage.getItem(pendingKey)) { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem(pendingKey, JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); } }, { importSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { sequence.push('GET'); return sequence.filter(item => item === 'GET').length === 1 ? route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { sequence.push('POST'); requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return requests.length === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}'))).toMatchObject({ state: 'AUTH_REQUIRED', resumeState: 'RECOVERING_CONFIRM' });
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}').resumeState)).toBe('RECOVERING_CONFIRM');
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect(sequence).toEqual(['GET', 'POST', 'POST']);
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+});
+
+for (const [errorCode, pendingExpectation, heading, retryable] of [
+    ['IMPORT_CONFIRM_REQUEST_INVALID', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_SESSION_NOT_FOUND', 'cleared', '上传文件', false],
+    ['IMPORT_PREVIEW_EXPIRED', 'cleared', '预览已过期', false],
+    ['IMPORT_SESSION_CANCELLED', 'cleared', '导入已取消', false],
+    ['IMPORT_PREVIEW_STALE', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_PREVIEW_UNAVAILABLE', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_DUPLICATE_EVIDENCE_CHANGED', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_WARNING_ACK_REQUIRED', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_EXACT_DUPLICATE', 'cleared', '需要重新生成预览', false],
+    ['IMPORT_BATCH_ALREADY_CONFIRMED', 'retained', '需要恢复确认结果', true],
+    ['IMPORT_IDEMPOTENCY_CONFLICT', 'retained', '需要恢复确认结果', false],
+    ['IMPORT_LOCK_CONFLICT', 'retained', '需要恢复确认结果', true],
+    ['IMPORT_CONFIRM_INCONSISTENT', 'retained', '需要恢复确认结果', false],
+    ['IMPORT_BATCH_NOT_FOUND', 'retained', '需要恢复确认结果', true],
+] as const) {
+    test(`Confirm domain error ${errorCode} ${pendingExpectation === 'cleared' ? 'clears' : 'preserves'} the pending intent with no hidden retry`, async ({ page }) => {
+        let confirmPosts = 0; let receiptGets = 0;
+        await installReadyConfirmState(page);
+        await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.abort(); });
+        await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: 409, message: errorCode, errorCode, retryable }) }); });
+
+        await page.goto('/transactions/import');
+        await page.getByRole('button', { name: '打开最终确认' }).click();
+        await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+
+        await expect(page.getByRole('alert').first()).toBeVisible();
+        await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+        const pendingRecords = () => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:')));
+        if (pendingExpectation === 'cleared') await expect.poll(pendingRecords).toEqual([]);
+        else await expect.poll(pendingRecords).toHaveLength(1);
+        expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 1, receiptGets: 0 });
+    });
+}
+
+test('a user switch fails closed and never resumes the former user pending intent', async ({ page }) => {
+    let confirmPosts = 0; let receiptGets = 0;
+    await page.addInitScript(() => {
+        if (sessionStorage.getItem('user-switch-fixture-initialized')) return;
+        sessionStorage.setItem('user-switch-fixture-initialized', 'true');
+        localStorage.setItem('token', 'user-a-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
+        localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${'9c7fcbe8-c16b-4d61-a7f4-521a6bb6d091'}/confirm`, importSessionId: '9c7fcbe8-c16b-4d61-a7f4-521a6bb6d091', importBatchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091', idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' }));
+        sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: null, sessionId: '9c7fcbe8-c16b-4d61-a7f4-521a6bb6d091', batchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091', sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: '2026-12-31T23:59:59.000Z', previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
+    });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'user-b-token', userId: 8 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.abort(); });
+
+    await page.goto('/transactions/import');
+    await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible();
+    await page.goto('/login');
+    await page.getByLabel('用户名').fill('user-b'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await expect(page).toHaveURL(/\/investments$/);
+    await page.goto('/transactions/import');
+    await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toHaveCount(0);
+    expect(await page.evaluate(() => ({ owner: localStorage.getItem('finance-os:auth-user-id:v1'), pendingA: localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90'), draftB: sessionStorage.getItem('finance-os:transaction-import:draft:v1:8') }))).toEqual({ owner: '8', pendingA: expect.any(String), draftB: null });
+    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 0 });
+});
+
+test('logout with an unresolved confirm is blocked and keeps the recoverable pending record', async ({ page }) => {
+    let confirmPosts = 0; let receiptGets = 0;
+    await page.addInitScript(record => {
+        localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
+        localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify(record));
+    }, pendingIntent());
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.abort(); });
+
+    await page.goto('/transactions/import');
+    await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible();
+    await page.getByRole('button', { name: '退出登录' }).first().click();
+    await expect(page).toHaveURL(/\/transactions\/import$/);
+    expect(await page.evaluate(() => ({ token: localStorage.getItem('token'), owner: localStorage.getItem('finance-os:auth-user-id:v1'), pending: localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') }))).toEqual({ token: 'test-token', owner: '7', pending: expect.any(String) });
+    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 0 });
+});
+
+test('a second tab observes the first tab pending intent and cannot create a competing key', async ({ browser }) => {
+    const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5181' });
+    const pageA = await context.newPage(); const pageB = await context.newPage();
+    let confirmPosts = 0; let releaseConfirm: (() => void) | undefined;
+    const confirmBlocked = new Promise<void>(resolve => { releaseConfirm = resolve; });
+    try {
+        await installReadyConfirmState(pageA); await installReadyConfirmState(pageB);
+        await pageA.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, async route => { confirmPosts += 1; await confirmBlocked; await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: false } }) }); });
+        await pageA.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }));
+        await pageA.goto('/transactions/import'); await pageB.goto('/transactions/import');
+        await pageA.getByRole('button', { name: '打开最终确认' }).click(); await pageA.getByRole('button', { name: '确认导入 1 条流水' }).click();
+        await expect.poll(() => confirmPosts).toBe(1);
+        await expect(pageB.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible();
+        expect(await pageB.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('finance-os:transaction-import:pending:v1:7:')))).toHaveLength(1);
+        expect(confirmPosts).toBe(1);
+        releaseConfirm?.();
+        await expect(pageA).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    } finally {
+        releaseConfirm?.();
+        await context.close();
+    }
+});
+
+test('Confirm dialog cannot be closed with Escape while the frozen confirm request is in flight', async ({ page }) => {
+    let releaseConfirm: (() => void) | undefined; const confirmBlocked = new Promise<void>(resolve => { releaseConfirm = resolve; });
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, async route => { await confirmBlocked; await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: false } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }));
+    try {
+        await page.goto('/transactions/import'); await page.getByRole('button', { name: '打开最终确认' }).click();
+        const dialog = page.getByRole('dialog', { name: '确认导入' });
+        await dialog.getByRole('button', { name: '确认导入 1 条流水' }).click();
+        await expect(dialog).toHaveAttribute('aria-busy', 'true'); await page.keyboard.press('Escape');
+        await expect(dialog).toBeVisible(); await expect(dialog.getByRole('button', { name: '返回预览' })).toBeDisabled();
+        releaseConfirm?.(); await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    } finally {
+        releaseConfirm?.();
+    }
+});
