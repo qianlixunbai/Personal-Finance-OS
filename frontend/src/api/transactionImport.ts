@@ -1,5 +1,5 @@
 import api from './index.ts';
-import type { PendingTransactionImportV1, TransactionImportConfirmResponse, TransactionImportMapping, TransactionImportPreviewResponse, TransactionImportPreviewRow, TransactionImportReceipt } from '../types/transactionImport';
+import type { PendingTransactionImportV1, TransactionImportMapping, TransactionImportPreviewResponse, TransactionImportPreviewRow, TransactionImportReceipt } from '../types/transactionImport';
 import { decodeTransactionImportReceiptGetResponse, decodeTransactionImportReceiptResponse } from '../utils/transactionImportTransport.ts';
 import type { CommandAwareRequestConfig } from './index.ts';
 
@@ -36,15 +36,21 @@ const rawTextConfig = (onUnauthorized?: () => void, transactionImportAuthRecord?
     transactionImportAuthRecord,
 });
 
-export async function confirmTransactionImport(sessionId: string, bodyJson: string, idempotencyKey: string, onUnauthorized?: () => void, transactionImportAuthRecord?: PendingTransactionImportV1): Promise<TransactionImportConfirmResponse> {
+export interface TransactionImportConfirmResult { status: number; receipt: TransactionImportReceipt | null; }
+
+export async function confirmTransactionImport(sessionId: string, bodyJson: string, idempotencyKey: string, onUnauthorized?: () => void, transactionImportAuthRecord?: PendingTransactionImportV1): Promise<TransactionImportConfirmResult> {
     try {
         const response = await api.post(`/imports/transactions/${sessionId}/confirm`, bodyJson, {
             ...rawTextConfig(onUnauthorized, transactionImportAuthRecord),
             headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         });
-        const decoded = decodeTransactionImportReceiptResponse(response.data as string);
-        if (decoded.code !== 200 || !decoded.data) throw new Error(decoded.message || '确认导入响应不完整。');
-        return decoded.data;
+        try {
+            const decoded = decodeTransactionImportReceiptResponse(response.data as string);
+            return { status: response.status, receipt: decoded.code === 200 && decoded.data ? decoded.data.receipt : null };
+        } catch (decodeError) {
+            if (response.status === 200) return { status: response.status, receipt: null };
+            throw decodeError;
+        }
     } catch (error) {
         if ((error as { response?: { status?: number } }).response?.status === 401) onUnauthorized?.();
         throw error;
