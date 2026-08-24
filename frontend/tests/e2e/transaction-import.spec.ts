@@ -289,7 +289,7 @@ async function installReadyConfirmState(page: Page, userId = 7) {
     await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
 }
 
-function pendingIntent(owner = 7, state: 'OUTCOME_UNKNOWN' | 'RECOVERING_CONFIRM' = 'OUTCOME_UNKNOWN') {
+function pendingIntent(owner = 7, state: 'OUTCOME_UNKNOWN' | 'RECOVERING_CONFIRM' | 'COMMITTED_AWAITING_RECEIPT' = 'OUTCOME_UNKNOWN') {
     return { schemaVersion: 1, userId: owner, state, method: 'POST', path: `/imports/transactions/${sessionId}/confirm`, importSessionId: sessionId, importBatchId: batchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' };
 }
 
@@ -318,6 +318,69 @@ test('unknown reload recovers with GET 404 then the exact same pending POST', as
     await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
     await page.goto('/transactions/import'); await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
     await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); expect(receiptGets).toBe(1); expect(requests).toEqual([{ key: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', body }]);
+});
+
+test('an HTTP 200 Confirm with a malformed receipt persists committed recovery and uses one Receipt GET only', async ({ page }) => {
+    let confirmPosts = 0; let receiptGets = 0;
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: null } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '打开最终确认' }).click();
+    await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+    const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
+    await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 1, receiptGets: 1 });
+});
+
+test('an initial Confirm network outcome remains unknown and can still use the frozen fallback POST after Receipt 404', async ({ page }) => {
+    let confirmPosts = 0; let receiptGets = 0;
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return confirmPosts === 1 ? route.abort() : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '打开最终确认' }).click();
+    await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+    const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
+    await expect.poll(pending).toMatchObject({ state: 'OUTCOME_UNKNOWN' });
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 2, receiptGets: 1 });
+});
+
+for (const mode of ['404', 'network', 'malformed'] as const) {
+    test(`committed recovery retains GET-only state after Receipt ${mode}, including remount`, async ({ page }) => {
+        let confirmPosts = 0; let receiptGets = 0;
+        await page.addInitScript(record => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify(record)); }, pendingIntent(7, 'COMMITTED_AWAITING_RECEIPT'));
+        await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+        await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; if (receiptGets > 1) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); if (mode === '404') return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); if (mode === 'network') return route.abort(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: null } }) }); });
+        await page.goto('/transactions/import');
+        await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+        const pending = () => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}'));
+        await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
+        await page.reload();
+        await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
+        await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+        await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+        expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 2 });
+    });
+}
+
+test('committed Receipt GET 401 resumes the same GET after authentication and never posts', async ({ page }) => {
+    let confirmPosts = 0; let receiptGets = 0;
+    await page.addInitScript(record => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify(record)); }, pendingIntent(7, 'COMMITTED_AWAITING_RECEIPT'));
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 2 });
 });
 
 test('Confirm dialog traps keyboard focus, supports safe Escape, and restores the trigger focus', async ({ page }) => {
@@ -430,7 +493,7 @@ for (const [errorCode, pendingExpectation, heading, retryable] of [
         await page.getByRole('button', { name: '打开最终确认' }).click();
         await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
 
-        await expect(page.getByRole('alert').first()).toBeVisible();
+        await expect.poll(() => confirmPosts).toBe(1);
         await expect(page.getByRole('heading', { name: heading })).toBeVisible();
         const pendingRecords = () => page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:')));
         if (pendingExpectation === 'cleared') await expect.poll(pendingRecords).toEqual([]);

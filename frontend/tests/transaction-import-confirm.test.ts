@@ -65,13 +65,15 @@ test('decodes receipt decimals from raw JSON without JavaScript Number precision
     assert.equal(response.data?.receipt.accountImpacts[1]?.balanceAfter, '0.1');
 });
 
-test('uses raw-text Axios transport only for confirm and receipt endpoints', async () => {
+test('preserves an HTTP 200 Confirm fact when the receipt body cannot be decoded', async () => {
     const post = api.post; const get = api.get;
     const calls: Array<{ method: string; path: string; config?: Record<string, unknown> }> = [];
-    api.post = async (path, body, config) => { calls.push({ method: 'POST', path, config: config as Record<string, unknown> }); return { data: '{"code":200,"message":"ok","data":{"receipt":null}}' }; };
+    api.post = async (path, body, config) => { calls.push({ method: 'POST', path, config: config as Record<string, unknown> }); return { status: 200, data: '{"code":200,"message":"ok","data":{"receipt":null}}' }; };
     api.get = async (path, config) => { calls.push({ method: 'GET', path, config: config as Record<string, unknown> }); return { data: '{"code":404,"message":"missing"}' }; };
     try {
-        await assert.rejects(confirmTransactionImport(sessionId, bodyJson, key));
+        const result = await confirmTransactionImport(sessionId, bodyJson, key);
+        assert.equal(result.status, 200);
+        assert.equal(result.receipt, null);
         await assert.rejects(fetchTransactionImportReceipt(batchId));
     } finally { api.post = post; api.get = get; }
     assert.deepEqual(calls.map(call => [call.method, call.path]), [
