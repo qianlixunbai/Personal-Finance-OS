@@ -60,3 +60,40 @@ test('XLSX selection reaches the same server-owned mapping state without a confi
     await expect(page.getByRole('heading', { name: '映射字段' })).toBeVisible();
     expect({ uploadCount, confirmCount }).toEqual({ uploadCount: 1, confirmCount: 0 });
 });
+
+test('file selection supports replace and clear, and blocks an oversized local file before upload', async ({ page }) => {
+    let uploadCount = 0;
+    await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+    await page.route('**/api/v1/imports/transactions/preview', route => { uploadCount += 1; return route.abort(); });
+    await page.goto('/transactions/import');
+    const fileInput = page.getByLabel('选择 CSV 或 XLSX 文件');
+    await fileInput.setInputFiles({ name: 'first.csv', mimeType: 'text/csv', buffer: Buffer.from('one') });
+    await expect(page.getByText('first.csv')).toBeVisible();
+    await fileInput.setInputFiles({ name: 'replacement.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('two') });
+    await expect(page.getByText('replacement.xlsx')).toBeVisible();
+    await page.getByRole('button', { name: '清除' }).click();
+    await expect(page.getByText('replacement.xlsx')).toHaveCount(0);
+    await fileInput.setInputFiles({ name: 'oversized.csv', mimeType: 'text/csv', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) });
+    await page.getByRole('button', { name: '上传并开始映射' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: '文件不能超过 5 MiB' })).toBeVisible();
+    expect(uploadCount).toBe(0);
+});
+
+for (const [label, message] of [['过期', 'IMPORT_PREVIEW_EXPIRED'], ['已取消', 'IMPORT_SESSION_CANCELLED'], ['陈旧', 'IMPORT_PREVIEW_STALE']] as const) {
+    test(`mapping ${label} Session 展示服务端安全错误且零 Confirm`, async ({ page }) => {
+        let confirmCount = 0;
+        await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+        await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+        await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
+        await page.route('**/api/v1/imports/transactions/preview', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse(1, 'MAPPING_REQUIRED', null)) }));
+        await page.route(`**/api/v1/imports/transactions/${sessionId}/preview`, route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: 409, message, errorCode: message, retryable: false }) }));
+        page.on('request', request => { if (new URL(request.url()).pathname.includes('/confirm')) confirmCount += 1; });
+        await page.goto('/transactions/import');
+        await page.getByLabel('选择 CSV 或 XLSX 文件').setInputFiles({ name: 'demo.csv', mimeType: 'text/csv', buffer: Buffer.from('x') });
+        await page.getByRole('button', { name: '上传并开始映射' }).click();
+        for (const [target, source] of [['日期', '日期'], ['类型', '类型'], ['金额', '金额'], ['账户', '账户'], ['分类', '分类'], ['说明', '说明']] as const) await page.getByLabel(`${target}来源列`).selectOption(source);
+        await page.getByRole('button', { name: '保存列映射并发现来源值' }).click();
+        await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+        expect(confirmCount).toBe(0);
+    });
+}
