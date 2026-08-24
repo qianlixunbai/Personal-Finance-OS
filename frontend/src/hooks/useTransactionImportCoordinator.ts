@@ -1,156 +1,59 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { cancelTransactionImport, fetchTransactionImportOptions, fetchTransactionImportRows, updateTransactionImportMapping, uploadTransactionImport } from '../api/transactionImport';
-import type { DiscoveredMappingValues, ImportAccountOption, ImportCategoryOption, ImportTransactionType, TransactionImportColumnSelection, TransactionImportDraftSnapshot, TransactionImportMapping, TransactionImportPreviewResponse } from '../types/transactionImport';
+import type { DiscoveredMappingValues, ImportAccountOption, ImportCategoryOption, ImportTransactionType, ImportWorkflowState, TransactionImportColumnSelection, TransactionImportDraftSnapshot, TransactionImportMapping, TransactionImportPreviewResponse, TransactionImportPreviewRow } from '../types/transactionImport';
 import { buildMapping, collectMappingValues, emptyColumnSelection, normalizeSourceValue, validateColumnSelection, validateValueMappings } from '../utils/transactionImportMapping';
+import { collectWarningMetadata, isLastPreviewPage, requiredWarningIds, type ImportWarningMetadata } from '../utils/transactionImportPreview';
 import { clearTransactionImportDraft, readTransactionImportDraft, writeTransactionImportDraft } from '../utils/transactionImportStorage';
-import { getErrorMessage } from '../utils/error';
+import { getErrorCode, getErrorMessage } from '../utils/error';
 
 const maximumFileSize = 5 * 1024 * 1024;
-const pageSize = 500;
+const hydrationPageSize = 500;
+const visiblePageSize = 100;
 const maximumDiscoveryPages = 20;
 
-function currentUserId() {
-    const value = Number(localStorage.getItem('finance-os:auth-user-id:v1'));
-    return Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-
-function selectionFromMapping(mapping: TransactionImportMapping | null) {
-    const next = emptyColumnSelection();
-    if (!mapping) return next;
-    for (const key of Object.keys(next) as Array<keyof TransactionImportColumnSelection>) next[key] = mapping.columnMappings[key] === 'IGNORE' ? '' : mapping.columnMappings[key] ?? '';
-    return next;
-}
-
-function previewFromSnapshot(snapshot: TransactionImportDraftSnapshot): TransactionImportPreviewResponse {
-    return {
-        importSessionId: snapshot.sessionId, importBatchId: snapshot.batchId, sessionStatus: snapshot.sessionStatus, revision: snapshot.revision,
-        detectedColumns: snapshot.detectedColumns, mapping: snapshot.mapping, rows: [], summary: snapshot.summary ?? { totalRows: 0, validRows: 0, warningRows: 0, errorRows: 0, importableRows: 0, duplicateCandidates: 0 },
-        fileDigest: snapshot.fileDigest, mappingDigest: snapshot.mappingDigest, optionsDigest: snapshot.optionsDigest, normalizedRowsDigest: snapshot.normalizedRowsDigest,
-        expiresAt: snapshot.expiresAt, confirmable: false, previewToken: snapshot.previewToken,
-    };
-}
-
-function fileIssue(file: File | null) {
-    if (!file) return '请选择要上传的文件';
-    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
-    if (extension !== '.csv' && extension !== '.xlsx') return '请选择 CSV 或 XLSX 文件';
-    if (file.size === 0) return '文件不能为空';
-    if (file.size > maximumFileSize) return '文件不能超过 5 MiB';
-    return null;
-}
+function currentUserId() { const value = Number(localStorage.getItem('finance-os:auth-user-id:v1')); return Number.isSafeInteger(value) && value > 0 ? value : null; }
+function selectionFromMapping(mapping: TransactionImportMapping | null) { const next = emptyColumnSelection(); if (!mapping) return next; for (const key of Object.keys(next) as Array<keyof TransactionImportColumnSelection>) next[key] = mapping.columnMappings[key] === 'IGNORE' ? '' : mapping.columnMappings[key] ?? ''; return next; }
+function previewFromSnapshot(snapshot: TransactionImportDraftSnapshot): TransactionImportPreviewResponse { return { importSessionId: snapshot.sessionId, importBatchId: snapshot.batchId, sessionStatus: snapshot.sessionStatus, revision: snapshot.revision, detectedColumns: snapshot.detectedColumns, mapping: snapshot.mapping, rows: [], summary: snapshot.summary ?? { totalRows: 0, validRows: 0, warningRows: 0, errorRows: 0, importableRows: 0, duplicateCandidates: 0 }, fileDigest: snapshot.fileDigest, mappingDigest: snapshot.mappingDigest, optionsDigest: snapshot.optionsDigest, normalizedRowsDigest: snapshot.normalizedRowsDigest, expiresAt: snapshot.expiresAt, confirmable: false, previewToken: snapshot.previewToken }; }
+function fileIssue(file: File | null) { if (!file) return '请选择要上传的文件'; const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0]; if (extension !== '.csv' && extension !== '.xlsx') return '请选择 CSV 或 XLSX 文件'; if (file.size === 0) return '文件不能为空'; if (file.size > maximumFileSize) return '文件不能超过 5 MiB'; return null; }
 
 export function useTransactionImportCoordinator() {
     const userId = currentUserId();
-    const [file, setFile] = useState<File | null>(null);
-    const [fileDisplay, setFileDisplay] = useState<{ name: string; size: number; type: string } | null>(null);
-    const [preview, setPreview] = useState<TransactionImportPreviewResponse | null>(null);
-    const [selection, setSelection] = useState<TransactionImportColumnSelection>(emptyColumnSelection);
-    const [discovered, setDiscovered] = useState<DiscoveredMappingValues | null>(null);
-    const [categoryTypeSources, setCategoryTypeSources] = useState<Record<string, string[]>>({});
-    const [typeMappings, setTypeMappings] = useState<Record<string, ImportTransactionType>>({});
-    const [accountMappings, setAccountMappings] = useState<Record<string, number>>({});
-    const [categoryMappings, setCategoryMappings] = useState<Record<string, number>>({});
-    const [accounts, setAccounts] = useState<ImportAccountOption[]>([]);
-    const [categories, setCategories] = useState<ImportCategoryOption[]>([]);
-    const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [mappingMode, setMappingMode] = useState(false);
-    const [restorationNote, setRestorationNote] = useState('');
+    const [file, setFile] = useState<File | null>(null); const [fileDisplay, setFileDisplay] = useState<{ name: string; size: number; type: string } | null>(null);
+    const [preview, setPreview] = useState<TransactionImportPreviewResponse | null>(null); const [selection, setSelection] = useState<TransactionImportColumnSelection>(emptyColumnSelection);
+    const [discovered, setDiscovered] = useState<DiscoveredMappingValues | null>(null); const [categoryTypeSources, setCategoryTypeSources] = useState<Record<string, string[]>>({});
+    const [typeMappings, setTypeMappings] = useState<Record<string, ImportTransactionType>>({}); const [accountMappings, setAccountMappings] = useState<Record<string, number>>({}); const [categoryMappings, setCategoryMappings] = useState<Record<string, number>>({});
+    const [accounts, setAccounts] = useState<ImportAccountOption[]>([]); const [categories, setCategories] = useState<ImportCategoryOption[]>([]);
+    const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [mappingMode, setMappingMode] = useState(false); const [restorationNote, setRestorationNote] = useState('');
+    const [workflow, setWorkflow] = useState<ImportWorkflowState>('IDLE'); const [visibleRows, setVisibleRows] = useState<TransactionImportPreviewRow[]>([]); const [page, setPage] = useState(1); const [pageLast, setPageLast] = useState(false);
+    const [warnings, setWarnings] = useState<ImportWarningMetadata[]>([]); const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set()); const [hydrationError, setHydrationError] = useState(''); const [hydrated, setHydrated] = useState(false); const revisionRef = useRef(0); const autoPreviewRef = useRef('');
 
-    const persist = useCallback((next: TransactionImportPreviewResponse, displayFile: { name: string; size: number; type: string } | null, keepMappingOpen: boolean) => {
+    useEffect(() => () => { revisionRef.current += 1; }, []);
+
+    const persist = useCallback((next: TransactionImportPreviewResponse, displayFile: { name: string; size: number; type: string } | null, keepMappingOpen: boolean, ack = acknowledged) => {
         if (!userId) return;
-        const snapshot: TransactionImportDraftSnapshot = {
-            schemaVersion: 1, userId, activeStep: keepMappingOpen ? 'MAPPING' : 'PREVIEW_READY',
-            file: displayFile,
-            sessionId: next.importSessionId, batchId: next.importBatchId, sessionStatus: next.sessionStatus, revision: next.revision, detectedColumns: next.detectedColumns,
-            mapping: next.mapping, summary: next.summary, fileDigest: next.fileDigest, mappingDigest: next.mappingDigest, optionsDigest: next.optionsDigest,
-            normalizedRowsDigest: next.normalizedRowsDigest, expiresAt: next.expiresAt, previewToken: next.previewToken, updatedAt: new Date().toISOString(),
-        };
-        writeTransactionImportDraft(sessionStorage, snapshot);
-    }, [userId]);
+        writeTransactionImportDraft(sessionStorage, { schemaVersion: 1, userId, activeStep: keepMappingOpen ? 'MAPPING' : 'PREVIEW_READY', file: displayFile, sessionId: next.importSessionId, batchId: next.importBatchId, sessionStatus: next.sessionStatus, revision: next.revision, detectedColumns: next.detectedColumns, mapping: next.mapping, summary: next.summary, fileDigest: next.fileDigest, mappingDigest: next.mappingDigest, optionsDigest: next.optionsDigest, normalizedRowsDigest: next.normalizedRowsDigest, expiresAt: next.expiresAt, previewToken: next.previewToken, acknowledgedWarningIds: [...ack].sort(), updatedAt: new Date().toISOString() });
+    }, [acknowledged, userId]);
+    const loadOptions = useCallback(async () => { const options = await fetchTransactionImportOptions(); setAccounts(options.accounts as ImportAccountOption[]); setCategories(options.categories as ImportCategoryOption[]); }, []);
+    const resetPreviewEvidence = useCallback(() => { revisionRef.current += 1; autoPreviewRef.current = ''; setVisibleRows([]); setWarnings([]); setAcknowledged(new Set()); setHydrationError(''); setHydrated(false); setPage(1); setPageLast(false); }, []);
+    const handlePreviewFailure = useCallback((requestError: unknown, fallback: string) => { const code = getErrorCode(requestError); if (code === 'IMPORT_PREVIEW_EXPIRED') { setWorkflow('EXPIRED'); setError('导入预览已过期，请重新开始导入。'); return; } if (code === 'IMPORT_SESSION_CANCELLED') { setWorkflow('CANCELLED'); setError('导入会话已取消，不能继续预览或复核。'); return; } if (code === 'IMPORT_PREVIEW_STALE') { setWorkflow('RECOVERY_REQUIRED'); setError('导入预览已陈旧，请重新生成当前正式预览。'); return; } setError(getErrorMessage(requestError, fallback)); }, []);
 
-    const loadOptions = useCallback(async () => {
-        const options = await fetchTransactionImportOptions();
-        setAccounts(options.accounts as ImportAccountOption[]); setCategories(options.categories as ImportCategoryOption[]);
-    }, []);
-
-    useEffect(() => {
-        if (!userId) { setRestorationNote('无法确认当前登录用户，请重新登录后开始导入。'); return; }
-        const snapshot = readTransactionImportDraft(sessionStorage, userId);
-        if (!snapshot) { setRestorationNote('当前浏览器没有可恢复的导入草稿，可选择文件重新开始。'); return; }
-        if (Date.parse(snapshot.expiresAt) <= Date.now()) { clearTransactionImportDraft(sessionStorage, userId); setRestorationNote('当前导入草稿已过期，请重新开始导入。'); return; }
-        setPreview(previewFromSnapshot(snapshot)); setFileDisplay(snapshot.file); setSelection(selectionFromMapping(snapshot.mapping)); setMappingMode(snapshot.activeStep === 'MAPPING'); setRestorationNote('已恢复此浏览器标签页中的最小导入草稿；继续提交时仍由后端确认会话状态。');
-        loadOptions().catch(loadError => setError(getErrorMessage(loadError, '无法加载账户或分类，请稍后重试')));
-    }, [loadOptions, userId]);
-
-    const acceptPreview = useCallback((next: TransactionImportPreviewResponse, nextFile: File | null, keepMappingOpen: boolean) => {
-        setPreview(next); setSelection(selectionFromMapping(next.mapping)); setDiscovered(null); setCategoryTypeSources({}); setTypeMappings(next.mapping?.typeMappings ?? {}); setAccountMappings(next.mapping?.accountMappings ?? {}); setCategoryMappings(next.mapping?.categoryMappings ?? {});
-        const display = nextFile ? { name: nextFile.name, size: nextFile.size, type: nextFile.type } : fileDisplay;
-        if (display) setFileDisplay(display);
-        setMappingMode(keepMappingOpen); persist(next, display, keepMappingOpen);
-    }, [fileDisplay, persist]);
+    useEffect(() => { if (!userId) { setRestorationNote('无法确认当前登录用户，请重新登录后开始导入。'); return; } const snapshot = readTransactionImportDraft(sessionStorage, userId); if (!snapshot) { setRestorationNote('当前浏览器没有可恢复的导入草稿，可选择文件重新开始。'); return; } if (Date.parse(snapshot.expiresAt) <= Date.now()) { clearTransactionImportDraft(sessionStorage, userId); setRestorationNote('当前导入草稿已过期，请重新开始导入。'); return; } setPreview(previewFromSnapshot(snapshot)); setFileDisplay(snapshot.file); setSelection(selectionFromMapping(snapshot.mapping)); setMappingMode(snapshot.activeStep === 'MAPPING'); setAcknowledged(new Set(snapshot.acknowledgedWarningIds ?? [])); setRestorationNote('已恢复此浏览器标签页中的最小导入草稿；预览行会重新从服务端获取。'); loadOptions().catch(loadError => setError(getErrorMessage(loadError, '无法加载账户或分类，请稍后重试'))); }, [loadOptions, userId]);
+    const acceptPreview = useCallback((next: TransactionImportPreviewResponse, nextFile: File | null, keepMappingOpen: boolean) => { resetPreviewEvidence(); setPreview(next); setSelection(selectionFromMapping(next.mapping)); setDiscovered(null); setCategoryTypeSources({}); setTypeMappings(next.mapping?.typeMappings ?? {}); setAccountMappings(next.mapping?.accountMappings ?? {}); setCategoryMappings(next.mapping?.categoryMappings ?? {}); const display = nextFile ? { name: nextFile.name, size: nextFile.size, type: nextFile.type } : fileDisplay; if (display) setFileDisplay(display); setMappingMode(keepMappingOpen); setWorkflow(keepMappingOpen ? 'MAPPING_EDITING' : 'PREVIEW_LOADING'); persist(next, display, keepMappingOpen, new Set()); }, [fileDisplay, persist, resetPreviewEvidence]);
+    const loadVisiblePage = useCallback(async (targetPage: number, targetPreview = preview) => { if (!targetPreview || targetPreview.sessionStatus !== 'PREVIEW_READY') return; const identity = revisionRef.current; setBusy(true); setWorkflow('PREVIEW_LOADING'); setError(''); try { const rows = await fetchTransactionImportRows(targetPreview.importSessionId, Math.max(1, targetPage), visiblePageSize); if (identity !== revisionRef.current) return; if (!rows.length && targetPage > 1) { setPage(current => Math.max(1, current - 1)); setPageLast(true); return; } setVisibleRows(rows); setPage(targetPage); setPageLast(isLastPreviewPage(rows.length, visiblePageSize)); setWorkflow('WARNING_REVIEW'); } catch (requestError) { if (identity === revisionRef.current) handlePreviewFailure(requestError, '无法加载预览行，请稍后重试。'); } finally { if (identity === revisionRef.current) setBusy(false); } }, [handlePreviewFailure, preview]);
+    const hydrateWarnings = useCallback(async (targetPreview = preview) => { if (!targetPreview || targetPreview.sessionStatus !== 'PREVIEW_READY') return; const identity = revisionRef.current; const found = new Map<string, ImportWarningMetadata>(); let warningRows = 0; let errorRows = 0; setWorkflow('WARNING_HYDRATING'); setHydrated(false); setHydrationError(''); try { const expectedPages = Math.max(1, Math.ceil(targetPreview.summary.totalRows / hydrationPageSize)); for (let targetPage = 1; targetPage <= expectedPages; targetPage += 1) { const rows = await fetchTransactionImportRows(targetPreview.importSessionId, targetPage, hydrationPageSize); if (identity !== revisionRef.current) return; for (const row of rows) { if (row.warnings.length) warningRows += 1; if (row.errors.length) errorRows += 1; for (const warning of collectWarningMetadata([row], targetPage)) found.set(warning.id, warning); } if (isLastPreviewPage(rows.length, hydrationPageSize)) break; } if (identity !== revisionRef.current) return; if (warningRows !== targetPreview.summary.warningRows || errorRows !== targetPreview.summary.errorRows || (targetPreview.summary.warningRows > 0 && found.size === 0)) { setWarnings([]); setAcknowledged(new Set()); setHydrationError('预览元数据尚未完整加载，无法安全确认警告；请重新扫描。'); setWorkflow('WARNING_REVIEW'); return; } const nextWarnings = [...found.values()].sort((left, right) => left.id.localeCompare(right.id)); setWarnings(nextWarnings); setAcknowledged(new Set()); setHydrated(true); persist(targetPreview, fileDisplay, false, new Set()); setWorkflow('WARNING_REVIEW'); } catch (requestError) { if (identity === revisionRef.current) { setHydrated(false); handlePreviewFailure(requestError, '无法完整加载警告元数据，请重试。'); setHydrationError('预览元数据加载失败，请重试。'); } } }, [fileDisplay, handlePreviewFailure, persist, preview]);
+    useEffect(() => { const key = preview ? `${preview.importSessionId}:${preview.revision}` : ''; if (preview?.sessionStatus !== 'PREVIEW_READY' || mappingMode || workflow === 'EXPIRED' || workflow === 'CANCELLED' || workflow === 'RECOVERY_REQUIRED' || autoPreviewRef.current === key) return; autoPreviewRef.current = key; void loadVisiblePage(1, preview); void hydrateWarnings(preview); }, [hydrateWarnings, loadVisiblePage, mappingMode, preview, workflow]);
 
     const selectFile = (next: File | null) => { setFile(next); setFileDisplay(next ? { name: next.name, size: next.size, type: next.type } : null); setError(''); setSuccess(''); };
-
-    const upload = async () => {
-        if (preview) { setError('请先放弃当前导入，再选择并上传新文件。'); return; }
-        const issue = fileIssue(file); if (issue) { setError(issue); return; }
-        setBusy(true); setError(''); setSuccess('');
-        try {
-            const response = await uploadTransactionImport(file!); acceptPreview(response, file!, response.sessionStatus === 'MAPPING_REQUIRED'); await loadOptions();
-            setSuccess(response.sessionStatus === 'MAPPING_REQUIRED' ? '文件已由服务端接收，请完成字段映射。' : '服务端已生成预览边界；本阶段不会执行确认导入。');
-        } catch (uploadError) { setError(getErrorMessage(uploadError, '上传或服务端解析失败，请检查文件后重试。')); } finally { setBusy(false); }
-    };
-
-    const discovery = async () => {
-        if (!preview) return;
-        const invalid = validateColumnSelection(preview.detectedColumns, selection); if (invalid) { setError(invalid); return; }
-        setBusy(true); setError(''); setSuccess('');
-        try {
-            const mapping = buildMapping(preview.detectedColumns, selection, {}, {}, {});
-            const response = await updateTransactionImportMapping(preview.importSessionId, mapping);
-            acceptPreview(response, file, true); // authoritative response entirely replaces the previous revision.
-            const typeValues = new Map<string, string>(); const accountValues = new Map<string, string>(); const categoryValues = new Map<string, string>(); const sourcePairs = new Map<string, Set<string>>();
-            const pages = Math.min(maximumDiscoveryPages, Math.max(1, Math.ceil(response.summary.totalRows / pageSize)));
-            for (let page = 1; page <= pages; page += 1) {
-                const rows = await fetchTransactionImportRows(response.importSessionId, page, pageSize);
-                const pageValues = collectMappingValues(rows, selection);
-                for (const value of pageValues.types) typeValues.set(normalizeSourceValue(value), value);
-                for (const value of pageValues.accounts) accountValues.set(normalizeSourceValue(value), value);
-                for (const value of pageValues.categories) categoryValues.set(normalizeSourceValue(value), value);
-                for (const row of rows) {
-                    const category = normalizeSourceValue(row.sourceValues[selection.category] ?? ''); const type = normalizeSourceValue(row.sourceValues[selection.type] ?? '');
-                    if (category && type) { const types = sourcePairs.get(category) ?? new Set<string>(); types.add(type); sourcePairs.set(category, types); }
-                }
-            }
-            setDiscovered({ types: [...typeValues.values()], accounts: [...accountValues.values()], categories: [...categoryValues.values()] });
-            setCategoryTypeSources(Object.fromEntries([...sourcePairs].map(([category, types]) => [category, [...types]])));
-            setSuccess('已在同一导入会话中完成来源值发现，请完成映射后提交正式预览。');
-        } catch (discoveryError) { setError(getErrorMessage(discoveryError, '映射发现失败；会话可能已失效，请重新上传或重试。')); } finally { setBusy(false); }
-    };
-
+    const upload = async () => { if (preview) { setError('请先放弃当前导入，再选择并上传新文件。'); return; } const issue = fileIssue(file); if (issue) { setError(issue); return; } setBusy(true); setWorkflow('UPLOADING'); setError(''); setSuccess(''); try { const response = await uploadTransactionImport(file!); acceptPreview(response, file!, response.sessionStatus === 'MAPPING_REQUIRED'); await loadOptions(); setSuccess(response.sessionStatus === 'MAPPING_REQUIRED' ? '文件已由服务端接收，请完成字段映射。' : '服务端已生成正式预览。'); } catch (uploadError) { setError(getErrorMessage(uploadError, '上传或服务端解析失败，请检查文件后重试。')); } finally { setBusy(false); } };
+    const discovery = async () => { if (!preview) return; const invalid = validateColumnSelection(preview.detectedColumns, selection); if (invalid) { setError(invalid); return; } setBusy(true); setWorkflow('MAPPING_DISCOVERY'); setError(''); setSuccess(''); try { const mapping = buildMapping(preview.detectedColumns, selection, {}, {}, {}); const response = await updateTransactionImportMapping(preview.importSessionId, mapping); acceptPreview(response, file, true); const typeValues = new Map<string, string>(); const accountValues = new Map<string, string>(); const categoryValues = new Map<string, string>(); const sourcePairs = new Map<string, Set<string>>(); const pages = Math.min(maximumDiscoveryPages, Math.max(1, Math.ceil(response.summary.totalRows / hydrationPageSize))); for (let targetPage = 1; targetPage <= pages; targetPage += 1) { const rows = await fetchTransactionImportRows(response.importSessionId, targetPage, hydrationPageSize); const pageValues = collectMappingValues(rows, selection); for (const value of pageValues.types) typeValues.set(normalizeSourceValue(value), value); for (const value of pageValues.accounts) accountValues.set(normalizeSourceValue(value), value); for (const value of pageValues.categories) categoryValues.set(normalizeSourceValue(value), value); for (const row of rows) { const category = normalizeSourceValue(row.sourceValues[selection.category] ?? ''); const type = normalizeSourceValue(row.sourceValues[selection.type] ?? ''); if (category && type) { const types = sourcePairs.get(category) ?? new Set<string>(); types.add(type); sourcePairs.set(category, types); } } } setDiscovered({ types: [...typeValues.values()], accounts: [...accountValues.values()], categories: [...categoryValues.values()] }); setCategoryTypeSources(Object.fromEntries([...sourcePairs].map(([category, types]) => [category, [...types]]))); setWorkflow('MAPPING_EDITING'); setSuccess('已在同一导入会话中完成来源值发现，请完成映射后提交正式预览。'); } catch (discoveryError) { handlePreviewFailure(discoveryError, '映射发现失败；会话可能已失效，请重新上传或重试。'); } finally { setBusy(false); } };
     const categoryUsage = useMemo(() => Object.fromEntries(Object.entries(categoryTypeSources).map(([category, sources]) => [category, sources.map(source => typeMappings[source]).filter((value): value is ImportTransactionType => Boolean(value))])), [categoryTypeSources, typeMappings]);
-
-    const submitMapping = async () => {
-        if (!preview || !discovered) return;
-        const invalid = validateValueMappings(discovered, typeMappings, accountMappings, categoryMappings, categoryUsage); if (invalid) { setError(invalid); return; }
-        setBusy(true); setError(''); setSuccess('');
-        try {
-            const response = await updateTransactionImportMapping(preview.importSessionId, buildMapping(preview.detectedColumns, selection, typeMappings, accountMappings, categoryMappings));
-            acceptPreview(response, file, response.sessionStatus !== 'PREVIEW_READY');
-            setSuccess(response.sessionStatus === 'PREVIEW_READY' ? '正式映射已提交，已到达后续 Preview 的前置状态。本阶段不会显示或调用 Confirm。' : '映射已提交；请根据服务端返回继续修正映射。');
-        } catch (mappingError) { setError(getErrorMessage(mappingError, '正式映射被服务端拒绝，请检查选择后重试。')); } finally { setBusy(false); }
-    };
-
-    const discard = async () => {
-        if (!preview) { setFile(null); setFileDisplay(null); return; }
-        setBusy(true); setError('');
-        try { await cancelTransactionImport(preview.importSessionId); if (userId) clearTransactionImportDraft(sessionStorage, userId); setPreview(null); setFile(null); setFileDisplay(null); setSelection(emptyColumnSelection()); setDiscovered(null); setMappingMode(false); setSuccess('当前导入已放弃。'); }
-        catch (cancelError) { setError(getErrorMessage(cancelError, '无法放弃当前导入；请稍后重试。')); } finally { setBusy(false); }
-    };
-
-    return { userId, file, fileDisplay, preview, mappingMode, selection, discovered, accounts, categories, typeMappings, accountMappings, categoryMappings, categoryUsage, busy, error, success, restorationNote, selectFile,
-        setSelection: (target: keyof TransactionImportColumnSelection, source: string) => setSelection(current => ({ ...current, [target]: source })),
-        setTypeMapping: (source: string, value: ImportTransactionType | '') => setTypeMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }),
-        setAccountMapping: (source: string, value: number | null) => setAccountMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }),
-        setCategoryMapping: (source: string, value: number | null) => setCategoryMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }),
-        upload, discovery, submitMapping, discard };
+    const submitMapping = async () => { if (!preview || !discovered) return; const invalid = validateValueMappings(discovered, typeMappings, accountMappings, categoryMappings, categoryUsage); if (invalid) { setError(invalid); return; } setBusy(true); setWorkflow('MAPPING_SUBMITTING'); setError(''); setSuccess(''); try { const response = await updateTransactionImportMapping(preview.importSessionId, buildMapping(preview.detectedColumns, selection, typeMappings, accountMappings, categoryMappings)); acceptPreview(response, file, response.sessionStatus !== 'PREVIEW_READY'); setSuccess(response.sessionStatus === 'PREVIEW_READY' ? '正式映射已提交，正在加载服务端 Preview 与完整警告证据。' : '映射已提交；请根据服务端返回继续修正映射。'); } catch (mappingError) { handlePreviewFailure(mappingError, '正式映射被服务端拒绝，请检查选择后重试。'); } finally { setBusy(false); } };
+    const discard = async () => { if (!preview) { setFile(null); setFileDisplay(null); return; } const targetPreview = preview; setBusy(true); setError(''); setWorkflow('RECOVERY_REQUIRED'); resetPreviewEvidence(); try { await cancelTransactionImport(targetPreview.importSessionId); if (userId) clearTransactionImportDraft(sessionStorage, userId); setPreview(null); setFile(null); setFileDisplay(null); setSelection(emptyColumnSelection()); setDiscovered(null); setMappingMode(false); setWorkflow('CANCELLED'); setSuccess('当前导入已取消。'); } catch (cancelError) { if ((cancelError as { response?: { status?: number } }).response?.status === 409) { if (userId) clearTransactionImportDraft(sessionStorage, userId); setWorkflow('RECOVERY_REQUIRED'); setError('取消结果无法安全判定；不会继续预览或确认，请重新开始导入。'); } else handlePreviewFailure(cancelError, '无法取消当前导入；请稍后重试。'); } finally { setBusy(false); } };
+    const backToMapping = () => { resetPreviewEvidence(); setMappingMode(true); setWorkflow('MAPPING_EDITING'); if (preview) persist(preview, fileDisplay, true, new Set()); };
+    const retryHydration = () => { void hydrateWarnings(); };
+    const repreview = async () => { if (!preview?.mapping) return; setBusy(true); setError(''); try { const response = await updateTransactionImportMapping(preview.importSessionId, preview.mapping); acceptPreview(response, file, response.sessionStatus !== 'PREVIEW_READY'); setSuccess('已请求服务端生成当前正式预览。'); } catch (requestError) { handlePreviewFailure(requestError, '无法重新生成预览，请重新开始导入。'); } finally { setBusy(false); } };
+    const toggleWarningGroup = (code: string, checked: boolean) => { const ids = warnings.filter(warning => warning.code === code).map(warning => warning.id); setAcknowledged(current => { const next = new Set(current); for (const id of ids) { if (checked) next.add(id); else next.delete(id); } if (preview) persist(preview, fileDisplay, false, next); return next; }); };
+    const acknowledgementIds = requiredWarningIds(warnings, acknowledged); const readyForConfirm = Boolean(preview && hydrated && !hydrationError && preview.summary.errorRows === 0 && acknowledgementIds.length === warnings.length);
+    useEffect(() => { if (readyForConfirm) setWorkflow('READY_FOR_CONFIRM'); }, [readyForConfirm]);
+    return { userId, file, fileDisplay, preview, mappingMode, selection, discovered, accounts, categories, typeMappings, accountMappings, categoryMappings, categoryUsage, busy, error, success, restorationNote, workflow, visibleRows, page, pageLast, warnings, acknowledged, hydrationError, readyForConfirm, selectFile, setSelection: (target: keyof TransactionImportColumnSelection, source: string) => setSelection(current => ({ ...current, [target]: source })), setTypeMapping: (source: string, value: ImportTransactionType | '') => setTypeMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }), setAccountMapping: (source: string, value: number | null) => setAccountMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }), setCategoryMapping: (source: string, value: number | null) => setCategoryMappings(current => { const next = { ...current }; if (value) next[source] = value; else delete next[source]; return next; }), upload, discovery, submitMapping, discard, backToMapping, loadVisiblePage, retryHydration, toggleWarningGroup, repreview };
 }

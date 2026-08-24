@@ -328,6 +328,27 @@ a { color: inherit; }
 .import-value-group h4 { font-size: 14px; }
 .import-inline-error { margin: 0; color: #fda4af; font-size: 13px; }
 .import-actions { margin-top: 0; }
+.import-preview-summary { display: grid; gap: var(--space-4); padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface-panel); }
+.import-preview-summary h2 { margin: 0; font-size: 19px; }
+.import-preview-summary p { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 13px; }
+.import-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.import-table-scroll { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.import-preview-table { min-width: 980px; }
+.import-preview-table td { vertical-align: top; }
+.import-preview-table td > span { color: var(--color-text-secondary); font-size: 12px; }
+.import-money { font-family: "IBM Plex Mono", Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.badge--error { color: #fda4af; border-color: rgba(244, 63, 94, .35); background: var(--color-danger-subtle); }
+.badge--warning { color: #fcd34d; border-color: rgba(245, 158, 11, .35); background: var(--color-warning-subtle); }
+.badge--valid { color: #6ee7b7; border-color: rgba(16, 185, 129, .35); background: var(--color-success-subtle); }
+.import-issue-list { display: grid; gap: 5px; min-width: 220px; margin: 0; padding: 0; list-style: none; }
+.import-issue-list li { display: grid; gap: 2px; color: var(--color-text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.import-issue-list strong { color: var(--color-text-primary); font-size: 12px; }
+.import-warning-group { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border: 1px solid rgba(245, 158, 11, .28); border-radius: var(--radius-sm); background: rgba(245, 158, 11, .05); cursor: pointer; }
+.import-warning-group input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--color-warning); }
+.import-warning-group span { display: grid; gap: 5px; }
+.import-warning-group small { color: var(--color-text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
+.import-ready-boundary { display: grid; gap: 4px; padding: 14px; border: 1px solid rgba(16, 185, 129, .35); border-radius: var(--radius-sm); color: #a7f3d0; background: var(--color-success-subtle); }
+.import-ready-boundary span { color: var(--color-text-secondary); font-size: 13px; }
 .command-modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(3, 8, 14, .78); }
 .command-modal { display: grid; gap: 18px; width: min(100%, 640px); max-height: calc(100vh - 40px); overflow: auto; padding: 24px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-card-background); box-shadow: var(--shadow-panel); }
 .command-modal h2 { margin: 0; }
@@ -374,6 +395,8 @@ a { color: inherit; }
   .import-progress { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .import-progress__step { min-height: 44px; padding: 7px 9px; font-size: 11px; }
   .import-progress__step + .import-progress__step::before { display: none; }
+  .import-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .import-warning-group { padding: 12px; }
   .import-session-note button { width: 100%; margin-left: 0; }
   .section-heading { align-items: flex-start; flex-direction: column; }
   .investment-status-filter { width: 100%; }

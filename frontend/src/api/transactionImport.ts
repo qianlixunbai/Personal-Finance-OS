@@ -18,8 +18,8 @@ export async function updateTransactionImportMapping(sessionId: string, mapping:
     return response.data.data as TransactionImportPreviewResponse;
 }
 
-export async function fetchTransactionImportRows(sessionId: string, page: number, size: number): Promise<TransactionImportPreviewRow[]> {
-    const response = await api.get(`/imports/transactions/${sessionId}/rows`, { params: { page, size } });
+export async function fetchTransactionImportRows(sessionId: string, page: number, size: number, signal?: AbortSignal): Promise<TransactionImportPreviewRow[]> {
+    const response = await api.get(`/imports/transactions/${sessionId}/rows`, { params: { page, size }, signal });
     return (response.data.data ?? []) as TransactionImportPreviewRow[];
 }
 

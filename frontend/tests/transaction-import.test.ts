@@ -16,6 +16,7 @@ import {
 } from '../src/utils/transactionImportStorage.ts';
 import api from '../src/api/index.ts';
 import { cancelTransactionImport, fetchTransactionImportRows, updateTransactionImportMapping, uploadTransactionImport } from '../src/api/transactionImport.ts';
+import { collectWarningMetadata, isLastPreviewPage, previewRowStatus, requiredWarningIds } from '../src/utils/transactionImportPreview.ts';
 
 class MemoryStorage implements Storage {
     private readonly values = new Map<string, string>();
@@ -91,6 +92,20 @@ test('clears only the logging-out user import draft', () => {
     assert.equal(storage.getItem(transactionImportDraftKey(8)), '{"userId":8}');
 });
 
+test('fails closed for stale transaction-import snapshot identities and incompatible versions', () => {
+    const valid = {
+        schemaVersion: 1 as const, userId: 7, activeStep: 'PREVIEW_READY' as const, file: null,
+        sessionId: '9c7fcbe8-c16b-4d61-a7f4-521a6bb6d091', batchId: null, sessionStatus: 'PREVIEW_READY', revision: 1,
+        detectedColumns: [], mapping: null, summary: null, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null,
+        expiresAt: '2026-12-31T23:59:59.000Z', previewToken: 'opaque', updatedAt: '2026-08-24T09:00:00.000Z',
+    };
+    const storage = new MemoryStorage();
+    for (const patch of [{ schemaVersion: 2 }, { sessionId: 'not-a-session' }, { revision: 0 }, { userId: 8 }, { previewToken: '' }]) {
+        storage.setItem(transactionImportDraftKey(7), JSON.stringify({ ...valid, ...patch }));
+        assert.equal(readTransactionImportDraft(storage, 7), null);
+    }
+});
+
 test('uses only the contracted multipart and rows endpoints, never a confirm endpoint', async () => {
     const calls: Array<{ method: string; path: string; body?: unknown; params?: unknown }> = [];
     const post = api.post; const put = api.put; const get = api.get; const remove = api.delete;
@@ -115,4 +130,35 @@ test('uses only the contracted multipart and rows endpoints, never a confirm end
     assert.equal((await (uploadBody.get('request') as Blob).text()), '{"format":"AUTO","mapping":null}');
     const mappingBody = calls[1].body as FormData;
     assert.equal((await (mappingBody.get('mapping') as Blob).text()), '{"columnMappings":{},"typeMappings":{},"accountMappings":{},"categoryMappings":{}}');
+});
+
+test('projects backend row severity without recalculating validation and keeps every backend warning ID', () => {
+    const rows = [{
+        rowNumber: 8, sourceValues: {}, normalizedValues: {}, mappingStatus: 'INVALID', duplicateStatus: 'DATABASE_PROBABLE', importable: false,
+        errors: [{ id: 'error-1', code: 'INVALID_AMOUNT', scope: 'ROW', field: 'amount', rowNumber: 8, message: '金额格式无效', retryable: false }],
+        warnings: [
+            { id: 'warning-b', code: 'DATABASE_PROBABLE', scope: 'ROW', field: null, rowNumber: 8, message: '疑似重复', retryable: false },
+            { id: 'warning-a', code: 'IN_FILE_PROBABLE', scope: 'ROW', field: null, rowNumber: 8, message: '文件内疑似重复', retryable: false },
+        ],
+    }, {
+        rowNumber: 9, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', duplicateStatus: 'NONE', importable: true,
+        errors: [], warnings: [{ id: 'warning-b', code: 'DATABASE_PROBABLE', scope: 'ROW', field: null, rowNumber: 9, message: '疑似重复', retryable: false }],
+    }];
+    assert.equal(previewRowStatus(rows[0]), 'ERROR');
+    assert.equal(previewRowStatus(rows[1]), 'WARNING');
+    assert.deepEqual(collectWarningMetadata(rows, 1), [
+        { id: 'warning-a', code: 'IN_FILE_PROBABLE', rowNumber: 8, field: null, message: '文件内疑似重复', page: 1 },
+        { id: 'warning-b', code: 'DATABASE_PROBABLE', rowNumber: 8, field: null, message: '疑似重复', page: 1 },
+    ]);
+});
+
+test('uses the contracted short-page termination and requires every warning group acknowledgement', () => {
+    assert.equal(isLastPreviewPage(499, 500), true);
+    assert.equal(isLastPreviewPage(500, 500), false);
+    const warnings = [
+        { id: 'warning-a', code: 'IN_FILE_PROBABLE', rowNumber: 8, field: null, message: 'a', page: 1 },
+        { id: 'warning-b', code: 'DATABASE_PROBABLE', rowNumber: 9, field: null, message: 'b', page: 1 },
+    ];
+    assert.deepEqual(requiredWarningIds(warnings, new Set(['warning-b'])), []);
+    assert.deepEqual(requiredWarningIds(warnings, new Set(['warning-a', 'warning-b'])), ['warning-a', 'warning-b']);
 });

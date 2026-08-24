@@ -1,7 +1,7 @@
 export type ImportCanonicalTarget = 'date' | 'time' | 'type' | 'amount' | 'account' | 'category' | 'description' | 'currency';
 export type ImportTransactionType = 'INCOME' | 'EXPENSE' | 'ADJUSTMENT';
 export type ImportSessionStatus = 'MAPPING_REQUIRED' | 'PREVIEW_READY' | string;
-export type ImportWorkflowState = 'IDLE' | 'FILE_SELECTED' | 'UPLOADING' | 'MAPPING_EDITING' | 'MAPPING_SUBMITTING' | 'MAPPING_DISCOVERY' | 'PREVIEW_READY';
+export type ImportWorkflowState = 'IDLE' | 'FILE_SELECTED' | 'UPLOADING' | 'MAPPING_EDITING' | 'MAPPING_SUBMITTING' | 'MAPPING_DISCOVERY' | 'PREVIEW_LOADING' | 'WARNING_HYDRATING' | 'WARNING_REVIEW' | 'READY_FOR_CONFIRM' | 'EXPIRED' | 'CANCELLED' | 'RECOVERY_REQUIRED';
 
 export type TransactionImportColumnSelection = Record<ImportCanonicalTarget, string>;
 
@@ -81,6 +81,7 @@ export interface TransactionImportDraftSnapshot {
     normalizedRowsDigest: string | null;
     expiresAt: string;
     previewToken: string | null;
+    acknowledgedWarningIds?: string[];
     updatedAt: string;
 }
 
