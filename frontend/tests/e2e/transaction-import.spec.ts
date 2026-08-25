@@ -350,6 +350,70 @@ test('an initial Confirm network outcome remains unknown and can still use the f
     expect({ confirmPosts, recoveryReceiptGets }).toEqual({ confirmPosts: 2, recoveryReceiptGets: 1 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1); expect(requests).toHaveLength(2); expect(requests[1]).toEqual(requests[0]);
 });
 
+test('reloading while a persisted fallback Confirm is unresolved rechecks the Receipt before posting again', async ({ page }) => {
+    const beforeReloadSequence: string[] = []; const afterReloadRecoverySequence: string[] = []; const requests: Array<{ key: string | undefined; path: string; body: string }> = []; let reloadStarted = false; let receiptPagePhase = false; let confirmPosts = 0; let recoveryReceiptGets = 0; let receiptLookup404s = 0; let receiptPageGets = 0; let releaseFallbackPost!: () => void; let fallbackPostStarted!: () => void;
+    const fallbackPostBlocked = new Promise<void>(resolve => { releaseFallbackPost = resolve; });
+    const fallbackPostObserved = new Promise<void>(resolve => { fallbackPostStarted = resolve; });
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, async route => {
+        confirmPosts += 1;
+        const request = { key: route.request().headers()['idempotency-key'], path: new URL(route.request().url()).pathname, body: route.request().postData() ?? '' };
+        requests.push(request);
+        if (confirmPosts === 1) return route.abort();
+        if (reloadStarted) afterReloadRecoverySequence.push('POST'); else beforeReloadSequence.push('POST');
+        if (confirmPosts === 2) { fallbackPostStarted(); await fallbackPostBlocked; return route.abort(); }
+        receiptPagePhase = true;
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) });
+    });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => {
+        recoveryReceiptGets += 1;
+        if (!receiptPagePhase) {
+            if (reloadStarted) afterReloadRecoverySequence.push('GET'); else beforeReloadSequence.push('GET');
+        }
+        if (recoveryReceiptGets <= 2) { receiptLookup404s += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); }
+        receiptPageGets += 1;
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) });
+    });
+
+    await page.goto('/transactions/import');
+    await page.getByRole('button', { name: '打开最终确认' }).click();
+    await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+    const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
+    await expect.poll(pending).toMatchObject({ state: 'OUTCOME_UNKNOWN' });
+
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await fallbackPostObserved;
+    await expect.poll(pending).toMatchObject({ state: 'RECOVERING_CONFIRM' });
+    expect(beforeReloadSequence).toEqual(['GET', 'POST']);
+
+    await page.evaluate(() => {
+        const originalSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key.startsWith('finance-os:transaction-import:pending:v1:') && JSON.parse(value).state === 'OUTCOME_UNKNOWN') return;
+            return originalSetItem.call(this, key, value);
+        };
+    });
+    reloadStarted = true;
+    const reload = page.reload();
+    await reload;
+    releaseFallbackPost();
+    await expect.poll(pending).toMatchObject({ state: 'OUTCOME_UNKNOWN' });
+
+    await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect(afterReloadRecoverySequence).toEqual(['GET', 'POST']);
+    expect({ confirmPosts, receiptLookup404s }).toEqual({ confirmPosts: 3, receiptLookup404s: 2 });
+    expect(recoveryReceiptGets).toBeGreaterThanOrEqual(3);
+    expect(receiptPageGets).toBeGreaterThanOrEqual(1);
+    expect(requests).toHaveLength(3);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[2]).toEqual(requests[0]);
+    expect(requests[2]?.key).toMatch(/^[0-9a-f-]{36}$/);
+    expect(requests[2]?.path).toBe(`/api/v1/imports/transactions/${sessionId}/confirm`);
+    expect(requests[2]?.body).toBe('{"previewToken":"opaque","acknowledgedWarningIds":[]}');
+});
+
 for (const mode of ['404', 'network', 'malformed'] as const) {
     test(`committed recovery retains GET-only state after Receipt ${mode}, including remount`, async ({ page }) => {
         let confirmPosts = 0; let recoveryReceiptGets = 0; let receiptPageGets = 0;
