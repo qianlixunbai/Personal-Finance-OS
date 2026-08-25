@@ -10,8 +10,10 @@ import {
 } from '../src/utils/transactionImportMapping.ts';
 import {
     clearTransactionImportDraft,
+    consumeTransactionImportReceiptReturn,
     readTransactionImportDraft,
     transactionImportDraftKey,
+    writeTransactionImportReceiptReturn,
     writeTransactionImportDraft,
 } from '../src/utils/transactionImportStorage.ts';
 import api from '../src/api/index.ts';
@@ -90,6 +92,17 @@ test('clears only the logging-out user import draft', () => {
     clearTransactionImportDraft(storage, 7);
     assert.equal(storage.getItem(transactionImportDraftKey(7)), null);
     assert.equal(storage.getItem(transactionImportDraftKey(8)), '{"userId":8}');
+});
+
+test('persists only a same-user Receipt route identity across authentication, never receipt data', () => {
+    const storage = new MemoryStorage();
+    writeTransactionImportReceiptReturn(storage, 7, '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091');
+    assert.deepEqual(JSON.parse(storage.getItem('finance-os:transaction-import:receipt-return:v1') ?? '{}'), { schemaVersion: 1, userId: 7, batchId: '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091' });
+    assert.equal(consumeTransactionImportReceiptReturn(storage, 8), null);
+    assert.equal(storage.getItem('finance-os:transaction-import:receipt-return:v1'), null);
+    writeTransactionImportReceiptReturn(storage, 7, '0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091');
+    assert.equal(consumeTransactionImportReceiptReturn(storage, 7), '/transactions/import/receipts/0a7fcbe8-c16b-4d61-a7f4-521a6bb6d091');
+    assert.equal(consumeTransactionImportReceiptReturn(storage, 7), null);
 });
 
 test('fails closed for stale transaction-import snapshot identities and incompatible versions', () => {

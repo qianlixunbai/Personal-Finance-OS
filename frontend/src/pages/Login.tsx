@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { getErrorMessage } from '../utils/error';
-import { scanPendingTransactionImports } from '../utils/transactionImportStorage';
+import { consumeTransactionImportReceiptReturn, scanPendingTransactionImports } from '../utils/transactionImportStorage';
 
 export default function Login() {
     const [username, setUsername] = useState('');
@@ -18,7 +18,8 @@ export default function Login() {
             const userId = res.data.data.userId;
             if (!Number.isInteger(userId) || userId <= 0) throw new Error('登录响应缺少可信用户标识。');
             localStorage.setItem('finance-os:auth-user-id:v1', String(userId));
-            navigate(scanPendingTransactionImports(localStorage, userId).length ? '/transactions/import' : '/investments');
+            const receiptReturn = consumeTransactionImportReceiptReturn(sessionStorage, userId);
+            navigate(scanPendingTransactionImports(localStorage, userId).length ? '/transactions/import' : receiptReturn ?? '/investments');
         } catch (err) {
             setError(getErrorMessage(err, '用户名或密码错误'));
         }

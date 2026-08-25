@@ -2,6 +2,7 @@ import type { PendingTransactionImportState, PendingTransactionImportV1, Transac
 
 const prefix = 'finance-os:transaction-import:draft:v1:';
 const pendingPrefix = 'finance-os:transaction-import:pending:v1:';
+const receiptReturnKey = 'finance-os:transaction-import:receipt-return:v1';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const positiveInteger = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
@@ -86,3 +87,19 @@ export function scanPendingTransactionImports(storage: Storage, userId: number) 
 }
 
 export function removePendingTransactionImport(storage: Storage, record: PendingTransactionImportV1) { storage.removeItem(pendingTransactionImportKey(record.userId, record.idempotencyKey)); }
+
+/** Keeps only the same-user receipt identity across a forced 401 login; it never stores receipt data. */
+export function writeTransactionImportReceiptReturn(storage: Storage, userId: number, batchId: string) {
+    if (!positiveInteger(userId) || !uuid.test(batchId)) return;
+    storage.setItem(receiptReturnKey, JSON.stringify({ schemaVersion: 1, userId, batchId }));
+}
+
+export function consumeTransactionImportReceiptReturn(storage: Storage, userId: number): string | null {
+    const raw = storage.getItem(receiptReturnKey); storage.removeItem(receiptReturnKey);
+    if (!raw || !positiveInteger(userId)) return null;
+    try {
+        const value: unknown = JSON.parse(raw);
+        if (!isRecord(value) || value.schemaVersion !== 1 || value.userId !== userId || typeof value.batchId !== 'string' || !uuid.test(value.batchId)) return null;
+        return `/transactions/import/receipts/${value.batchId}`;
+    } catch { return null; }
+}

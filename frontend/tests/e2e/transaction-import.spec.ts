@@ -640,3 +640,129 @@ test('Confirm dialog cannot be closed with Escape while the frozen confirm reque
         releaseConfirm?.();
     }
 });
+
+test('Receipt route reloads an authoritative lossless receipt and pages transaction references', async ({ page }) => {
+    let receiptGets = 0; let confirmPosts = 0;
+    const largeReceipt = { ...receipt(), transactions: Array.from({ length: 101 }, (_, index) => ({ rowNumber: index + 2, transactionId: index + 100 })), accountImpacts: [{ accountId: 1, rowCount: 101, balanceBefore: '9007199254740993.01', delta: '-0.01', balanceAfter: '9007199254740993.00' }] };
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: largeReceipt }) }); });
+
+    await page.goto(`/transactions/import/receipts/${batchId}`);
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    await expect(page.getByText('9007199254740993.01')).toBeVisible();
+    const getsBeforeReload = receiptGets;
+    await page.reload();
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    await expect(page.getByText('9007199254740993.00')).toBeVisible();
+    await expect(page.getByText('第 1 / 2 页，', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: '下一页' }).last().click();
+    await expect(page.getByText('第 2 / 2 页，', { exact: false })).toBeVisible();
+    await expect(page.getByText('200')).toBeVisible();
+    expect(await page.locator('.import-preview-summary').evaluate(element => element.getBoundingClientRect().right <= window.innerWidth + 1)).toBe(true);
+    expect(receiptGets).toBeGreaterThan(getsBeforeReload); expect(confirmPosts).toBe(0);
+});
+
+test('Receipt route reload 401 resumes the same-user authoritative GET without a Confirm POST', async ({ page }) => {
+    let receiptGets = 0; let confirmPosts = 0; let expireReceipt = false;
+    await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; if (expireReceipt) { expireReceipt = false; return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }); } return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+
+    await page.goto(`/transactions/import/receipts/${batchId}`);
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expireReceipt = true;
+    await page.reload();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect(receiptGets).toBeGreaterThanOrEqual(3); expect(confirmPosts).toBe(0);
+});
+
+test('Receipt route reload 404 displays only safe not-found content and never confirms', async ({ page }) => {
+    let receiptGets = 0; let confirmPosts = 0; let missingReceipt = false;
+    await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill(missingReceipt ? { status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing' }) } : { contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+
+    await page.goto(`/transactions/import/receipts/${batchId}`);
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    missingReceipt = true;
+    await page.reload();
+    await expect(page.getByRole('alert').filter({ hasText: '回执不存在或不可见。' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '权威导入回执' })).toHaveCount(0);
+    expect(receiptGets).toBeGreaterThanOrEqual(2); expect(confirmPosts).toBe(0);
+});
+
+test('simultaneous two-page Confirm click creates one frozen shared intent and one POST identity', async ({ browser }) => {
+    const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5181' });
+    const pageA = await context.newPage(); const pageB = await context.newPage();
+    const requests: Array<{ key: string | undefined; path: string; body: string }> = []; let releaseConfirm!: () => void;
+    const confirmBlocked = new Promise<void>(resolve => { releaseConfirm = resolve; });
+    try {
+        await installReadyConfirmState(pageA); await installReadyConfirmState(pageB);
+        await context.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, async route => { requests.push({ key: route.request().headers()['idempotency-key'], path: new URL(route.request().url()).pathname, body: route.request().postData() ?? '' }); await confirmBlocked; await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: false } }) }); });
+        await context.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }));
+        await Promise.all([pageA.goto('/transactions/import'), pageB.goto('/transactions/import')]);
+        await Promise.all([pageA.getByRole('button', { name: '打开最终确认' }).click(), pageB.getByRole('button', { name: '打开最终确认' }).click()]);
+        const clickA = pageA.getByRole('button', { name: '确认导入 1 条流水' }).click();
+        const clickB = pageB.getByRole('button', { name: '确认导入 1 条流水' }).click();
+        await expect.poll(() => requests.length).toBe(1);
+        expect(await pageA.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('finance-os:transaction-import:pending:v1:7:')))).toHaveLength(1);
+        releaseConfirm();
+        await Promise.all([clickA, clickB]);
+        await expect.poll(() => [pageA.url(), pageB.url()].filter(url => url.endsWith(`/transactions/import/receipts/${batchId}`))).toHaveLength(1);
+        expect(requests).toHaveLength(1);
+        expect(requests[0]).toMatchObject({ path: `/api/v1/imports/transactions/${sessionId}/confirm`, body: '{"previewToken":"opaque","acknowledgedWarningIds":[]}' });
+        expect(requests[0]?.key).toMatch(/^[0-9a-f-]{36}$/);
+    } finally {
+        releaseConfirm?.();
+        await context.close();
+    }
+});
+
+async function installFullImportFlow(page: Page) {
+    let uploads = 0; let mappings = 0; let rows = 0; let confirms = 0; let receiptGets = 0;
+    const mappingSessions: string[] = []; const mapping = { columnMappings: { date: '日期', type: '类型', amount: '金额', account: '账户', category: '分类', description: '说明' }, typeMappings: { 支出: 'EXPENSE' }, accountMappings: { 现金: 1 }, categoryMappings: { 餐饮: 8 } };
+    const ready = () => ({ ...previewResponse(3, 'PREVIEW_READY', mapping, true), data: { ...previewResponse(3, 'PREVIEW_READY', mapping, true).data, summary: { totalRows: 1, validRows: 1, warningRows: 1, errorRows: 0, importableRows: 1, duplicateCandidates: 1 } } });
+    await page.addInitScript(() => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); });
+    await page.route('**/api/v1/accounts', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ id: 1, name: '现金账户', type: 'CASH', status: 'ACTIVE', currency: 'CNY' }] }) }));
+    await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ id: 8, name: '餐饮', type: 'EXPENSE' }] }) }));
+    await page.route('**/api/v1/imports/transactions/preview', route => { uploads += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify(previewResponse(1, 'MAPPING_REQUIRED', null)) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/preview`, route => { mappings += 1; mappingSessions.push(new URL(route.request().url()).pathname.split('/')[5] ?? ''); return route.fulfill({ contentType: 'application/json', body: JSON.stringify(mappings === 1 ? previewResponse(2, 'PREVIEW_READY', mapping) : ready()) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => { rows += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: { 日期: '2026-08-01', 类型: '支出', 金额: '10.00', 账户: '现金', 分类: '餐饮', 说明: '<img src=x>' }, normalizedValues: { amount: '10.00', description: '<img src=x>' }, mappingStatus: 'MAPPED', errors: [], warnings: [{ id: 'backend-warning-1', code: 'DATABASE_PROBABLE', scope: 'ROW', field: null, rowNumber: 2, message: '<script>server-warning</script>', retryable: false }], duplicateStatus: 'DATABASE_PROBABLE', importable: true }] }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirms += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: false } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    return { counts: () => ({ uploads, mappings, rows, confirms, receiptGets, mappingSessions }) };
+}
+
+for (const [label, name, mimeType, content] of [
+    ['CSV', 'closing.csv', 'text/csv', '日期,类型,金额,账户,分类,说明\n2026-08-01,支出,10,现金,餐饮,午餐'],
+    ['XLSX', 'closing.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx-fixture'],
+] as const) {
+    test(`${label} full workflow preserves one mapping Session, explicit warning acknowledgement, Confirm, Receipt and reload`, async ({ page }) => {
+        const flow = await installFullImportFlow(page);
+        await page.goto('/transactions/import');
+        await page.getByLabel('选择 CSV 或 XLSX 文件').setInputFiles({ name, mimeType, buffer: Buffer.from(content) });
+        await page.getByRole('button', { name: '上传并开始映射' }).click();
+        for (const target of ['日期', '类型', '金额', '账户', '分类', '说明']) await page.getByLabel(`${target}来源列`).selectOption(target);
+        await page.getByRole('button', { name: '保存列映射并发现来源值' }).click();
+        await page.getByLabel('类型 支出').selectOption('EXPENSE'); await page.getByLabel('账户 现金').selectOption('1'); await page.getByLabel('分类 餐饮').selectOption('8');
+        await page.getByRole('button', { name: '提交正式映射并生成预览' }).click();
+        await expect(page.getByText('<script>server-warning</script>').first()).toBeVisible();
+        await expect(page.getByText('Ready to confirm')).toHaveCount(0);
+        await page.getByRole('checkbox').check();
+        await expect(page.getByText('Ready to confirm')).toBeVisible();
+        await page.getByRole('button', { name: '打开最终确认' }).click(); await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+        await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
+        await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+        const receiptGetsBeforeReload = flow.counts().receiptGets;
+        await page.reload();
+        await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+        const result = flow.counts();
+        expect(result.uploads).toBe(1); expect(result.mappings).toBe(2); expect(result.mappingSessions).toEqual([sessionId, sessionId]); expect(result.rows).toBeGreaterThanOrEqual(3); expect(result.confirms).toBe(1); expect(result.receiptGets).toBeGreaterThan(receiptGetsBeforeReload);
+    });
+}
