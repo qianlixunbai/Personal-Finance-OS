@@ -14,6 +14,8 @@ export type ConfirmDomainAction =
     | 'RETRY_SAME_CONFIRM'
     | 'RETAIN_UNKNOWN';
 
+export type ReconcileReceiptMode = 'COMMITTED' | 'UNKNOWN';
+
 const initialConfirmActions: Readonly<Record<string, ConfirmDomainAction>> = {
     IMPORT_CONFIRM_REQUEST_INVALID: 'RETURN_TO_PREVIEW',
     IMPORT_SESSION_NOT_FOUND: 'RESTART_IMPORT',
@@ -35,6 +37,10 @@ export function confirmDomainAction(errorCode: string | undefined, recovery: boo
     if (errorCode === 'IMPORT_BATCH_NOT_FOUND') return 'RETRY_SAME_CONFIRM';
     if (recovery) return 'RETAIN_UNKNOWN';
     return errorCode ? initialConfirmActions[errorCode] ?? 'RETAIN_UNKNOWN' : 'RETAIN_UNKNOWN';
+}
+
+export function reconcileReceiptMode(errorCode: string | undefined): ReconcileReceiptMode {
+    return errorCode === 'IMPORT_BATCH_ALREADY_CONFIRMED' ? 'COMMITTED' : 'UNKNOWN';
 }
 
 export function recoveryActionForReceiptLookup(status: number): ReceiptLookupRecoveryAction {
