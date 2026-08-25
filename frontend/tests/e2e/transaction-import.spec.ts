@@ -312,50 +312,50 @@ test('Confirm freezes one intent for double click and navigates to the authorita
 });
 
 test('unknown reload recovers with GET 404 then the exact same pending POST', async ({ page }) => {
-    const body = '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}'; const requests: Array<{ key: string | undefined; body: string }> = []; let receiptGets = 0;
+    const body = '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}'; const requests: Array<{ key: string | undefined; body: string }> = []; let phase: 'RECOVERY_LOOKUP' | 'RECEIPT_PAGE' = 'RECOVERY_LOOKUP'; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await page.addInitScript(({ importSessionId, importBatchId, bodyJson }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson, submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId, bodyJson: body });
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (phase === 'RECOVERY_LOOKUP') { recoveryReceiptGets += 1; phase = 'RECEIPT_PAGE'; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
     await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
     await page.goto('/transactions/import'); await expect(page.getByRole('heading', { name: '需要恢复确认结果' })).toBeVisible(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); expect(receiptGets).toBe(1); expect(requests).toEqual([{ key: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', body }]);
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible(); expect({ recoveryReceiptGets, receiptPageGets }).toEqual({ recoveryReceiptGets: 1, receiptPageGets: expect.any(Number) }); expect(receiptPageGets).toBeGreaterThanOrEqual(1); expect(requests).toEqual([{ key: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', body }]);
 });
 
-test('an HTTP 200 Confirm with a malformed receipt persists committed recovery and uses one Receipt GET only', async ({ page }) => {
-    let confirmPosts = 0; let receiptGets = 0;
+test('an HTTP 200 Confirm with a malformed receipt preserves committed recovery before the authoritative Receipt page GET', async ({ page }) => {
+    let confirmPosts = 0; let phase: 'RECOVERY_LOOKUP' | 'RECEIPT_PAGE' = 'RECOVERY_LOOKUP'; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await installReadyConfirmState(page);
     await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: null } }) }); });
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (phase === 'RECOVERY_LOOKUP') { recoveryReceiptGets += 1; phase = 'RECEIPT_PAGE'; } else receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '打开最终确认' }).click();
     await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
     const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
     await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 1, receiptGets: 1 });
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ confirmPosts, recoveryReceiptGets }).toEqual({ confirmPosts: 1, recoveryReceiptGets: 1 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
 });
 
 test('an initial Confirm network outcome remains unknown and can still use the frozen fallback POST after Receipt 404', async ({ page }) => {
-    let confirmPosts = 0; let receiptGets = 0;
+    let confirmPosts = 0; let phase: 'RECOVERY_LOOKUP' | 'FALLBACK_CONFIRM' | 'RECEIPT_PAGE' = 'RECOVERY_LOOKUP'; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await installReadyConfirmState(page);
-    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return confirmPosts === 1 ? route.abort() : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; if (confirmPosts === 1) return route.abort(); phase = 'RECEIPT_PAGE'; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (phase === 'RECOVERY_LOOKUP') { recoveryReceiptGets += 1; phase = 'FALLBACK_CONFIRM'; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '打开最终确认' }).click();
     await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
     const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
     await expect.poll(pending).toMatchObject({ state: 'OUTCOME_UNKNOWN' });
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 2, receiptGets: 1 });
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ confirmPosts, recoveryReceiptGets }).toEqual({ confirmPosts: 2, recoveryReceiptGets: 1 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
 });
 
 for (const mode of ['404', 'network', 'malformed'] as const) {
     test(`committed recovery retains GET-only state after Receipt ${mode}, including remount`, async ({ page }) => {
-        let confirmPosts = 0; let receiptGets = 0;
+        let confirmPosts = 0; let recoveryReceiptGets = 0; let receiptPageGets = 0;
         await page.addInitScript(record => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify(record)); }, pendingIntent(7, 'COMMITTED_AWAITING_RECEIPT'));
         await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
-        await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; if (receiptGets > 1) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); if (mode === '404') return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); if (mode === 'network') return route.abort(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: null } }) }); });
+        await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (recoveryReceiptGets < 2) { recoveryReceiptGets += 1; if (recoveryReceiptGets === 2) return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); if (mode === '404') return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); if (mode === 'network') return route.abort(); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: null } }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
         await page.goto('/transactions/import');
         await page.getByRole('button', { name: '查询并恢复原确认' }).click();
         const pending = () => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}'));
@@ -363,24 +363,24 @@ for (const mode of ['404', 'network', 'malformed'] as const) {
         await page.reload();
         await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
         await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-        await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-        expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 2 });
+        await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+        expect({ confirmPosts, recoveryReceiptGets }).toEqual({ confirmPosts: 0, recoveryReceiptGets: 2 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
     });
 }
 
 test('committed Receipt GET 401 resumes the same GET after authentication and never posts', async ({ page }) => {
-    let confirmPosts = 0; let receiptGets = 0;
+    let confirmPosts = 0; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await page.addInitScript(record => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify(record)); }, pendingIntent(7, 'COMMITTED_AWAITING_RECEIPT'));
     await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
     await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (recoveryReceiptGets < 2) { recoveryReceiptGets += 1; return recoveryReceiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 0, receiptGets: 2 });
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ confirmPosts, recoveryReceiptGets }).toEqual({ confirmPosts: 0, recoveryReceiptGets: 2 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
 });
 
 test('Confirm dialog traps keyboard focus, supports safe Escape, and restores the trigger focus', async ({ page }) => {
@@ -409,7 +409,7 @@ test('Confirm dialog traps keyboard focus, supports safe Escape, and restores th
 });
 
 test('initial Confirm 401 resumes the exact original POST after same-user login without a receipt lookup', async ({ page }) => {
-    const requests: Array<{ key: string | undefined; body: string }> = []; let receiptGets = 0;
+    const requests: Array<{ key: string | undefined; body: string }> = []; let receiptPagePhase = false; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await page.addInitScript(({ snapshotExpiry, snapshotSessionId, importBatchId }) => {
         localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7');
         sessionStorage.setItem('finance-os:transaction-import:draft:v1:7', JSON.stringify({ schemaVersion: 1, userId: 7, activeStep: 'PREVIEW_READY', file: null, sessionId: snapshotSessionId, batchId: importBatchId, sessionStatus: 'PREVIEW_READY', revision: 3, detectedColumns: [], mapping: null, summary: { totalRows: 1, validRows: 1, warningRows: 0, errorRows: 0, importableRows: 1, duplicateCandidates: 0 }, fileDigest: 'file', mappingDigest: null, optionsDigest: 'options', normalizedRowsDigest: null, expiresAt: snapshotExpiry, previewToken: 'opaque', updatedAt: '2026-08-25T00:00:00.000Z' }));
@@ -418,8 +418,8 @@ test('initial Confirm 401 resumes the exact original POST after same-user login 
     await page.route('**/api/v1/categories', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [] }) }));
     await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
     await page.route(`**/api/v1/imports/transactions/${sessionId}/rows?*`, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: [{ rowNumber: 2, sourceValues: {}, normalizedValues: {}, mappingStatus: 'MAPPED', errors: [], warnings: [], duplicateStatus: 'NONE', importable: true }] }) }));
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
-    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return requests.length === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (!receiptPagePhase) { recoveryReceiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); if (requests.length === 1) return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }); receiptPagePhase = true; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '打开最终确认' }).click();
     await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
@@ -427,33 +427,33 @@ test('initial Confirm 401 resumes the exact original POST after same-user login 
     await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
     await expect(page).toHaveURL(/\/transactions\/import$/);
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect(receiptGets).toBe(0);
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect(recoveryReceiptGets).toBe(0); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
     expect(requests).toHaveLength(2);
     expect(requests[1]).toEqual(requests[0]);
 });
 
 test('unknown-outcome receipt GET 401 resumes the same GET and never posts', async ({ page }) => {
-    let receiptGets = 0; let confirmPosts = 0;
+    let recoveryReceiptGets = 0; let receiptPageGets = 0; let confirmPosts = 0;
     await page.addInitScript(({ importSessionId, importBatchId }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId });
     await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
     await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { receiptGets += 1; return receiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (recoveryReceiptGets < 2) { recoveryReceiptGets += 1; return recoveryReceiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect({ receiptGets, confirmPosts }).toEqual({ receiptGets: 2, confirmPosts: 0 });
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ recoveryReceiptGets, confirmPosts }).toEqual({ recoveryReceiptGets: 2, confirmPosts: 0 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
 });
 
 test('fallback recovery POST 401 resumes the same frozen POST without another receipt lookup', async ({ page }) => {
-    const requests: Array<{ key: string | undefined; body: string }> = []; const sequence: string[] = [];
+    const requests: Array<{ key: string | undefined; body: string }> = []; const recoverySequence: string[] = []; let phase: 'RECOVERY_LOOKUP' | 'FALLBACK_CONFIRM' | 'RECEIPT_PAGE' = 'RECOVERY_LOOKUP'; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await page.addInitScript(({ importSessionId, importBatchId }) => { const pendingKey = 'finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90'; if (!localStorage.getItem(pendingKey)) { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem(pendingKey, JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); } }, { importSessionId: sessionId, importBatchId: batchId });
     await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
-    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { sequence.push('GET'); return sequence.filter(item => item === 'GET').length === 1 ? route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
-    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { sequence.push('POST'); requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); return requests.length === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (phase === 'RECOVERY_LOOKUP') { recoveryReceiptGets += 1; recoverySequence.push('GET'); phase = 'FALLBACK_CONFIRM'; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { recoverySequence.push('POST'); requests.push({ key: route.request().headers()['idempotency-key'], body: route.request().postData() ?? '' }); if (requests.length === 1) return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }); phase = 'RECEIPT_PAGE'; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
     await page.goto('/transactions/import');
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -461,8 +461,8 @@ test('fallback recovery POST 401 resumes the same frozen POST without another re
     await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}').resumeState)).toBe('RECOVERING_CONFIRM');
     await page.getByRole('button', { name: '查询并恢复原确认' }).click();
-    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`));
-    expect(sequence).toEqual(['GET', 'POST', 'POST']);
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ recoveryReceiptGets, recoverySequence }).toEqual({ recoveryReceiptGets: 1, recoverySequence: ['GET', 'POST', 'POST'] }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
     expect(requests).toHaveLength(2);
     expect(requests[1]).toEqual(requests[0]);
 });
