@@ -448,6 +448,42 @@ test('unknown-outcome receipt GET 401 resumes the same GET and never posts', asy
     expect({ recoveryReceiptGets, confirmPosts }).toEqual({ recoveryReceiptGets: 2, confirmPosts: 0 }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
 });
 
+test('unknown-outcome receipt GET 401 continuation falls back after GET 404 with a clean recovery record', async ({ page }) => {
+    const requests: Array<{ key: string | undefined; path: string; body: string }> = []; let recoveryReceiptGets = 0; let receiptPagePhase = false; let receiptPageGets = 0;
+    await page.addInitScript(({ importSessionId, importBatchId }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], path: new URL(route.request().url()).pathname, body: route.request().postData() ?? '' }); receiptPagePhase = true; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (!receiptPagePhase) { recoveryReceiptGets += 1; return route.fulfill(recoveryReceiptGets === 1 ? { status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) } : { status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '查询并恢复原确认' }).click(); await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ recoveryReceiptGets, requests }).toEqual({ recoveryReceiptGets: 2, requests: [{ key: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', path: `/api/v1/imports/transactions/${sessionId}/confirm`, body: '{"previewToken":"opaque","acknowledgedWarningIds":[]}' }] }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
+});
+
+test('unknown-outcome receipt GET 401 continuation retains a clean unknown record on network failure', async ({ page }) => {
+    let recoveryReceiptGets = 0; let confirmPosts = 0;
+    await page.addInitScript(({ importSessionId, importBatchId }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { recoveryReceiptGets += 1; return recoveryReceiptGets === 1 ? route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) }) : route.abort(); });
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '查询并恢复原确认' }).click(); await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}'))).toMatchObject({ state: 'OUTCOME_UNKNOWN' });
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}').resumeState)).toBeUndefined(); expect({ recoveryReceiptGets, confirmPosts }).toEqual({ recoveryReceiptGets: 2, confirmPosts: 0 });
+});
+
+test('committed Receipt GET 401 continuation stays GET-only after GET 404 with no resume state', async ({ page }) => {
+    let recoveryReceiptGets = 0; let confirmPosts = 0;
+    await page.addInitScript(({ importSessionId, importBatchId }) => { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', JSON.stringify({ schemaVersion: 1, userId: 7, state: 'COMMITTED_AWAITING_RECEIPT', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":[]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); }, { importSessionId: sessionId, importBatchId: batchId });
+    await page.route('**/api/v1/login', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { token: 'renewed-token', userId: 7 } }) }));
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.abort(); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { recoveryReceiptGets += 1; return route.fulfill(recoveryReceiptGets === 1 ? { status: 401, contentType: 'application/json', body: JSON.stringify({ code: 401, message: 'expired' }) } : { status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '查询并恢复原确认' }).click(); await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('用户名').fill('same-user'); await page.getByLabel('密码').fill('password'); await page.getByRole('button', { name: '登录' }).click(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}'))).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' });
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90') ?? '{}').resumeState)).toBeUndefined(); expect({ recoveryReceiptGets, confirmPosts }).toEqual({ recoveryReceiptGets: 2, confirmPosts: 0 });
+});
+
 test('fallback recovery POST 401 resumes the same frozen POST without another receipt lookup', async ({ page }) => {
     const requests: Array<{ key: string | undefined; path: string; body: string }> = []; const recoverySequence: string[] = []; let phase: 'RECOVERY_LOOKUP' | 'FALLBACK_CONFIRM' | 'RECEIPT_PAGE' = 'RECOVERY_LOOKUP'; let recoveryReceiptGets = 0; let receiptPageGets = 0;
     await page.addInitScript(({ importSessionId, importBatchId }) => { const pendingKey = 'finance-os:transaction-import:pending:v1:7:d81c6c70-7c5d-4d36-ae45-fdd8f2a26a90'; if (!localStorage.getItem(pendingKey)) { localStorage.setItem('token', 'test-token'); localStorage.setItem('finance-os:auth-user-id:v1', '7'); localStorage.setItem(pendingKey, JSON.stringify({ schemaVersion: 1, userId: 7, state: 'OUTCOME_UNKNOWN', method: 'POST', path: `/imports/transactions/${importSessionId}/confirm`, importSessionId, importBatchId, idempotencyKey: 'd81c6c70-7c5d-4d36-ae45-fdd8f2a26a90', bodyJson: '{"previewToken":"opaque","acknowledgedWarningIds":["warning-a"]}', submittedAt: '2026-08-25T08:00:00.000Z', updatedAt: '2026-08-25T08:00:00.000Z' })); } }, { importSessionId: sessionId, importBatchId: batchId });
@@ -501,6 +537,27 @@ for (const [errorCode, pendingExpectation, heading, retryable] of [
         expect({ confirmPosts, receiptGets }).toEqual({ confirmPosts: 1, receiptGets: 0 });
     });
 }
+
+test('IMPORT_BATCH_ALREADY_CONFIRMED reconciles by Receipt GET only, including after GET 404', async ({ page }) => {
+    let confirmPosts = 0; let recoveryReceiptGets = 0;
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { confirmPosts += 1; return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: 409, message: 'already confirmed', errorCode: 'IMPORT_BATCH_ALREADY_CONFIRMED', retryable: true }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { recoveryReceiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); });
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '打开最终确认' }).click(); await page.getByRole('button', { name: '确认导入 1 条流水' }).click();
+    const pending = () => page.evaluate(() => JSON.parse(Object.entries(localStorage).find(([key]) => key.startsWith('finance-os:transaction-import:pending:v1:7:'))?.[1] ?? '{}'));
+    await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' }); await page.getByRole('button', { name: '查询并恢复原确认' }).click(); await expect.poll(pending).toMatchObject({ state: 'COMMITTED_AWAITING_RECEIPT' }); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect.poll(() => recoveryReceiptGets).toBe(2); expect(confirmPosts).toBe(1);
+});
+
+test('IMPORT_LOCK_CONFLICT explicitly reconciles by Receipt GET before the same frozen Confirm POST', async ({ page }) => {
+    const requests: Array<{ key: string | undefined; path: string; body: string }> = []; let recoveryReceiptGets = 0; let receiptPagePhase = false; let receiptPageGets = 0;
+    await installReadyConfirmState(page);
+    await page.route(`**/api/v1/imports/transactions/${sessionId}/confirm`, route => { requests.push({ key: route.request().headers()['idempotency-key'], path: new URL(route.request().url()).pathname, body: route.request().postData() ?? '' }); if (requests.length === 1) return route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: 409, message: 'lock conflict', errorCode: 'IMPORT_LOCK_CONFLICT', retryable: true }) }); receiptPagePhase = true; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: { receipt: receipt(), idempotentReplay: true } }) }); });
+    await page.route(`**/api/v1/imports/transactions/batches/${batchId}`, route => { if (!receiptPagePhase) { recoveryReceiptGets += 1; return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 404, message: 'missing', errorCode: 'IMPORT_BATCH_NOT_FOUND' }) }); } receiptPageGets += 1; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'ok', data: receipt() }) }); });
+    await page.goto('/transactions/import'); await page.getByRole('button', { name: '打开最终确认' }).click(); await page.getByRole('button', { name: '确认导入 1 条流水' }).click(); await page.getByRole('button', { name: '查询并恢复原确认' }).click();
+    await expect(page).toHaveURL(new RegExp(`/transactions/import/receipts/${batchId}$`)); await expect(page.getByRole('heading', { name: '权威导入回执' })).toBeVisible();
+    expect({ recoveryReceiptGets, requests }).toEqual({ recoveryReceiptGets: 1, requests: [requests[0], requests[0]] }); expect(receiptPageGets).toBeGreaterThanOrEqual(1);
+});
 
 test('a user switch fails closed and never resumes the former user pending intent', async ({ page }) => {
     let confirmPosts = 0; let receiptGets = 0;

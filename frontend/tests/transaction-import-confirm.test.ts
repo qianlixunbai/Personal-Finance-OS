@@ -11,7 +11,7 @@ import {
     writePendingTransactionImport,
 } from '../src/utils/transactionImportStorage.ts';
 import { decodeTransactionImportReceiptResponse } from '../src/utils/transactionImportTransport.ts';
-import { confirmDomainAction, recoveryActionForReceiptLookup } from '../src/utils/transactionImportRecovery.ts';
+import { confirmDomainAction, reconcileReceiptMode, recoveryActionForReceiptLookup } from '../src/utils/transactionImportRecovery.ts';
 
 class MemoryStorage implements Storage {
     private readonly values = new Map<string, string>();
@@ -126,4 +126,9 @@ test('maps every real Confirm and Receipt domain code to a fail-closed recovery 
         assert.equal(confirmDomainAction(errorCode, false), initialAction, errorCode);
         assert.equal(confirmDomainAction(errorCode, true), errorCode === 'IMPORT_BATCH_NOT_FOUND' ? 'RETRY_SAME_CONFIRM' : 'RETAIN_UNKNOWN', `${errorCode} recovery`);
     }
+});
+
+test('classifies receipt reconciliation as committed-only or unknown-outcome without duplicating domain handling in the coordinator', () => {
+    assert.equal(reconcileReceiptMode('IMPORT_BATCH_ALREADY_CONFIRMED'), 'COMMITTED');
+    assert.equal(reconcileReceiptMode('IMPORT_LOCK_CONFLICT'), 'UNKNOWN');
 });
