@@ -35,7 +35,7 @@ export function readTransactionImportDraft(storage: Storage, userId: number): Tr
 }
 
 const pendingStates = new Set<PendingTransactionImportState>(['SUBMITTING', 'OUTCOME_UNKNOWN', 'RECOVERING_LOOKUP', 'RECOVERING_CONFIRM', 'COMMITTED_AWAITING_RECEIPT', 'AUTH_REQUIRED']);
-const pendingResumeStates = new Set(['SUBMITTING', 'OUTCOME_UNKNOWN', 'RECOVERING_CONFIRM', 'COMMITTED_AWAITING_RECEIPT']);
+const pendingResumeStates = new Set(['SUBMITTING', 'OUTCOME_UNKNOWN', 'COMMITTED_AWAITING_RECEIPT']);
 
 function validConfirmBody(bodyJson: unknown) {
     if (typeof bodyJson !== 'string') return false;

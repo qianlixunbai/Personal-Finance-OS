@@ -26,7 +26,7 @@ export interface TransactionImportReceipt {
 export interface TransactionImportConfirmResponse { receipt: TransactionImportReceipt; idempotentReplay: boolean; }
 
 export type PendingTransactionImportState = 'SUBMITTING' | 'OUTCOME_UNKNOWN' | 'RECOVERING_LOOKUP' | 'RECOVERING_CONFIRM' | 'COMMITTED_AWAITING_RECEIPT' | 'AUTH_REQUIRED';
-export type PendingTransactionImportResumeState = 'SUBMITTING' | 'OUTCOME_UNKNOWN' | 'RECOVERING_CONFIRM' | 'COMMITTED_AWAITING_RECEIPT';
+export type PendingTransactionImportResumeState = 'SUBMITTING' | 'OUTCOME_UNKNOWN' | 'COMMITTED_AWAITING_RECEIPT';
 
 export interface PendingTransactionImportV1 {
     schemaVersion: 1;

@@ -42,16 +42,14 @@ test('creates a closed, same-user pending confirm intent that preserves exact bo
     assert.equal(readPendingTransactionImport(storage, 7, key), null);
 });
 
-test('allows a fallback POST 401 record to preserve its exact recovery-post resume state', () => {
+test('rejects a fallback POST 401 record that resumes directly to RECOVERING_CONFIRM', () => {
     const storage = new MemoryStorage();
     const pending = createPendingTransactionImport({ userId: 7, importSessionId: sessionId, importBatchId: batchId, idempotencyKey: key, bodyJson, now: '2026-08-25T08:00:00.000Z' });
     const recovering = { ...pending, state: 'RECOVERING_CONFIRM' as const };
-    writePendingTransactionImport(storage, recovering);
-    writePendingTransactionImport(storage, { ...recovering, state: 'AUTH_REQUIRED', resumeState: 'RECOVERING_CONFIRM' });
+    storage.setItem(pendingTransactionImportKey(7, key), JSON.stringify({ ...recovering, state: 'AUTH_REQUIRED', resumeState: 'RECOVERING_CONFIRM' }));
 
     const entry = scanPendingTransactionImports(storage, 7)[0];
-    assert.equal(entry?.validation.ok, true);
-    if (entry?.validation.ok) assert.equal(entry.validation.record.resumeState, 'RECOVERING_CONFIRM');
+    assert.equal(entry?.validation.ok, false);
 });
 
 test('decodes receipt decimals from raw JSON without JavaScript Number precision loss', () => {
