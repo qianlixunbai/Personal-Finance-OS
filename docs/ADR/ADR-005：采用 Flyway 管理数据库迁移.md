@@ -148,13 +148,13 @@ Phase 1 之前，项目通过 Spring Boot SQL Init 加载 `schema.sql` 初始化
 # 九、相关文档（References）
 
 - [README](../../README.md)
-- [Roadmap](../Roadmap.md)
-- [Development Guide](../Development-Guide.md)
-- [Database 设计](../03-Architecture/Database.md)
+- [Roadmap](../product/roadmap.md)
+- [Development Guide](../engineering/development.md)
+- [Database](../architecture/database.md)
 - `backend/pom.xml`
 - `backend/src/main/resources/db/migration/V1__baseline.sql`
 - `backend/src/test/java/com/financeos/integration/FlywayMigrationIntegrationTest.java`
-- [Database Review](../review/Database-Review.md)
+- [Database Review](../archive/review/Database-Review.md)
 
 ------
 

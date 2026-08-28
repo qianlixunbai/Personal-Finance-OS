@@ -16,14 +16,14 @@
 
 ## 背景
 
-v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但明确不修改 `Asset.currentPrice`、`Asset.marketValue` 或 Dashboard（`docs/review/V2.0-Closing-Review.md:64-68`）。v2.1 需要在保持该隔离边界的前提下，为外币行情生成 CNY 参考估值。
+v2.0 已提供独立、可追溯的 US `STOCK` / `ETF` 最新参考行情，但明确不修改 `Asset.currentPrice`、`Asset.marketValue` 或 Dashboard（`docs/archive/review/V2.0-Closing-Review.md:62-68`）。v2.1 需要在保持该隔离边界的前提下，为外币行情生成 CNY 参考估值。
 
 当前金融基线为：
 
-- 基础币种为 CNY，Account、Asset、Transaction 均只允许 CNY，Dashboard 只聚合 CNY（`docs/Financial Rules.md:195-205`）。
-- 金额计算必须使用 `BigDecimal`，禁止 `float` / `double`（`docs/Financial Rules.md:35-44`）。
-- 汇率必须可追溯（`docs/Financial Rules.md:207`）。
-- `Architecture.md` 已冻结；架构级变化必须通过 ADR（`docs/03-Architecture/Architecture.md:15-19`）。
+- 基础币种为 CNY，Account、Asset、Transaction 均只允许 CNY，Dashboard 只聚合 CNY（`docs/domain/financial-rules.md:97-99`）。
+- 金额计算必须使用 `BigDecimal`，禁止 `float` / `double`（`docs/domain/financial-rules.md:5-11`）。
+- 汇率必须可追溯（`docs/domain/financial-rules.md:13-24`）。
+- `Architecture.md` 已冻结；架构级变化必须通过 ADR（`docs/architecture/frozen-v1.0-architecture.md:13-19`）。
 - Asset 查询已批量读取行情快照且 GET 不调用 Provider（`backend/src/main/java/com/financeos/module/asset/marketdata/service/MarketQuoteQueryService.java:42-58`）。
 
 ## 当前约束
@@ -228,4 +228,4 @@ Phase 1 只新增 `V3__exchange_rates.sql`；不修改 V1/V2，不修改 `accoun
 - 接受日期：2026-07-19
 - 当前完成范围：v2.1 Phase 1 FX Foundation、Phase 2 FX Refresh Workflow、Phase 3 Reference Valuation Backend 和 Phase 4 Assets UI 均已实现并完成验证；Phase 3 包含 Reference Valuation API、只读缓存计算、显式 refresh、stale fallback 与结构化 warning，Phase 4 完成 Assets 页面只读验收。
 - 最终边界：Account / Transaction 仍为 CNY-only；Asset 人工估值字段仍是账务数据；Reference Valuation 只读且不持久化；普通 GET 不调用 Provider；Provider 失败不修改账务真值；Dashboard 不接入市场参考估值；真实 FX Provider 默认关闭。
-- 正式生效：是；v2.1 Market Valuation 已完成并正式关闭，关闭记录见 `docs/review/V2.1-Closing-Review.md`。
+- 正式生效：是；v2.1 Market Valuation 已完成并正式关闭，关闭记录见 `docs/archive/review/V2.1-Closing-Review.md:35-39`。

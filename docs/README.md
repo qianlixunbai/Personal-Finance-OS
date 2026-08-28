@@ -1,62 +1,48 @@
 # 文档中心
 
-> **Phase 3D Transaction Import Confirm：CLOSED — GO（后端 Confirm；Transaction Import Frontend NOT STARTED）**
+本目录按三类事实组织：
 
-> **Phase 2B：CLOSED — GO**
-> **Phase 2C-1：CLOSED — GO（仅契约）**
-> **Phase 2C-2A：CLOSED — GO（内部读取基础）**
-> **Phase 2C-2B：CLOSED — GO（Portfolio & Position Read API）**
-> **Phase 2C-2C：CLOSED — GO（Transaction & Audit Read API）**
-> **Phase 2C-3：CLOSED — GO（Investment Read Frontend）**
-> **Phase 2C：CLOSED — GO（Investment Read）**
-> **Investment Command & Correction UI：CLOSED — GO**
-> **Phase 3A Transaction Import Contract Design：CLOSED — GO（仅契约）**
-> **Phase 3B Transaction Import Backend Foundation：CLOSED — GO（仅后端基础）**
-> **Phase 3C Transaction Import Preview & Validation：CLOSED — GO**
+- **Current Truth**：当前产品、架构、规则与工程实践；
+- **Long-term Decision**：长期有效的架构决策；
+- **Historical Evidence**：阶段设计、Review 和开发日志的历史快照。
 
-本目录以当前实现为准。阅读顺序建议为：根 README → [项目愿景](Project%20Vision.md) → [路线图](Roadmap.md) → 冻结架构与 ADR → Database/API → 业务与金融规则 → 开发/部署指南 → 当前阶段 Closing Review。
+当前状态只在 [STATUS](STATUS.md) 维护。历史文档中的 `CLOSED`、`GO`、`NO-GO`、测试数字和阶段名称保留其当时含义，不代表当前状态。
 
-## 当前活文档
+## 我想知道什么
 
-- [项目愿景](Project%20Vision.md)、[路线图](Roadmap.md)、[SRS](SRS.md)、[需求索引](SRS详解.md)
-- [Database](03-Architecture/Database.md)、[API](03-Architecture/API.md)
-- [业务规则](Business%20Rules.md)、[金融规则](Financial%20Rules.md)
-- [Phase 3A Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
-- [Phase 3B Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO；仅后端基础）
-- [Phase 3C Preview & Validation Closing Review](review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)（CLOSED — GO；Confirm 金融写入与前端 `NOT STARTED`）
-- [Phase 3D Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)（保留 Named Constraint Recovery Amendment 历史）
-- [Phase 3D Confirm Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（CLOSED — GO；后端 Confirm；Import Frontend `NOT STARTED`）
-- [开发指南](Development-Guide.md)、[部署指南](Deployment-Guide.md)、[项目结构](项目结构.md)
-- [Definition of Done](Definition%20of%20Done.md)、[Code Review Checklist](Code%20Review%20Checklist.md)、[AI Rules](AI-Rules.md)、[Prompt Guide](Prompt%20Guide.md)
+| 目标 | 入口 |
+| --- | --- |
+| 项目现在做到哪 | [STATUS](STATUS.md) |
+| 产品为什么存在 | [产品愿景](product/vision.md) |
+| 当前需要支持什么 | [产品需求](product/requirements.md) |
+| 当前范围和明确不做什么 | [Scope and Non-goals](product/scope-and-non-goals.md) |
+| 未来可能往哪里走 | [Roadmap](product/roadmap.md) |
+| 系统现在如何设计 | [Current Architecture](architecture/current-architecture.md) |
+| v1.0 冻结架构是什么 | [Frozen v1.0 Architecture](architecture/frozen-v1.0-architecture.md) |
+| 数据库当前有哪些事实 | [Database](architecture/database.md) |
+| 当前有哪些公开接口 | [API](architecture/api.md) |
+| 安全边界是什么 | [Security](architecture/security.md) |
+| 事务与一致性如何保证 | [Consistency](architecture/consistency.md) |
+| 查询业务规则 | [Business Rules](domain/business-rules.md) |
+| 查询金额和舍入口径 | [Financial Rules](domain/financial-rules.md) |
+| 查询投资账本规则 | [Investment Ledger](domain/investment-ledger.md) |
+| 查询普通流水导入规则 | [Transaction Import](domain/transaction-import.md) |
+| 本地开发与验证 | [Development](engineering/development.md) |
+| 部署边界 | [Deployment](engineering/deployment.md) |
+| 测试策略 | [Testing](engineering/testing.md) |
+| 仓库结构 | [Project Structure](engineering/project-structure.md) |
+| 为什么做某项长期决策 | [ADR](ADR/README.md) |
+| 某阶段当时如何设计 | [Archive Design](archive/design/) |
+| 某阶段是否通过验收 | [Archive Review](archive/review/README.md) |
+| 查看早期排障记录 | [Archive Logs](archive/logs/README.md) |
+| Agent / Codex 协作规则 | [Internal](internal/) |
 
-## 冻结与历史记录
+## 生命周期规则
 
-[Architecture](03-Architecture/Architecture.md) 是 Reviewed / Frozen 的 v1.0 架构基线，不因当前实现而重写。当前架构演进由 [ADR](ADR/) 和 Closing Review 表达。`design/`、`logs/`、`meeting/`、`decisions/` 以及历史 Review 均保留当时事实，不是当前能力说明。
+1. 当前状态只写入 `STATUS.md`；其他活文档只做摘要并链接。
+2. 产品、架构、领域和工程文档描述当前可执行事实，不记录阶段流水。
+3. ADR 独立保存长期决策，不因实现演进而改写原始 Decision 与 Trade-off。
+4. `archive/design/` 保存实施前设计，`archive/review/` 保存验收证据，`archive/logs/` 保存过程记录。
+5. 代码、Flyway Migration、配置和当前 API 与文档冲突时，以实现为事实依据；若实现违反已冻结决策，应记录不一致而不是擅改历史。
 
-## ADR 与阶段验收
-
-- 账户并发与锁：[ADR-008](ADR/ADR-008-account-balance-concurrency-and-lock-ordering.md)
-- 投资演进：[ADR-007](ADR/ADR-007-investment-ledger-foundation.md) 至 [ADR-015](ADR/ADR-015-investment-read-model-contract.md)
-- [Phase 2A](review/V3.0-Phase2A-Closing-Review.md)、[2B-1](review/V3.0-Phase2B-1-Closing-Review.md)、[2B-2](review/V3.0-Phase2B-2-Closing-Review.md)、[2B-3](review/V3.0-Phase2B-3-Closing-Review.md)
-- [2B-4A](review/V3.0-Phase2B-4A-Closing-Review.md)、[2B-4B](review/V3.0-Phase2B-4B-Closing-Review.md)、[2B-5A](review/V3.0-Phase2B-5A-Closing-Review.md)、[2B-5B-1](review/V3.0-Phase2B-5B-1-Closing-Review.md)、[2B-5B-2](review/V3.0-Phase2B-5B-2-Closing-Review.md)
-- [Phase 2B 聚合 Closing Review](review/V3.0-Phase2B-Closing-Review.md)
-- Phase 2C-1：[读取模型契约](design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)、[ADR-015](ADR/ADR-015-investment-read-model-contract.md)、[Closing Review](review/V3.0-Phase2C-1-Closing-Review.md)
-- Phase 2C-2A：[Internal Investment Read Foundation Closing Review](review/V3.0-Phase2C-2A-Closing-Review.md)
-- Phase 2C-2B：[Portfolio & Position Read API Closing Review](review/V3.0-Phase2C-2B-Closing-Review.md)
-- Phase 2C-2C：[Transaction & Audit Read API Closing Review](review/V3.0-Phase2C-2C-Closing-Review.md)
-- Phase 2C-3：[Investment Read Frontend Closing Review](review/V3.0-Phase2C-3-Closing-Review.md)
-- [Investment Command & Correction UI Contract](design/V3.0-Investment-Command-Correction-UI-Contract.md)（CLOSED — GO）、[Closing Review](review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)
-- Phase 3A：[Transaction Import Contract](design/V3.0-Phase3A-Transaction-Import-Contract.md)（CLOSED — GO）
-- Phase 3B：[Backend Foundation Closing Review](review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)（CLOSED — GO）
-- Phase 3C：[Preview & Validation Closing Review](review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)（CLOSED — GO；Confirm 金融写入与 Frontend `NOT STARTED`）
-- Phase 3D：[Confirm Contract / Amendment](design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)、[Closing Review](review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)（CLOSED — GO；后端 Confirm；Import Frontend `NOT STARTED`）
-
-Opening migration 与 investment write path 已在 Phase 2B 实现；Phase 2C 已完成读取契约、内部读取基础、Portfolio / Position / logical transaction / audit API，以及 `/investments` 只读工作区，现已整体关闭并获得 GO。Investment Command & Correction UI 也已完成并获得 GO。Phase 3A 已冻结普通 Transaction 的 CSV / XLSX 导入契约、安全、幂等、原子性与 Preview/Confirm 边界；Phase 3B 已交付后端 foundation；Phase 3C 已完成上传、解析、mapping、校验、分页 Preview、Session 生命周期与临时 payload 清理；Phase 3D Transaction Import Confirm 已完成并 `CLOSED — GO`，后端支持 CSV / XLSX upload、mapping、preview、validation、confirm 与 authoritative receipt。Transaction Import Frontend 尚未开始。
-
-## 文档语言与治理
-
-- `zh-cn` 分支的当前活文档、ADR 和 Closing Review 以简体中文为主；
-- 类名、字段、API、SQL、命令、正式阶段名称和标准技术术语可以保留英文；
-- 历史文档的语言统一只改变叙述表达，不改变测试数字、HEAD、SHA、风险或阶段结论；
-- README 负责项目展示，Database / API / Rules 负责当前技术查证，ADR 负责长期决策，Closing Review 负责验收证据；
-- 临时 Agent 执行计划不作为长期正式文档，失去引用后应删除或归档。
+根 [README](../README.md) 面向仓库访客；本文件只负责导航。

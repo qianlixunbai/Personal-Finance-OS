@@ -10,7 +10,7 @@ Accepted（已接受）
 
 Phase 2B 已完成不可变投资写路径，但 Portfolio、Position、投资交易查询和审计时间线尚未实现。读取模型必须将 original、standalone reversal、grouped reversal、replacement fact 与 correction envelope 转换为用户可理解的表达，同时保持 `Asset` 为唯一当前 Position 投影，不把历史回执误作当前真值。
 
-详细字段、示例和候选 API 见 [Phase 2C-1 Investment Read Model Contract](../design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)。
+详细字段、示例和候选 API 见 [Phase 2C-1 Investment Read Model Contract](../archive/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)。
 
 ## 决策
 

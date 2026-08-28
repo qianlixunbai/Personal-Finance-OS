@@ -6,19 +6,17 @@
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0B1220)
 
-> **当前阶段：** `Phase 3D Transaction Import Confirm：CLOSED — GO`
->
-> **下一核心能力：** `Transaction Import Frontend：NOT STARTED`
+Personal Finance OS 是一个以 Java 21、Spring Boot、PostgreSQL 和 React 构建的个人财务管理系统。它以服务端为金融计算与审计权威，覆盖账户、普通流水、参考估值、不可变投资账本和普通流水文件导入。
 
-Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 构建的工程化个人财务管理系统。它覆盖账户与日常收支、市场参考估值，以及具备不可变审计、确定性重放、幂等恢复和并发一致性的投资账本，因此不是普通 CRUD 示例。
+系统用于记录、校验、汇总和追溯用户维护的财务事实，不执行真实支付、资金划转或证券交易，也不提供投资建议。
 
-系统记录和管理用户维护的财务事实，不执行真实支付、银行转账或证券交易，也不提供投资建议。
+> 当前阶段、验收状态和未完成范围以 [项目状态](docs/STATUS.md) 为唯一来源。
 
 ## 项目截图与 Demo
 
-[**在线体验静态 Demo →**](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login)
+[在线体验静态 Demo](https://personal-finance-os-demo.qianlixunbai.chatgpt.site/#/login)
 
-> Demo 使用虚构数据，为静态只读展示，不连接真实后端、数据库或行情 Provider；它与 `zh-cn` 主产品的真实实现分离。
+> Demo 使用虚构数据，为独立静态只读展示，不连接本仓库后端、数据库或外部行情 Provider。
 
 <table>
   <tr>
@@ -31,25 +29,23 @@ Personal Finance OS 是一个以 Java 21、Spring Boot 3、PostgreSQL 与 React 
   </tr>
 </table>
 
-截图来自 `sites-demo` 的本地静态只读构建。
-
 ## 为什么不是普通 CRUD
 
-### 金融一致性
+### 金融事务一致性
 
-普通流水和投资命令在数据库事务内同时维护财务事实、`Account.balance` 与受控投影。写路径使用 PostgreSQL 行锁、固定锁顺序和事务级 `lock_timeout`，降低 lost update、死锁和并发错账风险。
+普通流水、批量导入和投资命令都由后端控制事务边界。账户余额、业务事实、受控投影与权威回执在同一 PostgreSQL 事务中收敛；写路径使用行锁、固定锁顺序和事务级 `lock_timeout` 处理并发竞争。
 
 ### 不可变投资账本
 
-原始投资事实不通过 `UPDATE` 或 `DELETE` 覆盖。纠正采用 append-only standalone reversal，或由 grouped reversal、同类型 replacement fact 与 correction envelope 组成的原子 replacement。
+投资原始事实不通过 `UPDATE` 或 `DELETE` 覆盖。错误交易通过 append-only reversal 或 same-type replacement 纠正，历史回执和当前 corrected truth 明确分离。
 
 ### 确定性重放
 
-持仓数量、成本与累计已实现盈亏由规范化历史顺序重放得到。replacement 使用原交易的 replay anchor；trace 与 SHA-256 digest 用于比较候选重放、数据库内二次重放和最终投影。
+持仓数量、成本和累计已实现盈亏由规范化事实顺序重放得到。candidate replay、持久化后二次 replay、trace 与 digest 共同约束投影一致性。
 
-### 失败与重试恢复
+### 幂等与未知结果恢复
 
-写路径覆盖幂等键同请求回放、同 key 不同请求冲突、锁超时、deadlock、unknown commit recovery 与分阶段故障注入。任何中途失败都会回滚事实、余额、投影、回执和纠正命令。
+投资命令与 Import Confirm 将幂等键绑定规范化请求摘要。同一意图可以恢复权威结果，不同意图复用同一 key 会被拒绝；并发、锁超时、unknown commit 和中途故障均有明确的 fail-closed 或回滚语义。
 
 ## 系统架构
 
@@ -59,139 +55,69 @@ flowchart LR
     FE -->|REST API / JWT| BE
 
     subgraph BE[Spring Boot 模块化单体]
-        AUTH[认证与用户]
-        BASIC[账户与日常流水]
-        INVEST[投资账本]
-        MARKET[行情与参考估值]
+        AUTH[Auth / Security]
+        CORE[Account / Category / Transaction]
+        INVEST[Investment Ledger / Read Model]
+        IMPORT[Transaction Import]
+        MARKET[Market Data / FX / Valuation]
         DASH[Dashboard]
     end
 
-    AUTH --> DB[(PostgreSQL<br/>账务事实与受控投影)]
-    BASIC --> DB
+    AUTH --> DB[(PostgreSQL)]
+    CORE --> DB
     INVEST --> DB
-    MARKET -->|参考数据快照| DB
+    IMPORT --> DB
+    MARKET --> DB
     DASH --> DB
-    MARKET -->|仅显式刷新| PROVIDER[外部行情 / FX Provider]
+    MARKET -->|显式刷新| PROVIDER[外部行情 / FX Provider]
 ```
 
-前后端分离，后端保持模块化单体。PostgreSQL 保存账务事实、投资事实和受控投影；外部 Provider 只通过显式刷新进入参考数据模块，行情和 FX 不直接修改账务真值。
+系统采用前后端分离的模块化单体。PostgreSQL 保存财务事实、审计记录和受控投影；外部行情与 FX 仅形成参考快照，不覆盖账务真值。当前设计详见 [Current Architecture](docs/architecture/current-architecture.md)。
 
-## 核心投资写路径
+## 核心能力
 
-```mermaid
-flowchart TD
-    REQUEST[请求校验] --> OWNERSHIP[身份与资源校验]
-    OWNERSHIP --> IDEMPOTENCY[幂等检查]
-    IDEMPOTENCY --> LOCK[固定顺序加锁]
-    LOCK --> CANDIDATE[候选历史重放]
-    CANDIDATE --> FACT[写入投资事实]
-    FACT --> BALANCE[一次 Account.balance 联动]
-    BALANCE --> REPLAY[数据库事实二次重放]
-    REPLAY --> ASSET[一次 Asset 投影]
-    ASSET --> CHECK[一致性检查]
-    CHECK --> COMMIT[提交]
+- 注册、登录、JWT、用户数据隔离与安全 `404`；
+- Account、Category、`INCOME` / `EXPENSE` / `ADJUSTMENT` 与后端余额联动；
+- Dashboard 的净资产、现金流、趋势、资产分布和最近流水聚合；
+- Market Quote、FX snapshot 与只读 CNY reference valuation；
+- Investment Instrument、Legacy opening migration、BUY / SELL / DIVIDEND；
+- standalone reversal、same-type replacement、不可变回执与审计时间线；
+- Portfolio、Position、logical transaction 读取模型及投资命令/纠正 UI；
+- CSV / XLSX 上传、字段映射、服务端 Preview、warning acknowledgement、原子 Confirm、恢复与权威 Receipt UI。
 
-    REQUEST -. 任意失败 .-> ROLLBACK[事务整体回滚]
-    LOCK -. 任意失败 .-> ROLLBACK
-    CHECK -. 任意失败 .-> ROLLBACK
+能力的正式验收边界见 [STATUS](docs/STATUS.md)，接口详情见 [API](docs/architecture/api.md)。
 
-    subgraph REPLACEMENT[Replacement：facts-first / command-last]
-        ORIGINAL[original fact<br/>保持不变] --> REVERSAL[grouped REVERSAL]
-        REVERSAL --> REPLACEMENT_FACT[same-type replacement fact]
-        REPLACEMENT_FACT --> ENVELOPE[immutable correction envelope]
-    end
-```
-
-普通 BUY / SELL / DIVIDEND 写入一个业务事实；replacement 先写两条纠正事实，完成余额与投影校验后再写 command envelope。外部命令只导致一次账户余额更新、一次 Asset 投影和一次 `projectionVersion + 1`。
-
-## 当前核心能力
-
-### 基础财务
-
-- 注册、登录、JWT、用户状态和数据隔离；
-- Account、Category 与 `INCOME` / `EXPENSE` / `ADJUSTMENT`；
-- 后端原子维护余额，支持流水分页、筛选和安全 `404`；
-- Dashboard 汇总净资产、收支、趋势、资产分布和最近交易。
-
-### 市场参考估值
-
-- US `STOCK` / `ETF` 参考行情，支持显式刷新、TTL 与 single-flight；
-- Provider 默认关闭，并有用户级/全局限流和 stale fallback；
-- FX snapshot 与 reference valuation 只读计算；
-- 普通 GET 不调用 Provider，参考估值不覆盖账务或投资投影。
-
-### 投资账本
-
-- 用户级 Investment Instrument 与 Account / Instrument / Asset 唯一绑定；
-- Legacy opening migration、first BUY、后续 BUY / SELL 与 DIVIDEND；
-- 加权平均成本、全历史 replay、Position 关闭与重新打开；
-- standalone reversal 与 same-type replacement correction；
-- immutable receipt、request hash、幂等恢复和 append-only audit。
-- Portfolio、Position 列表/详情，以及 logical transaction 列表/详情和 audit timeline 只读 API。
-- Investment Command & Correction UI：First BUY、后续 BUY、partial/full SELL、CLOSED → reopen BUY、DIVIDEND、standalone reversal 与 same-type replacement；
-- confirmation、server-authoritative receipt、401 recovery、409 reconcile、cross-tab/stale-response safety 与 duplicate-write protection。
-
-### 普通流水导入（后端）
-
-- `Phase 3A Transaction Import Contract Design`、`Phase 3B Transaction Import Backend Foundation` 与 `Phase 3C Transaction Import Preview & Validation` 均已 `CLOSED — GO`；
-- `Phase 3D Transaction Import Confirm` 已正式 `CLOSED — GO`；后端当前支持 `CSV / XLSX → upload → mapping → preview → validation → confirm → authoritative receipt`；
-- `Transaction Import Frontend` 尚未完成；当前不可表述为用户已能通过正式 UI 完整使用 Import。
-
-## 技术栈与数据边界
+## 技术栈与边界
 
 | 层次 | 当前技术 |
 | --- | --- |
-| 后端 | Java 21、Spring Boot 3.3、Spring Security、JWT、MyBatis-Plus |
+| 后端 | Java 21、Spring Boot 3.3.5、Spring Security、JWT、MyBatis-Plus |
 | 数据 | PostgreSQL 17、Flyway V1–V17、Testcontainers |
 | 前端 | React 19、TypeScript、Vite、ECharts、Axios |
+| 文件导入 | Apache Commons CSV、Apache POI |
 | 交付 | Maven Wrapper、npm、Docker Compose、GitHub Actions |
 
-- 金融计算和业务规则以后端为唯一权威，前端不重新聚合核心金融数据；
-- 当前账务为 CNY 单币种，金额使用 `BigDecimal` / `NUMERIC`；
-- Market Quote、FX、手动价格与 reference valuation 是参考数据，不是账务事实；
-- `Asset` 是当前持仓投影，`InvestmentTransaction` 是不可变投资事实；
-- 普通 `Transaction` 与 `InvestmentTransaction` 是两套不同语义的账本。
+- 当前账务为 CNY 单币种，金额使用 `BigDecimal` / PostgreSQL `NUMERIC`；
+- 金融计算、余额和核心聚合以后端为准，前端不建立第二套金融真值；
+- 普通 `Transaction` 与不可变 `InvestmentTransaction` 是两套不同语义的事实；
+- Market Quote、FX 和 reference valuation 是参考数据，不是账务事实。
 
-## 测试与工程验证
+## 测试与工程质量
 
-| 验证项 | Investment Command & Correction UI Closing 证据 |
-| --- | --- |
-| 前端 Unit tests | 55/55 PASS |
-| lint / build | PASS / PASS |
-| Real E2E | 27/27 PASS |
-| Frozen Coverage | COMPLETE |
-| Sol Final Review | P0/P1/P2/P3 = 0；GO |
+仓库包含单元测试、WebMvc 契约测试、PostgreSQL Testcontainers 集成测试、Migration 升级测试、并发与 failure-injection 测试、前端 Node 测试和 Playwright E2E。GitHub Actions 对后端测试、前端 test/lint/build、镜像构建及 Compose 配置进行校验。
 
-以上为 Investment Command & Correction UI 的 Closing 证据；完整命令、真实数据与浏览器场景见 [Investment Command & Correction UI Closing Review](docs/review/V3.0-Investment-Command-Correction-UI-Closing-Review.md)。Phase 2C-3 的后端 `98 suites / 540 tests`（failures/errors `0 / 0`）仅是当时的历史验证快照，不代表当前项目总测试数。
-
-当前 `zh-cn` 分支的 CI 会运行后端测试、前端测试/lint/build、镜像构建与 Compose 配置校验。
-
-## 项目结构
-
-```text
-finance-os/
-├── backend/       Spring Boot 模块化单体
-├── frontend/      React / TypeScript / Vite
-├── docker/        Docker Compose 单机部署
-├── scripts/       本地开发与验证脚本
-└── docs/
-    ├── 03-Architecture/
-    ├── ADR/
-    ├── design/
-    └── review/
-```
-
-详细模块、测试和文档目录见 [项目结构](docs/项目结构.md)。
+测试数字属于具体 Closing Review 的历史快照，不在 README 维护。测试策略见 [Testing](docs/engineering/testing.md)，阶段证据见 [archive/review](docs/archive/review/README.md)。
 
 ## 本地运行
 
-准备 Java 21、Node.js/npm 和 PostgreSQL 17，并配置：
+准备 Java 21、Node.js 22/npm 和 PostgreSQL 17，并配置：
 
 ```powershell
 $env:DB_USERNAME = "finance_os"
 $env:DB_PASSWORD = "your-local-password"
 $env:JWT_SECRET = "at-least-32-characters-secret"
 $env:MIGRATION_PREVIEW_SECRET = "another-32-characters-secret"
+$env:FINANCE_IMPORT_CONFIRM_TOKEN_SECRET = "a-third-32-characters-secret"
 ```
 
 启动后端：
@@ -209,30 +135,17 @@ npm install
 npm run dev
 ```
 
-本地 Swagger UI：`http://localhost:8080/swagger-ui.html`。完整环境和验证命令见 [开发指南](docs/Development-Guide.md)。
+开发环境 Swagger UI：`http://localhost:8080/swagger-ui.html`。完整配置、验证命令和当前 Docker Compose 限制见 [开发指南](docs/engineering/development.md) 与 [部署指南](docs/engineering/deployment.md)。
 
-## Docker Compose
+## 文档导航
 
-```powershell
-Copy-Item docker\.env.example docker\.env
-# 替换 docker\.env 中的密码和两个不同的密钥
-docker compose --env-file docker/.env -f docker/compose.yml up --build -d
-```
+- [项目当前状态](docs/STATUS.md)
+- [产品愿景与需求](docs/product/vision.md)
+- [当前架构](docs/architecture/current-architecture.md)
+- [业务与金融规则](docs/domain/business-rules.md)
+- [本地开发](docs/engineering/development.md)
+- [完整文档地图](docs/README.md)
 
-默认通过 `FRONTEND_PORT` 暴露前端；该配置是单机容器化基础，不是完整生产运维平台。详见 [部署指南](docs/Deployment-Guide.md)。
+## 项目边界
 
-## 核心文档
-
-- [文档中心](docs/README.md)｜[项目愿景](docs/Project%20Vision.md)｜[需求规格](docs/SRS.md)｜[路线图](docs/Roadmap.md)
-- [冻结架构](docs/03-Architecture/Architecture.md)｜[数据库基线](docs/03-Architecture/Database.md)｜[API 契约](docs/03-Architecture/API.md)
-- [Phase 2C-1 读取模型契约](docs/design/V3.0-Phase2C-1-Investment-Read-Model-Contract.md)｜[ADR-015](docs/ADR/ADR-015-investment-read-model-contract.md)｜[2C-2A Review](docs/review/V3.0-Phase2C-2A-Closing-Review.md)｜[2C-2B Review](docs/review/V3.0-Phase2C-2B-Closing-Review.md)｜[2C-2C Review](docs/review/V3.0-Phase2C-2C-Closing-Review.md)｜[2C-3 Review](docs/review/V3.0-Phase2C-3-Closing-Review.md)
-- [Phase 3A Transaction Import Contract](docs/design/V3.0-Phase3A-Transaction-Import-Contract.md)｜[Phase 3B Closing Review](docs/review/V3.0-Phase3B-Transaction-Import-Backend-Foundation-Closing-Review.md)｜[Phase 3C Closing Review](docs/review/V3.0-Phase3C-Transaction-Import-Preview-Validation-Closing-Review.md)｜[Phase 3D Contract / Amendment](docs/design/V3.0-Phase3D-Transaction-Import-Confirm-Contract.md)｜[Phase 3D Closing Review](docs/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)
-- [业务规则](docs/Business%20Rules.md)｜[金融规则](docs/Financial%20Rules.md)
-- [开发指南](docs/Development-Guide.md)｜[完成定义](docs/Definition%20of%20Done.md)｜[代码审查清单](docs/Code%20Review%20Checklist.md)
-- [ADR](docs/ADR/)｜[阶段 Review](docs/review/)｜[项目结构](docs/项目结构.md)
-
-## 当前能力与未实现范围
-
-`Phase 2C Investment Read` 已整体关闭并获得 GO。后端公开 Portfolio、Position 列表/详情、logical transaction 列表/详情与 audit timeline；前端 `/investments` 工作区已提供摘要、筛选、opaque cursor 分页、详情和 correction audit 展示。默认交易列表返回逻辑业务事件，不会把 correction physical fact 暴露为独立逻辑交易。
-
-`Investment Command & Correction UI` 已完成并获得 GO，主产品提供 BUY / SELL / DIVIDEND、standalone reversal 与 same-type replacement 的确认、提交、回执和恢复流程。普通 Transaction Import 后端已完成 CSV / XLSX 上传、mapping、Preview、validation、Confirm 与 authoritative receipt，Phase 3D Transaction Import Confirm 已 `CLOSED — GO`。Import Frontend 尚未开始，不表述为用户已能通过正式 UI 完整使用 Import；Preview 不会自行创建 `Transaction` 或修改 `Account.balance`。系统仍没有 `TRANSFER` / `REFUND`、收益曲线、多币种账务、FIFO/lot、公司行动、银行/券商自动同步、真实交易执行、AI Agent 或原生移动端。
+当前系统不提供真实支付、银行转账执行、证券下单、托管、投资建议、自动交易或生产级银行/券商同步。完整范围与 Non-goals 见 [Scope and Non-goals](docs/product/scope-and-non-goals.md)。
