@@ -43,9 +43,12 @@ npm run lint
 npm run build
 npm run test:e2e:investment-command
 npm run test:e2e:transaction-import
+npm run test:e2e:transaction-import:real
 ```
 
 默认 `npm test` 不包含 `tests/e2e/`。
+
+`test:e2e:transaction-import` 是确定性的 mock/browser 契约测试；`test:e2e:transaction-import:real` 不自行启动服务，要求调用方已将 `E2E_BASE_URL` 指向配置为真实后端与隔离数据库的 Vite server。
 
 ## 3. 金融规则验证
 
@@ -73,14 +76,16 @@ npm run test:e2e:transaction-import
 
 ## 5. CI
 
-GitHub Actions 当前执行：
+GitHub Actions 已配置以下 quality gate；首次 GitHub Actions 实际运行前，这些 Playwright E2E 仅为 configured，不能表述为 verified green：
 
 - backend `clean test`；
 - frontend `npm test`、lint、build；
+- 独立 PostgreSQL `finance_os_e2e`、Spring Boot `e2e` profile 与 Vite server 上的 Investment Command Playwright E2E；
+- Transaction Import 的 mock/browser 契约 Playwright E2E，以及经由 Vite `:5180` → Spring Boot `:8081` → PostgreSQL `finance_os_e2e` 的真实 critical-path Playwright E2E；
 - backend/frontend 镜像构建；
 - Compose config。
 
-CI 当前不运行 Playwright E2E，也不启动完整 Compose runtime。Closing Review 如果依赖这些证据，必须记录实际独立命令和环境。
+E2E job 使用临时生成的测试 secret，并且不连接日常开发数据库 `finance_os`。它不启动完整 Compose runtime；Closing Review 如果依赖额外 runtime 证据，仍须记录实际独立命令和环境。
 
 ## 6. 文档-only 验证
 

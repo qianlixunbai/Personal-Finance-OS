@@ -16,23 +16,19 @@ Browser → Frontend Nginx → Spring Boot Backend → PostgreSQL 17
 
 该拓扑不是包含 HTTPS、备份、监控、告警、镜像仓库、高可用和灾备的完整生产平台。
 
-## 2. 当前阻塞性配置不一致
+## 2. Import Confirm secret
 
 `TransactionImportPreviewTokenService` 要求 `finance.import.confirm.token-secret`，对应环境变量 `FINANCE_IMPORT_CONFIRM_TOKEN_SECRET`，且长度至少 32 字符。缺失时应用按设计安全 fail-fast。
 
-当前：
+`docker/.env.example` 声明该变量，`docker/compose.yml` 将其显式传入 backend。它与 `MIGRATION_PREVIEW_SECRET` 相互独立；后者用于 Legacy opening，不能作为 Import secret 的替代。
 
-- `docker/.env.example` 没有该变量；
-- `docker/compose.yml` 没有把该变量传入 backend；
-- Compose 只传入了 `MIGRATION_PREVIEW_SECRET`，它用于 Legacy opening，不能当作 Import secret 的隐式替代。
-
-因此当前 HEAD 的标准：
+启动前，将本地 `.env` 中的示例值替换为各自独立、长度至少 32 字符的 secret：
 
 ```powershell
 docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 ```
 
-不能被宣称为完整可运行路径。修复需要同步 Compose environment、示例 env 和本地启动校验；这些属于配置/代码任务，超出本轮文档重构范围。
+即可使用标准 Compose 路径启动。仓库不包含生产 secret；生产环境必须由部署环境提供该变量。
 
 ## 3. Compose 配置检查
 
@@ -42,7 +38,7 @@ docker compose --env-file docker/.env -f docker/compose.yml up --build -d
 docker compose --env-file docker/.env.example -f docker/compose.yml config
 ```
 
-它不会启动 backend，也不会发现缺失的应用级 Import secret，因此不能作为 runtime smoke。
+它不会启动 backend，不能替代 runtime smoke；但会校验 Compose 对必需 secret 的变量契约。
 
 ## 4. 预期必需配置
 
@@ -65,7 +61,7 @@ V16/V17 包含 Import Receipt backfill、immutable trigger 和 digest forward re
 
 ## 6. Runtime 验收
 
-配置缺口修复后，至少验证：
+至少验证：
 
 1. PostgreSQL healthy；
 2. backend readiness；

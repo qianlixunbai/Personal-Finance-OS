@@ -60,6 +60,132 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SPRING_PROFILES_ACTIVE: e2e
+      E2E_BACKEND_PORT: 8081
+      E2E_DB_USERNAME: finance_os_e2e
+      E2E_DB_PASSWORD: finance_os_e2e
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: finance_os_e2e
+          POSTGRES_USER: finance_os_e2e
+          POSTGRES_PASSWORD: finance_os_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance_os_e2e -d finance_os_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Generate isolated E2E secrets
+        run: |
+          {
+            echo "E2E_JWT_SECRET=$(openssl rand -base64 48)"
+            echo "E2E_MIGRATION_PREVIEW_SECRET=$(openssl rand -base64 48)"
+            echo "FINANCE_IMPORT_CONFIRM_TOKEN_SECRET=$(openssl rand -base64 48)"
+          } >> "$GITHUB_ENV"
+      - name: Start E2E backend
+        working-directory: backend
+        run: |
+          chmod +x mvnw
+          setsid ./mvnw -B spring-boot:run > "$GITHUB_WORKSPACE/backend-e2e.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/backend-e2e.pid"
+          for attempt in {1..60}; do
+            backend_pid="$(cat "$GITHUB_WORKSPACE/backend-e2e.pid")"
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              echo "E2E backend exited before becoming ready."
+              cat "$GITHUB_WORKSPACE/backend-e2e.log"
+              exit 1
+            fi
+            if curl --connect-timeout 2 --max-time 5 --fail --silent --show-error http://127.0.0.1:8081/actuator/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$GITHUB_WORKSPACE/backend-e2e.log"
+          exit 1
+      - name: Start E2E frontend
+        working-directory: frontend
+        run: |
+          setsid env VITE_API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev -- --host 127.0.0.1 --port 5180 > "$GITHUB_WORKSPACE/frontend-e2e.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/frontend-e2e.pid"
+          for attempt in {1..30}; do
+            frontend_pid="$(cat "$GITHUB_WORKSPACE/frontend-e2e.pid")"
+            if ! kill -0 "$frontend_pid" 2>/dev/null; then
+              echo "E2E frontend exited before becoming ready."
+              cat "$GITHUB_WORKSPACE/frontend-e2e.log"
+              exit 1
+            fi
+            if curl --connect-timeout 2 --max-time 5 --fail --silent --show-error http://127.0.0.1:5180 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$GITHUB_WORKSPACE/frontend-e2e.log"
+          exit 1
+      - name: Run Investment Command Playwright E2E
+        working-directory: frontend
+        run: E2E_BASE_URL=http://127.0.0.1:5180 npm run test:e2e:investment-command
+      - name: Run Transaction Import browser contract Playwright E2E
+        working-directory: frontend
+        run: npm run test:e2e:transaction-import
+      - name: Run Transaction Import real backend Playwright E2E
+        working-directory: frontend
+        run: E2E_BASE_URL=http://127.0.0.1:5180 npm run test:e2e:transaction-import:real
+      - name: Print E2E service logs
+        if: failure()
+        run: |
+          echo '--- backend-e2e.log ---'
+          if [ -f "$GITHUB_WORKSPACE/backend-e2e.log" ]; then cat "$GITHUB_WORKSPACE/backend-e2e.log"; fi
+          echo '--- frontend-e2e.log ---'
+          if [ -f "$GITHUB_WORKSPACE/frontend-e2e.log" ]; then cat "$GITHUB_WORKSPACE/frontend-e2e.log"; fi
+      - name: Stop E2E services
+        if: always()
+        run: |
+          stop_process_group() {
+            local pid_file="$1"
+            if [ ! -f "$pid_file" ]; then return; fi
+            local pid
+            pid="$(cat "$pid_file")"
+            if kill -0 "$pid" 2>/dev/null; then
+              kill -TERM -- "-$pid" || true
+              for attempt in {1..10}; do
+                if ! kill -0 "$pid" 2>/dev/null; then return; fi
+                sleep 1
+              done
+              kill -KILL -- "-$pid" || true
+            fi
+          }
+          stop_process_group "$GITHUB_WORKSPACE/frontend-e2e.pid"
+          stop_process_group "$GITHUB_WORKSPACE/backend-e2e.pid"
+
   deployment:
     name: Deployment artifacts
     runs-on: ubuntu-latest
