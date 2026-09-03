@@ -201,10 +201,14 @@ public class TransactionImportPreviewService {
 
     private List<TransactionImportPreviewRow> validate(Long userId, ParsedImportFile parsed, TransactionImportMapping mapping) {
         List<TransactionImportPreviewRow> rows = new ArrayList<>();
-        Map<Long, Account> accounts = accountMapper.findOwnedByIds(userId, mapping.accountMappings().values().stream().distinct().toList())
-                .stream().collect(java.util.stream.Collectors.toMap(Account::getId, account -> account));
-        Map<Long, Category> categories = categoryMapper.selectVisibleByIds(userId, mapping.categoryMappings().values().stream().distinct().toList())
-                .stream().collect(java.util.stream.Collectors.toMap(Category::getId, category -> category));
+        List<Long> accountIds = mapping.accountMappings().values().stream().distinct().toList();
+        Map<Long, Account> accounts = accountIds.isEmpty() ? Map.of()
+                : accountMapper.findOwnedByIds(userId, accountIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Account::getId, account -> account));
+        List<Long> categoryIds = mapping.categoryMappings().values().stream().distinct().toList();
+        Map<Long, Category> categories = categoryIds.isEmpty() ? Map.of()
+                : categoryMapper.selectVisibleByIds(userId, categoryIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Category::getId, category -> category));
         Map<String, Integer> headerIndex = new HashMap<>();
         for (int index = 0; index < parsed.headers().size(); index++) headerIndex.put(parsed.headers().get(index), index);
         Map<String, List<Integer>> fingerprintRows = new HashMap<>();
