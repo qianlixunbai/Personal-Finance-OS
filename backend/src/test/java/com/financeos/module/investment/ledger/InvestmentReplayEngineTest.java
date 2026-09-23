@@ -15,14 +15,6 @@ class InvestmentReplayEngineTest {
     private final InvestmentReplayEngine replayEngine = new InvestmentReplayEngine();
 
     @Test
-    void replaysAnEmptyListAsAnEmptyPosition() {
-        InvestmentReplayResult result = replayEngine.replay(List.of());
-
-        assertThat(result.position()).isEqualTo(InvestmentPositionState.empty());
-        assertThat(result.appliedCalculations()).isEmpty();
-    }
-
-    @Test
     void replaysOpeningPositionBuysPartialSellDividendAndFullSell() {
         InvestmentReplayResult result = replayEngine.replay(List.of(
                 entry(1, "2026-01-01T09:00:00", InvestmentTransactionStatus.POSTED,

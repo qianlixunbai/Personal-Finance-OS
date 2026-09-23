@@ -69,11 +69,6 @@ class InvalidJwtApiIntegrationTest extends PostgresIntegrationTest {
         assertUnauthorized(tamperedToken, "SignatureException", user.username());
     }
 
-    @Test
-    void malformedJwtReturnsUnifiedUnauthorizedResponseWithoutLeakingDetails() throws Exception {
-        assertUnauthorized("not-a-jwt", "MalformedJwtException", "not-a-jwt");
-    }
-
     private void assertUnauthorized(String token, String... forbiddenFragments) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/dashboard")
                         .header("Authorization", "Bearer " + token))

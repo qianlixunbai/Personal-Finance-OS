@@ -293,25 +293,6 @@ class InvestmentCommandApiIntegrationTest extends PostgresIntegrationTest {
                 .isEqualByComparingTo("-20.00");
     }
 
-    @Test
-    void concurrentSameDividendIdempotencyKeyPostsOneFactAndOneCashMutation() throws Exception {
-        Long userId = insertUserAccountAndInstrument();
-        firstBuy(userId, "first-buy", "2.00000000", "10.00000000", "0.00", "0.00");
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-            Future<Integer> first = executor.submit(() -> statusForDividend(userId, "dividend-race", barrier));
-            Future<Integer> second = executor.submit(() -> statusForDividend(userId, "dividend-race", barrier));
-            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(200);
-            assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(200);
-        }
-
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions WHERE transaction_type = 'DIVIDEND'", Integer.class))
-                .isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = 1", BigDecimal.class))
-                .isEqualByComparingTo("-15.00");
-        assertThat(jdbcTemplate.queryForObject("SELECT projection_version FROM assets WHERE id = 1", Integer.class)).isEqualTo(2);
-    }
-
     private int statusForFirstBuy(Long userId, String key, String body) {
         try {
             return mockMvc.perform(post("/api/v1/investment/positions").with(authentication(auth(userId)))

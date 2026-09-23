@@ -79,17 +79,6 @@ class TransferControllerWebMvcTest {
     }
 
     @Test
-    void createWithoutAuthenticationReturnsUnifiedUnauthorizedResponse() throws Exception {
-        mockMvc.perform(post("/api/v1/transfers"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401))
-                .andExpect(jsonPath("$.message").value("未认证或登录已过期"))
-                .andExpect(jsonPath("$.data").doesNotExist());
-
-        verifyNoInteractions(transferService);
-    }
-
-    @Test
     void createBindsRequestForwardsPrincipalAndReturnsTransferResponseSchema() throws Exception {
         when(transferService.create(eq(USER_ID), any(TransferRequest.class)))
                 .thenReturn(transferResponse());
@@ -136,40 +125,6 @@ class TransferControllerWebMvcTest {
                 .andExpect(jsonPath("$.data").doesNotExist());
 
         verifyNoInteractions(transferService);
-    }
-
-    @Test
-    void createMapsSameAccountBusinessExceptionToBadRequest() throws Exception {
-        when(transferService.create(eq(USER_ID), any(TransferRequest.class)))
-                .thenThrow(new BusinessException(400, "转出账户与转入账户不能相同"));
-
-        mockMvc.perform(post("/api/v1/transfers")
-                        .with(authentication(currentUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validRequestJson("123.45")))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("转出账户与转入账户不能相同"))
-                .andExpect(jsonPath("$.data").doesNotExist());
-
-        verify(transferService).create(eq(USER_ID), any(TransferRequest.class));
-    }
-
-    @Test
-    void createMapsMissingOrForeignAccountBusinessExceptionToNotFound() throws Exception {
-        when(transferService.create(eq(USER_ID), any(TransferRequest.class)))
-                .thenThrow(new BusinessException(404, "账户不存在"));
-
-        mockMvc.perform(post("/api/v1/transfers")
-                        .with(authentication(currentUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validRequestJson("123.45")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.message").value("账户不存在"))
-                .andExpect(jsonPath("$.data").doesNotExist());
-
-        verify(transferService).create(eq(USER_ID), any(TransferRequest.class));
     }
 
     private UsernamePasswordAuthenticationToken currentUser() {

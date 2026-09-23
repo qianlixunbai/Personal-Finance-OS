@@ -37,12 +37,28 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionThirteen() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionNineteen() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_schema = 'public'
-                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments', 'investment_transaction_corrections', 'transaction_import_sessions', 'transaction_import_batches', 'transaction_import_items')
+                  AND table_name IN ('users', 'accounts', 'categories', 'transactions', 'assets', 'asset_prices', 'market_quotes', 'exchange_rates', 'investment_transactions', 'investment_instruments', 'investment_transaction_corrections', 'transaction_import_sessions', 'transaction_import_batches', 'transaction_import_items', 'transaction_import_batch_account_impacts', 'transfers')
+                """, Integer.class);
+        String latestSuccessfulVersion = jdbcTemplate.queryForObject("""
+                SELECT version
+                FROM flyway_schema_history
+                WHERE success = true AND version IS NOT NULL
+                ORDER BY installed_rank DESC
+                LIMIT 1
+                """, String.class);
+        Integer versionNineteenMigrationCount = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM flyway_schema_history
+                WHERE version = '19' AND description = 'add transfer ledger foundation' AND success = true
+                """, Integer.class);
+        Integer transferTableCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'transfers'
                 """, Integer.class);
         Integer versionOneMigrationCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -191,7 +207,10 @@ class FlywayMigrationIntegrationTest {
                 WHERE conrelid = 'transaction_import_batches'::regclass
                 """, String.class);
 
-        assertThat(applicationTableCount).isEqualTo(14);
+        assertThat(applicationTableCount).isEqualTo(16);
+        assertThat(latestSuccessfulVersion).isEqualTo("19");
+        assertThat(versionNineteenMigrationCount).isEqualTo(1);
+        assertThat(transferTableCount).isEqualTo(1);
         assertThat(versionOneMigrationCount).isEqualTo(1);
         assertThat(versionTwoMigrationCount).isEqualTo(1);
         assertThat(versionThreeMigrationCount).isEqualTo(1);

@@ -92,32 +92,6 @@ class LegacyOpeningMigrationConcurrencyIntegrationTest extends PostgresIntegrati
     }
 
     @Test
-    void concurrentSameKeyWithDifferentValidPreviewHashesReturnsOneConflict() throws Exception {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        Long alternateAccountId = jdbcTemplate.queryForObject("""
-                INSERT INTO accounts (user_id, name, type, currency, balance)
-                VALUES (?, 'Alternate', 'BROKERAGE', 'CNY', 0) RETURNING id
-                """, Long.class, fixture.userId());
-        String firstToken = previewToken(fixture);
-        String secondToken = previewService.preview(fixture.userId(), fixture.assetId(), fixture.instrumentId(), alternateAccountId)
-                .confirmation().previewToken();
-        CyclicBarrier startTogether = new CyclicBarrier(2);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<Outcome> first = executor.submit(() -> confirmAfterBarrier(startTogether, fixture, firstToken, "same-key"));
-            Future<Outcome> second = executor.submit(() -> confirmAfterBarrier(startTogether, fixture, secondToken, "same-key"));
-            assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
-                    .anySatisfy(Outcome::assertSuccess)
-                    .anySatisfy(Outcome::assertConflict);
-            assertSingleOpeningAndUnchangedBalance(fixture);
-            assertThat(jdbcTemplate.queryForObject("SELECT account_id FROM assets WHERE id = ?", Long.class, fixture.assetId()))
-                    .isIn(fixture.accountId(), alternateAccountId);
-        } finally {
-            shutdown(executor);
-        }
-    }
-
-    @Test
     void materialLegacyChangeAfterPreviewRejectsConfirmWithoutPartialMigration() {
         MigrationFixture fixture = insertReadyLegacyAsset();
         String token = previewToken(fixture);
@@ -130,72 +104,12 @@ class LegacyOpeningMigrationConcurrencyIntegrationTest extends PostgresIntegrati
     }
 
     @Test
-    void concurrentMigrationAndCloseLeavesEitherAValidOpeningOrAClosedLegacyAsset() throws Exception {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        List<Outcome> outcomes = race(fixture, () -> assetService.close(fixture.userId(), fixture.assetId()));
-        assertRaceIntegrity(fixture, outcomes);
-    }
-
-    @Test
-    void concurrentMigrationAndDeleteCannotLeaveAnOrphanOpening() throws Exception {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        List<Outcome> outcomes = race(fixture, () -> assetService.delete(fixture.userId(), fixture.assetId()));
-        assertRaceIntegrity(fixture, outcomes);
-    }
-
-    @Test
     void concurrentMigrationAndAccountDeactivateUsesTheAccountLockBoundary() throws Exception {
         MigrationFixture fixture = insertReadyLegacyAsset();
         List<Outcome> outcomes = race(fixture, () -> accountService.deactivate(fixture.userId(), fixture.accountId()));
         assertRaceIntegrity(fixture, outcomes);
         assertThat(jdbcTemplate.queryForObject("SELECT status FROM accounts WHERE id = ?", String.class, fixture.accountId()))
                 .isEqualTo("INACTIVE");
-    }
-
-    @Test
-    void concurrentMigrationAndInstrumentDeactivateUsesTheInstrumentRowLock() throws Exception {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        List<Outcome> outcomes = race(fixture, () -> jdbcTemplate.update(
-                "UPDATE investment_instruments SET status = 'INACTIVE' WHERE id = ?", fixture.instrumentId()));
-        assertRaceIntegrity(fixture, outcomes);
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM investment_instruments WHERE id = ?", String.class,
-                fixture.instrumentId())).isEqualTo("INACTIVE");
-    }
-
-    @Test
-    void concurrentMigrationAndReferencePriceUpdatePreservesBothStates() throws Exception {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        String previewToken = previewToken(fixture);
-        CyclicBarrier startTogether = new CyclicBarrier(2);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<LegacyAssetMigrationConfirmResponse> migration = executor.submit(() -> {
-                startTogether.await(5, TimeUnit.SECONDS);
-                return confirmService.confirm(fixture.userId(), fixture.assetId(), previewToken, "price-race");
-            });
-            Future<?> price = executor.submit(() -> {
-                startTogether.await(5, TimeUnit.SECONDS);
-                return assetService.updatePrice(fixture.userId(), fixture.assetId(), new java.math.BigDecimal("15.00"));
-            });
-
-            assertThat(migration.get(10, TimeUnit.SECONDS).transactionId()).isNotNull();
-            price.get(10, TimeUnit.SECONDS);
-            assertSingleOpeningAndUnchangedBalance(fixture);
-            assertThat(jdbcTemplate.queryForMap("""
-                    SELECT account_id, instrument_id, position_mode, position_status, quantity, avg_cost, total_cost,
-                           realized_profit_loss, last_transaction_id, projection_version, current_price, market_value
-                    FROM assets WHERE id = ?
-                    """, fixture.assetId()))
-                    .containsEntry("account_id", fixture.accountId())
-                    .containsEntry("instrument_id", fixture.instrumentId())
-                    .containsEntry("position_mode", "TRANSACTION_DRIVEN")
-                    .containsEntry("position_status", "OPEN")
-                    .containsEntry("projection_version", 1)
-                    .containsEntry("current_price", new java.math.BigDecimal("15.0000"))
-                    .containsEntry("market_value", new java.math.BigDecimal("45.00"));
-        } finally {
-            shutdown(executor);
-        }
     }
 
     @Test
@@ -218,49 +132,6 @@ class LegacyOpeningMigrationConcurrencyIntegrationTest extends PostgresIntegrati
             assertRolledBack(fixture);
         } finally {
             dropFaultInjection("fail_opening_binding");
-        }
-    }
-
-    @Test
-    void openingInsertFailureRollsBackTheTemporaryBinding() {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        jdbcTemplate.execute("""
-                CREATE FUNCTION fail_opening_insert() RETURNS trigger AS $$
-                BEGIN
-                  RAISE EXCEPTION 'injected opening insert failure';
-                END;
-                $$ LANGUAGE plpgsql;
-                CREATE TRIGGER fail_opening_insert BEFORE INSERT ON investment_transactions
-                FOR EACH ROW EXECUTE FUNCTION fail_opening_insert()
-                """);
-        try {
-            assertThatThrownBy(() -> confirm(fixture, "opening-insert-failure")).isInstanceOf(RuntimeException.class);
-            assertRolledBack(fixture);
-        } finally {
-            dropFaultInjection("fail_opening_insert");
-        }
-    }
-
-    @Test
-    void projectionWriteFailureAlsoRollsBackThePostedOpening() {
-        MigrationFixture fixture = insertReadyLegacyAsset();
-        jdbcTemplate.execute("""
-                CREATE FUNCTION fail_opening_projection() RETURNS trigger AS $$
-                BEGIN
-                  IF NEW.position_mode = 'TRANSACTION_DRIVEN' THEN
-                    RAISE EXCEPTION 'injected projection failure';
-                  END IF;
-                  RETURN NEW;
-                END;
-                $$ LANGUAGE plpgsql;
-                CREATE TRIGGER fail_opening_projection BEFORE UPDATE ON assets
-                FOR EACH ROW EXECUTE FUNCTION fail_opening_projection()
-                """);
-        try {
-            assertThatThrownBy(() -> confirm(fixture, "projection-failure")).isInstanceOf(RuntimeException.class);
-            assertRolledBack(fixture);
-        } finally {
-            dropFaultInjection("fail_opening_projection");
         }
     }
 

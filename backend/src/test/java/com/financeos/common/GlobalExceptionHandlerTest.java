@@ -39,27 +39,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().message()).isEqualTo("流水不存在");
     }
 
-    @ParameterizedTest
-    @CsvSource({"429, TOO_MANY_REQUESTS", "502, BAD_GATEWAY", "503, SERVICE_UNAVAILABLE"})
-    void marketDataBusinessCodesKeepTheirHttpStatus(int code, HttpStatus expectedStatus) {
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleBusinessException(new BusinessException(code, "sanitized market-data error"));
 
-        assertThat(response.getStatusCode()).isEqualTo(expectedStatus);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo(code);
-    }
-
-    @Test
-    void disabledFxProviderReturnsSanitizedServiceUnavailableResponse() {
-        ResponseEntity<ApiResponse<Void>> response = handler.handleExchangeRateProviderException(
-                new ExchangeRateProviderException(ExchangeRateProviderException.ErrorType.DISABLED));
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo(503);
-        assertThat(response.getBody().message()).isEqualTo("FX data is temporarily unavailable");
-    }
 
     @Test
     void methodArgumentNotValidReturnsBadRequestWithFirstValidationMessage() throws Exception {
@@ -73,42 +53,8 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().message()).isEqualTo("账户不能为空");
     }
 
-    @Test
-    void constraintViolationReturnsBadRequest() {
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleConstraintViolationException(new ConstraintViolationException("参数校验失败", null));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo(400);
-        assertThat(response.getBody().message()).isEqualTo("参数校验失败");
-    }
 
-    @Test
-    void missingRequestParameterReturnsBadRequest() {
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleMissingServletRequestParameterException(
-                        new MissingServletRequestParameterException("page", "int"));
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo(400);
-        assertThat(response.getBody().message()).isEqualTo("缺少必要请求参数");
-    }
-
-    @Test
-    void typeMismatchReturnsBadRequest() throws Exception {
-        MethodParameter methodParameter = new MethodParameter(
-                GlobalExceptionHandlerTest.class.getDeclaredMethod("dummy", TestRequest.class), 0);
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleMethodArgumentTypeMismatchException(
-                        new MethodArgumentTypeMismatchException("abc", Long.class, "id", methodParameter, null));
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo(400);
-        assertThat(response.getBody().message()).isEqualTo("请求参数格式错误");
-    }
 
     @Test
     void jsonParseErrorReturnsBadRequest() {

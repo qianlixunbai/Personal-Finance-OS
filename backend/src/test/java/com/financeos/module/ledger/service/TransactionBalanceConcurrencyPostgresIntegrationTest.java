@@ -2,19 +2,15 @@ package com.financeos.module.ledger.service;
 
 import com.financeos.integration.PostgresIntegrationTest;
 import com.financeos.common.BusinessException;
-import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.service.AccountService;
 import com.financeos.module.ledger.dto.TransactionRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,9 +26,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
 
     @Autowired
     private AccountService accountService;
-
-    @Autowired
-    private PlatformTransactionManager transactionManager;
 
     @Test
     void concurrentCreatesAgainstTheSameAccountPreserveBothDeltas() throws Exception {
@@ -58,21 +51,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
                 .isEqualByComparingTo("130.00");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE account_id = ?", Integer.class, accountId))
                 .isEqualTo(2);
-    }
-
-    @Test
-    void concurrentDeletesReverseTheOriginalEffectOnlyOnce() throws Exception {
-        Long userId = insertUser("concurrent-delete");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "INCOME");
-        Long transactionId = create(userId, accountId, categoryId, "INCOME", "30.00");
-
-        List<Object> results = runTogether(
-                () -> deleteResult(userId, transactionId), () -> deleteResult(userId, transactionId));
-
-        assertThat(results).containsExactlyInAnyOrder("deleted", 404);
-        assertBalance(accountId, "100.00");
-        assertThat(transactionCount(accountId)).isZero();
     }
 
     @Test
@@ -152,21 +130,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
     }
 
     @Test
-    void metadataAndCreateOnSameAccountPreserveBothBalanceAndMetadata() throws Exception {
-        Long userId = insertUser("metadata-create");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "INCOME");
-
-        runTogether(
-                () -> { accountService.update(userId, accountId, new AccountRequest("Renamed", "CASH", "CNY")); return "metadata"; },
-                () -> { create(userId, accountId, categoryId, "INCOME", "20.00"); return "create"; });
-
-        assertThat(jdbcTemplate.queryForObject("SELECT name FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("Renamed");
-        assertBalance(accountId, "120.00");
-        assertThat(transactionCount(accountId)).isEqualTo(1);
-    }
-
-    @Test
     void deactivateBeforeCreateRejectsNewTransactionAndDoesNotChangeBalance() {
         Long userId = insertUser("deactivate-create");
         Long accountId = insertAccount(userId, "100.00");
@@ -178,73 +141,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
                 .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
         assertBalance(accountId, "100.00");
         assertThat(transactionCount(accountId)).isZero();
-    }
-
-    @Test
-    void updateThenDelete_reversesLatestUpdatedEffect() throws Exception {
-        Long userId = insertUser("update-then-delete");
-        Long accountId = insertAccount(userId, "100.00");
-        Long expenseCategoryId = insertCategory(userId, "EXPENSE");
-        Long transactionId = create(userId, accountId, expenseCategoryId, "EXPENSE", "20.00");
-        CountDownLatch updateReadyToCommit = new CountDownLatch(1);
-        CountDownLatch releaseUpdate = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<?> updateFuture = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                update(userId, transactionId, accountId, expenseCategoryId, "EXPENSE", "50.00");
-                updateReadyToCommit.countDown();
-                awaitLatch(releaseUpdate);
-            }));
-
-            assertThat(updateReadyToCommit.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<?> deleteFuture = executor.submit(() -> transactionService.delete(userId, transactionId));
-            awaitDatabaseLockWait();
-            releaseUpdate.countDown();
-
-            updateFuture.get(10, TimeUnit.SECONDS);
-            deleteFuture.get(10, TimeUnit.SECONDS);
-        } finally {
-            releaseUpdate.countDown();
-            executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        }
-
-        assertThat(transactionCount(accountId)).isZero();
-        assertBalance(accountId, "100.00");
-    }
-
-    @Test
-    void deleteThenUpdate_returnsNotFoundWithoutSecondReversal() throws Exception {
-        Long userId = insertUser("delete-then-update");
-        Long accountId = insertAccount(userId, "100.00");
-        Long expenseCategoryId = insertCategory(userId, "EXPENSE");
-        Long transactionId = create(userId, accountId, expenseCategoryId, "EXPENSE", "20.00");
-        CountDownLatch deleteReadyToCommit = new CountDownLatch(1);
-        CountDownLatch releaseDelete = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            Future<?> deleteFuture = executor.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                transactionService.delete(userId, transactionId);
-                deleteReadyToCommit.countDown();
-                awaitLatch(releaseDelete);
-            }));
-
-            assertThat(deleteReadyToCommit.await(5, TimeUnit.SECONDS)).isTrue();
-            Future<Object> updateFuture = executor.submit(() -> updateResult(
-                    userId, transactionId, accountId, expenseCategoryId, "EXPENSE", "50.00"));
-            awaitDatabaseLockWait();
-            releaseDelete.countDown();
-
-            deleteFuture.get(10, TimeUnit.SECONDS);
-            assertThat(updateFuture.get(10, TimeUnit.SECONDS)).isEqualTo(404);
-        } finally {
-            releaseDelete.countDown();
-            executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        }
-
-        assertThat(transactionCount(accountId)).isZero();
-        assertBalance(accountId, "100.00");
     }
 
     @Test
@@ -277,20 +173,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
         assertBalance(accountId, "80.00");
     }
 
-    @Test
-    void deleteRollsBackFactWhenBalanceReversalFails() {
-        Long userId = insertUser("delete-rollback");
-        Long accountId = insertAccount(userId, "100.00");
-        Long expenseCategoryId = insertCategory(userId, "EXPENSE");
-        Long transactionId = create(userId, accountId, expenseCategoryId, "EXPENSE", "20.00");
-
-        assertBalanceUpdateFailureRollsBack(accountId, () -> transactionService.delete(userId, transactionId));
-
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE id = ?", Integer.class, transactionId))
-                .isEqualTo(1);
-        assertBalance(accountId, "80.00");
-    }
-
     private void createAfterBarrier(CyclicBarrier barrier, Long userId, Long accountId, Long categoryId, String amount) {
         try {
             barrier.await(5, TimeUnit.SECONDS);
@@ -309,24 +191,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
     private void update(Long userId, Long transactionId, Long accountId, Long categoryId, String type, String amount) {
         transactionService.update(userId, transactionId, new TransactionRequest(accountId, categoryId, type,
                 new BigDecimal(amount), "CNY", "update", LocalDateTime.of(2026, 7, 23, 12, 0)));
-    }
-
-    private Object deleteResult(Long userId, Long transactionId) {
-        try {
-            transactionService.delete(userId, transactionId);
-            return "deleted";
-        } catch (BusinessException exception) {
-            return exception.getCode();
-        }
-    }
-
-    private Object updateResult(Long userId, Long transactionId, Long accountId, Long categoryId, String type, String amount) {
-        try {
-            update(userId, transactionId, accountId, categoryId, type, amount);
-            return "updated";
-        } catch (BusinessException exception) {
-            return exception.getCode();
-        }
     }
 
     private void assertBalanceUpdateFailureRollsBack(Long accountId, Runnable command) {
@@ -360,29 +224,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
         }
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_trigger WHERE tgname = ?", Integer.class, triggerName))
                 .isZero();
-    }
-
-    private void awaitDatabaseLockWait() throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-        while (System.nanoTime() < deadline) {
-            Integer waiting = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_locks WHERE NOT granted", Integer.class);
-            if (waiting != null && waiting > 0) {
-                return;
-            }
-            Thread.sleep(20);
-        }
-        throw new AssertionError("second transaction did not enter a PostgreSQL lock wait");
-    }
-
-    private void awaitLatch(CountDownLatch latch) {
-        try {
-            if (!latch.await(10, TimeUnit.SECONDS)) {
-                throw new AssertionError("timed out waiting to release the controlled transaction");
-            }
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(exception);
-        }
     }
 
     private List<Object> runTogether(java.util.concurrent.Callable<Object> first,

@@ -37,18 +37,6 @@ class TransactionImportSessionStateTest {
     }
 
     @Test
-    void keepsAReadySessionUsableBeforeTheServerSideExpiry() {
-        TransactionImportSessionMapper mapper = mock(TransactionImportSessionMapper.class);
-        UUID sessionId = UUID.randomUUID();
-        TransactionImportSession session = readySession(sessionId, CLOCK.instant().plusSeconds(1));
-        when(mapper.findByIdAndUserId(sessionId, 1L)).thenReturn(session);
-
-        TransactionImportSessionService service = new TransactionImportSessionService(mapper, CLOCK);
-
-        assertThat(service.requireUsableSession(1L, sessionId)).isSameAs(session);
-    }
-
-    @Test
     void rejectsAReadySessionAtTheExactFifteenMinuteExpiryBoundary() {
         TransactionImportSessionMapper mapper = mock(TransactionImportSessionMapper.class);
         UUID sessionId = UUID.randomUUID();

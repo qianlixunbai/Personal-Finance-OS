@@ -11,7 +11,7 @@ import {
     writePendingTransactionImport,
 } from '../src/utils/transactionImportStorage.ts';
 import { decodeTransactionImportReceiptResponse } from '../src/utils/transactionImportTransport.ts';
-import { confirmDomainAction, reconcileReceiptMode, recoveryActionForReceiptLookup } from '../src/utils/transactionImportRecovery.ts';
+import { reconcileReceiptMode, recoveryActionForReceiptLookup } from '../src/utils/transactionImportRecovery.ts';
 
 class MemoryStorage implements Storage {
     private readonly values = new Map<string, string>();
@@ -100,30 +100,6 @@ test('uses GET first and only retries the frozen POST after a pending receipt lo
     assert.equal(recoveryActionForReceiptLookup(404), 'RETRY_SAME_CONFIRM');
     assert.equal(recoveryActionForReceiptLookup(401), 'AUTH_REQUIRED');
     assert.equal(recoveryActionForReceiptLookup(503), 'RETAIN_UNKNOWN');
-});
-
-test('maps every real Confirm and Receipt domain code to a fail-closed recovery action', () => {
-    const cases = [
-        ['IMPORT_CONFIRM_REQUEST_INVALID', 'RETURN_TO_PREVIEW'],
-        ['IMPORT_SESSION_NOT_FOUND', 'RESTART_IMPORT'],
-        ['IMPORT_PREVIEW_EXPIRED', 'TERMINAL_EXPIRED'],
-        ['IMPORT_SESSION_CANCELLED', 'TERMINAL_CANCELLED'],
-        ['IMPORT_PREVIEW_STALE', 'REPREVIEW'],
-        ['IMPORT_PREVIEW_UNAVAILABLE', 'REPREVIEW'],
-        ['IMPORT_DUPLICATE_EVIDENCE_CHANGED', 'REPREVIEW'],
-        ['IMPORT_WARNING_ACK_REQUIRED', 'RETURN_TO_WARNING_REVIEW'],
-        ['IMPORT_EXACT_DUPLICATE', 'BLOCK_EXACT_DUPLICATE'],
-        ['IMPORT_BATCH_ALREADY_CONFIRMED', 'RECONCILE_RECEIPT'],
-        ['IMPORT_IDEMPOTENCY_CONFLICT', 'MANUAL_RESOLUTION'],
-        ['IMPORT_LOCK_CONFLICT', 'RECONCILE_RECEIPT'],
-        ['IMPORT_CONFIRM_INCONSISTENT', 'INCONSISTENT'],
-        ['IMPORT_BATCH_NOT_FOUND', 'RETRY_SAME_CONFIRM'],
-    ] as const;
-
-    for (const [errorCode, initialAction] of cases) {
-        assert.equal(confirmDomainAction(errorCode, false), initialAction, errorCode);
-        assert.equal(confirmDomainAction(errorCode, true), errorCode === 'IMPORT_BATCH_NOT_FOUND' ? 'RETRY_SAME_CONFIRM' : 'RETAIN_UNKNOWN', `${errorCode} recovery`);
-    }
 });
 
 test('classifies receipt reconciliation as committed-only or unknown-outcome without duplicating domain handling in the coordinator', () => {

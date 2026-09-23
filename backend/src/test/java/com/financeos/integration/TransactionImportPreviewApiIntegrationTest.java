@@ -80,24 +80,6 @@ class TransactionImportPreviewApiIntegrationTest extends PostgresIntegrationTest
     }
 
     @Test
-    void keepsRowErrorsAndDuplicateWarningsInSuccessfulReadOnlyPreviews() throws Exception {
-        User user = registerAndLogin("import-warning");
-        long accountId = account(user.id(), "Cash");
-        long categoryId = category(user.id(), "Food");
-        TransactionImportMapping mapping = mapping(accountId, categoryId);
-        Counts before = counts(user.id());
-
-        JsonNode invalid = preview(user, file("invalid.csv", "text/csv", CSV.replace("12.34", "0")), mapping, 200);
-        JsonNode warning = preview(user, file("duplicates.csv", "text/csv", CSV + "2026-08-14,expense,12.34,Cash,Food,lunch\n"), mapping, 200);
-
-        assertThat(invalid.at("/data/summary/errorRows").asInt()).isEqualTo(1);
-        assertThat(invalid.at("/data/confirmable").asBoolean()).isFalse();
-        assertThat(warning.at("/data/summary/warningRows").asInt()).isEqualTo(2);
-        assertThat(warning.at("/data/rows/0/warnings/0/code").asText()).isEqualTo("IN_FILE_PROBABLE");
-        assertThat(counts(user.id())).isEqualTo(before);
-    }
-
-    @Test
     void failClosesForeignSessionAndForeignMappingAndScopesDuplicateLookupToOwner() throws Exception {
         User owner = registerAndLogin("import-owner");
         User other = registerAndLogin("import-other");

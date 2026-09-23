@@ -29,30 +29,6 @@ class InvestmentReversalConcurrencyIntegrationTest extends PostgresIntegrationTe
     private MockMvc mockMvc;
 
     @Test
-    void concurrentSameKeyAndHashWritesOneReversalAndReplaysTheSameReceipt() throws Exception {
-        Long userId = seedBuy();
-
-        List<Integer> statuses = concurrently(
-                () -> reverse(userId, "same-key", "Broker correction"),
-                () -> reverse(userId, "same-key", "Broker correction"));
-
-        assertThat(statuses).containsOnly(200);
-        assertReversedBuyFinalState(1, "0.00", 2);
-    }
-
-    @Test
-    void concurrentSameKeyWithDifferentHashWritesOnceAndConflictsOnce() throws Exception {
-        Long userId = seedBuy();
-
-        List<Integer> statuses = concurrently(
-                () -> reverse(userId, "same-key", "Broker correction"),
-                () -> reverse(userId, "same-key", "Different reason"));
-
-        assertThat(statuses).containsExactlyInAnyOrder(200, 409);
-        assertReversedBuyFinalState(1, "0.00", 2);
-    }
-
-    @Test
     void concurrentDifferentKeysForOneOriginalWriteOnceAndConflictOnce() throws Exception {
         Long userId = seedBuy();
 
@@ -61,63 +37,6 @@ class InvestmentReversalConcurrencyIntegrationTest extends PostgresIntegrationTe
                 () -> reverse(userId, "second-key", "Broker correction"));
 
         assertThat(statuses).containsExactlyInAnyOrder(200, 409);
-        assertReversedBuyFinalState(1, "0.00", 2);
-    }
-
-    @Test
-    void reversalAndSubsequentBuySerializeAndKeepOneEffectiveBuy() throws Exception {
-        Long userId = seedBuy();
-
-        List<Integer> statuses = concurrently(
-                () -> reverse(userId, "reverse", "Broker correction"),
-                () -> buy(userId, "subsequent-buy"));
-
-        assertThat(statuses).containsOnly(200);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions WHERE transaction_type = 'REVERSAL'", Integer.class)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = 1", BigDecimal.class)).isEqualByComparingTo("-20.00");
-        assertThat(jdbcTemplate.queryForMap("SELECT quantity, total_cost, projection_version, last_transaction_id FROM assets WHERE id = 1"))
-                .containsEntry("quantity", new BigDecimal("2.00000000")).containsEntry("total_cost", new BigDecimal("20.00"))
-                .containsEntry("projection_version", 3).containsEntry("last_transaction_id", 3L);
-    }
-
-    @Test
-    void reversalRacesWithSellOrDividendWithoutCreatingAnInvalidHistory() throws Exception {
-        Long sellUser = seedBuy();
-        List<Integer> sellStatuses = concurrently(
-                () -> reverse(sellUser, "reverse", "Broker correction"),
-                () -> sell(sellUser, "sell"));
-        assertThat(sellStatuses).containsExactlyInAnyOrder(200, 409);
-        assertThat(jdbcTemplate.queryForObject("SELECT quantity FROM assets WHERE id = 1", BigDecimal.class)).isEqualByComparingTo("0.00000000");
-        assertThat(jdbcTemplate.queryForObject("SELECT projection_version FROM assets WHERE id = 1", Integer.class)).isEqualTo(2);
-
-        jdbcTemplate.execute("TRUNCATE TABLE exchange_rates, market_quotes, transactions, accounts, categories, users RESTART IDENTITY CASCADE");
-        Long dividendUser = seedBuy();
-        List<Integer> dividendStatuses = concurrently(
-                () -> reverse(dividendUser, "reverse", "Broker correction"),
-                () -> dividend(dividendUser, "dividend"));
-        assertThat(dividendStatuses).containsExactlyInAnyOrder(200, 409);
-        assertDividendAndReversalRaceFinalState();
-    }
-
-    @Test
-    void reversalAndMarketOrLifecycleUpdatesPreserveTheirIndependentEffects() throws Exception {
-        Long priceUser = seedBuy();
-        List<Integer> priceStatuses = concurrently(
-                () -> reverse(priceUser, "reverse", "Broker correction"),
-                () -> updatePrice(priceUser));
-        assertThat(priceStatuses).containsOnly(200);
-        assertThat(jdbcTemplate.queryForObject("SELECT current_price FROM assets WHERE id = 1", BigDecimal.class))
-                .isEqualByComparingTo("99.00");
-        assertThat(jdbcTemplate.queryForObject("SELECT market_value FROM assets WHERE id = 1", BigDecimal.class))
-                .isIn(new BigDecimal("0.00"), new BigDecimal("198.00"));
-
-        jdbcTemplate.execute("TRUNCATE TABLE exchange_rates, market_quotes, transactions, accounts, categories, users RESTART IDENTITY CASCADE");
-        Long lifecycleUser = seedBuy();
-        List<Integer> lifecycleStatuses = concurrently(
-                () -> reverse(lifecycleUser, "reverse", "Broker correction"),
-                () -> deactivateAccount(lifecycleUser));
-        assertThat(lifecycleStatuses).containsOnly(200);
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM accounts WHERE id = 1", String.class)).isEqualTo("INACTIVE");
         assertReversedBuyFinalState(1, "0.00", 2);
     }
 

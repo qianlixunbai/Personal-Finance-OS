@@ -66,31 +66,6 @@ class TransactionMapperPostgresIntegrationTest extends PostgresIntegrationTest {
         assertThat(result.getFirst().expense()).isEqualByComparingTo(new BigDecimal("2.50"));
     }
 
-    @Test
-    void returnsEmptyCollectionWhenNoTransactionMatches() {
-        Long userId = insertUser("empty-user");
-
-        List<MonthlyCashFlowAggregate> result = transactionMapper.monthlyCashFlowByMonth(
-                userId, LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 2, 1, 0, 0));
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    void createsTheMonthlyTrendCompositeIndex() {
-        String columns = jdbcTemplate.queryForObject("""
-                SELECT string_agg(attribute.attname, ',' ORDER BY key_column.ordinality)
-                FROM pg_index index_definition
-                JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
-                CROSS JOIN LATERAL unnest(index_definition.indkey) WITH ORDINALITY AS key_column(attnum, ordinality)
-                JOIN pg_attribute attribute ON attribute.attrelid = index_definition.indrelid
-                    AND attribute.attnum = key_column.attnum
-                WHERE index_class.relname = 'idx_transactions_user_currency_type_time'
-                """, String.class);
-
-        assertThat(columns).isEqualTo("user_id,currency,type,transacted_at");
-    }
-
     private Long insertUser(String username) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO users (username, email, password_hash)

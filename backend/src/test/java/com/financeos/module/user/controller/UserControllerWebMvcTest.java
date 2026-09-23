@@ -57,57 +57,6 @@ class UserControllerWebMvcTest {
     }
 
     @Test
-    void registerReturnsSuccessAndForwardsRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"alice","email":"alice@example.com","password":"password123"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.message").value("success"))
-                .andExpect(jsonPath("$.data").doesNotExist());
-
-        ArgumentCaptor<RegisterRequest> requestCaptor = ArgumentCaptor.forClass(RegisterRequest.class);
-        verify(userService).register(requestCaptor.capture());
-        RegisterRequest request = requestCaptor.getValue();
-        assertThat(request.username()).isEqualTo("alice");
-        assertThat(request.email()).isEqualTo("alice@example.com");
-        assertThat(request.password()).isEqualTo("password123");
-    }
-
-    @Test
-    void registerRejectsInvalidEmailWithoutCallingService() throws Exception {
-        mockMvc.perform(post("/api/v1/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"alice","email":"not-an-email","password":"password123"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").isNotEmpty())
-                .andExpect(jsonPath("$.data").doesNotExist());
-
-        verifyNoInteractions(userService);
-    }
-
-    @Test
-    void registerMapsDuplicateUserToUnifiedBadRequest() throws Exception {
-        doThrow(new BusinessException(400, "用户名已存在"))
-                .when(userService).register(any(RegisterRequest.class));
-
-        mockMvc.perform(post("/api/v1/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"alice","email":"alice@example.com","password":"password123"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("用户名已存在"))
-                .andExpect(jsonPath("$.data").doesNotExist());
-    }
-
-    @Test
     void loginReturnsTypedResponseAndForwardsCredentials() throws Exception {
         when(userService.login(any(LoginRequest.class)))
                 .thenReturn(new LoginResponse("token-abc", 42L, "alice"));

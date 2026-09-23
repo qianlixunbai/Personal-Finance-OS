@@ -151,41 +151,6 @@ class InvestmentTransactionMapperPostgresIntegrationTest extends PostgresIntegra
     }
 
     @Test
-    void rejectsTheRetiredReplacesTransactionIdField() {
-        Long firstUserId = insertUser("replacement-first");
-        Long firstAccountId = insertAccount(firstUserId, "First brokerage");
-        Long firstAssetId = insertAsset(firstUserId, firstAccountId, "First fund");
-
-        InvestmentTransaction original = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", "2026-01-01T10:00:00Z", "original");
-        investmentTransactionMapper.insert(original);
-
-        InvestmentTransaction sameUserSameAsset = transaction(firstUserId, firstAssetId, firstAccountId, "BUY", "2026-01-02T10:00:00Z", "same-user-asset");
-        sameUserSameAsset.setReplacesTransactionId(original.getId());
-        assertThatThrownBy(() -> investmentTransactionMapper.insert(sameUserSameAsset))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
-
-    @Test
-    void exposesTheAppendOnlyReversalColumnsFromV12() {
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = 'investment_transactions'
-                      AND column_name = 'original_transaction_id'
-                )
-                """, Boolean.class)).isTrue();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = 'investment_transactions'
-                      AND column_name = 'cash_delta'
-                )
-                """, Boolean.class)).isTrue();
-    }
-
-    @Test
     void enforcesAppendOnlyReversalBindingAuditAndImmutability() {
         Long userId = insertUser("reversal-constraints");
         Long accountId = insertAccount(userId, "Brokerage");

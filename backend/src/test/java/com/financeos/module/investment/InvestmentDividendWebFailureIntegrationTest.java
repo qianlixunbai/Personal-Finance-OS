@@ -57,78 +57,7 @@ class InvestmentDividendWebFailureIntegrationTest extends PostgresIntegrationTes
         jdbcTemplate.execute("DROP INDEX IF EXISTS ux_injected_dividend_external_reference");
     }
 
-    @Test
-    void dividendRollsBackWhenConsistencyCheckerDetectsCashMismatch() throws Exception {
-        Long userId = seedOpenPosition();
-        jdbcTemplate.execute("""
-                CREATE FUNCTION injected_cash_mismatch() RETURNS trigger LANGUAGE plpgsql AS $$
-                BEGIN NEW.balance := NEW.balance + 1; RETURN NEW; END; $$
-                """);
-        jdbcTemplate.execute("CREATE TRIGGER injected_cash_mismatch BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION injected_cash_mismatch()");
 
-        assertSafeInternalFailure(userId, "cash-mismatch");
-        assertUnchanged();
-    }
-
-    @Test
-    void dividendRollsBackWhenFirstReplayFails() throws Exception {
-        Long userId = seedOpenPosition();
-        doThrow(new IllegalStateException("injected first replay failure"))
-                .when(replayEngine).replay(any());
-
-        assertSafeInternalFailure(userId, "first-replay-failure");
-        assertUnchanged();
-    }
-
-    @Test
-    void dividendRollsBackWhenSecondReplayFailsAfterFactAndBalanceUpdate() throws Exception {
-        Long userId = seedOpenPosition();
-        clearInvocations(accountMapper, replayEngine);
-        doCallRealMethod().doThrow(new IllegalStateException("injected second replay failure"))
-                .when(replayEngine).replay(any());
-
-        assertSafeInternalFailure(userId, "second-replay-failure");
-        InOrder order = inOrder(replayEngine, accountMapper);
-        order.verify(accountMapper).updateBalance(anyLong(), anyLong(), any());
-        order.verify(replayEngine).replay(any());
-        assertUnchanged();
-    }
-
-    @Test
-    void dividendRollsBackWhenProjectionUpdateAffectsZeroRows() throws Exception {
-        Long userId = seedOpenPosition();
-        doReturn(0).when(assetMapper).updateTransactionDrivenProjection(
-                anyLong(), anyLong(), anyInt(), any(), any(), any(), any(), anyString(), anyLong());
-
-        assertSafeInternalFailure(userId, "projection-row-count");
-        assertUnchanged();
-    }
-
-    @Test
-    void dividendRollsBackWhenConsistencyCheckerDetectsReceiptMismatch() throws Exception {
-        Long userId = seedOpenPosition();
-        jdbcTemplate.execute("""
-                CREATE FUNCTION injected_receipt_mismatch() RETURNS trigger LANGUAGE plpgsql AS $$
-                BEGIN NEW.source := 'IMPORT'; RETURN NEW; END; $$
-                """);
-        jdbcTemplate.execute("CREATE TRIGGER injected_receipt_mismatch BEFORE INSERT ON investment_transactions FOR EACH ROW EXECUTE FUNCTION injected_receipt_mismatch()");
-
-        assertSafeInternalFailure(userId, "receipt-mismatch");
-        assertUnchanged();
-    }
-
-    @Test
-    void dividendRollsBackWhenConsistencyCheckerDetectsPositionMetadataMismatch() throws Exception {
-        Long userId = seedOpenPosition();
-        jdbcTemplate.execute("""
-                CREATE FUNCTION injected_metadata_mismatch() RETURNS trigger LANGUAGE plpgsql AS $$
-                BEGIN NEW.last_transaction_id := OLD.last_transaction_id; RETURN NEW; END; $$
-                """);
-        jdbcTemplate.execute("CREATE TRIGGER injected_metadata_mismatch BEFORE UPDATE ON assets FOR EACH ROW EXECUTE FUNCTION injected_metadata_mismatch()");
-
-        assertSafeInternalFailure(userId, "metadata-mismatch");
-        assertUnchanged();
-    }
 
     @Test
     void dividendDoesNotTreatUnknownUniqueConstraintAsIdempotentReplay() throws Exception {

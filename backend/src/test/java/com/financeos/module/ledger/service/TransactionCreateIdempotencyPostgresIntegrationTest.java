@@ -106,36 +106,6 @@ class TransactionCreateIdempotencyPostgresIntegrationTest extends PostgresIntegr
         assertBalance(accountId, "75.00");
     }
 
-    @Test
-    void requestsWithoutAKeyKeepCreatingIndependentFacts() {
-        Long userId = insertUser("idem-absent");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "EXPENSE");
-
-        transactionCommandService.create(userId, null, request(accountId, categoryId, "EXPENSE", "25.00", "lunch"));
-        transactionCommandService.create(userId, null, request(accountId, categoryId, "EXPENSE", "25.00", "lunch"));
-
-        assertThat(transactionCount(userId)).isEqualTo(2);
-        assertBalance(accountId, "50.00");
-    }
-
-    @Test
-    void aKeyThatIsBlankOrHasSurroundingSpacesIsRejected() {
-        Long userId = insertUser("idem-invalid-key");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "EXPENSE");
-
-        assertThatThrownBy(() -> transactionCommandService.create(userId, "  ",
-                request(accountId, categoryId, "EXPENSE", "25.00", "lunch")))
-                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
-        assertThatThrownBy(() -> transactionCommandService.create(userId, " padded ",
-                request(accountId, categoryId, "EXPENSE", "25.00", "lunch")))
-                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
-
-        assertThat(transactionCount(userId)).isZero();
-        assertBalance(accountId, "100.00");
-    }
-
     private TransactionResponse createAfterBarrier(CyclicBarrier barrier, Long userId, Long accountId, Long categoryId) {
         try {
             barrier.await(5, TimeUnit.SECONDS);

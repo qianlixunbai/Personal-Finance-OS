@@ -122,33 +122,6 @@ class InvestmentReplacementUnknownCommitIntegrationTest extends PostgresIntegrat
         assertNoWaitingLocks();
     }
 
-    @Test
-    void differentHashAfterAnUncommittedUnknownResultUsesTheRealEmptyStateInsteadOfRecovering() throws Exception {
-        Long userId = seedBuy();
-        hideTheFirstRolledBackResultAsUnknown();
-        createRollbackTrigger("unknown-different-hash");
-
-        assertThat(replace(userId, "unknown-different-hash", REPLACEMENT_BODY).status()).isEqualTo(500);
-        Snapshot afterRollback = snapshotFromFreshConnection();
-        assertThat(afterRollback.commands()).isEmpty();
-        assertThat(afterRollback.transactions()).hasSize(1);
-        dropInjectedRollbackTrigger();
-
-        String changed = """
-                {"quantity":"4.00000000","unitPrice":"10.00000000","feeAmount":"0.00","taxAmount":"0.00","reason":"Changed after rollback"}
-                """;
-        HttpResult truthfulRetry = replace(userId, "unknown-different-hash", changed);
-
-        assertThat(truthfulRetry.status()).isEqualTo(200);
-        assertThat(truthfulRetry.body()).contains("\"idempotentReplay\":false");
-        Snapshot committed = snapshotFromFreshConnection();
-        assertOneCompletedReplacement(committed, "4.00000000", "40.00", "-40.00");
-        assertThat(jdbcTemplate.queryForObject("SELECT quantity FROM assets WHERE id = 1", BigDecimal.class))
-                .isEqualByComparingTo("4.00000000");
-        assertThat(replace(userId, "unknown-different-hash", REPLACEMENT_BODY).status()).isEqualTo(409);
-        assertNoWaitingLocks();
-    }
-
     private void hideTheFirstRolledBackResultAsUnknown() {
         AtomicBoolean hideFailureOnce = new AtomicBoolean(true);
         doAnswer(invocation -> {

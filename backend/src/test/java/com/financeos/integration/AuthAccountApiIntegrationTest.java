@@ -50,9 +50,22 @@ class AuthAccountApiIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void tokenIssuedBeforeUserIsDisabledReturnsUnauthorized() throws Exception {
+    void invalidPasswordAndDisabledUserCannotAuthenticateOrUseOldToken() throws Exception {
         LoggedInUser user = registerAndLogin("inactive");
+        mockMvc.perform(post("/api/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(user.username(), "wrong-password"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
         jdbcTemplate.update("UPDATE users SET status = ? WHERE username = ?", "INACTIVE", user.username());
+        mockMvc.perform(post("/api/v1/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(user.username(), "password123"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.data").doesNotExist());
 
         MvcResult result = mockMvc.perform(get("/api/v1/accounts")
                         .header("Authorization", "Bearer " + user.token()))

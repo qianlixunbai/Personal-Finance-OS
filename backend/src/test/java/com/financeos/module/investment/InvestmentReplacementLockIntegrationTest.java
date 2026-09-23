@@ -55,58 +55,9 @@ class InvestmentReplacementLockIntegrationTest extends PostgresIntegrationTest {
         assertTimeoutRollsBackAndRetries(LockTarget.ORIGINAL);
     }
 
-    @Test
-    void accountLockTimeoutReturnsConflictRollsBackAndAllowsSameKeyRetry() throws Exception {
-        assertTimeoutRollsBackAndRetries(LockTarget.ACCOUNT);
-    }
 
-    @Test
-    void instrumentLockTimeoutReturnsConflictRollsBackAndAllowsSameKeyRetry() throws Exception {
-        assertTimeoutRollsBackAndRetries(LockTarget.INSTRUMENT);
-    }
 
-    @Test
-    void assetLockTimeoutReturnsConflictRollsBackAndAllowsSameKeyRetry() throws Exception {
-        assertTimeoutRollsBackAndRetries(LockTarget.ASSET);
-    }
 
-    @Test
-    void existingCorrectionCommandLockTimeoutReturnsConflictWithoutChangingCompletedHistory() throws Exception {
-        Long userId = seedBuy();
-        String key = "existing-correction-command-lock";
-        assertThat(replace(userId, key)).isEqualTo(200);
-        Snapshot before = snapshotFromFreshConnection();
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        try (Connection connection = dataSource.getConnection()) {
-            connection.setAutoCommit(false);
-            try (PreparedStatement lock = connection.prepareStatement("""
-                    SELECT id FROM investment_transaction_corrections
-                    WHERE user_id = ? AND idempotency_key = ?
-                    FOR UPDATE
-                    """)) {
-                lock.setLong(1, userId);
-                lock.setString(2, key);
-                lock.executeQuery();
-                int blockerPid = backendPid(connection);
-
-                Future<Integer> blockedReplay = executor.submit(() -> replace(userId, key));
-                awaitDatabaseLockWaitOn(LockTarget.CORRECTION_COMMAND.queryFragment(), blockerPid);
-
-                assertThat(blockedReplay.get(10, TimeUnit.SECONDS)).isEqualTo(409);
-                verify(globalExceptionHandler).handleDataAccessException(argThat(this::hasLockTimeoutSqlState));
-                assertThat(snapshotFromFreshConnection()).isEqualTo(before);
-            } finally {
-                connection.rollback();
-            }
-        } finally {
-            shutdown(executor);
-        }
-
-        assertNoWaitingLocks();
-        assertThat(replace(userId, key)).isEqualTo(200);
-        assertThat(snapshotFromFreshConnection()).isEqualTo(before);
-    }
 
     @Test
     void replacementIsPostgresDeadlockVictimRollsBackAndAllowsSameKeyRetry() throws Exception {

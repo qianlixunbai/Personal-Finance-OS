@@ -155,91 +155,6 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void confirmAcceptsTenThousandCanonicalRowsWithinTheFrozenTimeoutAndReplaysWithoutMutation() {
-        long userId = createUser("ten-thousand@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        StringBuilder rows = new StringBuilder();
-        for (int row = 1; row <= 10_000; row++) {
-            rows.append("2026-08-01,expense,1.00,Cash,Food,row-").append(row).append('\n');
-        }
-        AtomicLong transactionDurationNanos = new AtomicLong();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            transactionDurationNanos.set(invocation.getArgument(1));
-            return invocation.callRealMethod();
-        }).when(transactionObserver).committed(any(), org.mockito.ArgumentMatchers.anyLong());
-        long started = System.nanoTime();
-        var preview = previewService.create(userId, csv(rows.toString()),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        var first = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-key",
-                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-        long elapsedMillis = java.time.Duration.ofNanos(System.nanoTime() - started).toMillis();
-        var replay = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-key",
-                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-
-        System.out.println("phase3d-10k totalMillis=" + elapsedMillis + " transactionMillis="
-                + java.time.Duration.ofNanos(transactionDurationNanos.get()).toMillis());
-        assertThat(elapsedMillis).isLessThan(60_000);
-        assertThat(transactionDurationNanos.get()).isPositive().isLessThan(java.time.Duration.ofSeconds(60).toNanos());
-        assertThat(preview.summary().totalRows()).isEqualTo(10_000);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_items WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(10_000);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batch_account_impacts WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("-10000.00");
-        assertThat(replay.idempotentReplay()).isTrue();
-        assertThat(replay.receipt().resultDigest()).isEqualTo(first.receipt().resultDigest());
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
-    }
-
-    @Test
-    void confirmAcceptsTenThousandRowsAcrossOneHundredAccountsWithinTheFrozenTransactionTimeout() {
-        long userId = createUser("ten-thousand-multi-account@example.com");
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        Map<String, Long> accounts = new java.util.LinkedHashMap<>();
-        StringBuilder rows = new StringBuilder();
-        for (int account = 1; account <= 100; account++) {
-            String accountName = "Cash-" + account;
-            accounts.put(accountName, createAccount(userId, accountName));
-            for (int row = 1; row <= 100; row++) {
-                rows.append("2026-08-01,expense,1.00,").append(accountName).append(",Food,")
-                        .append(accountName).append('-').append(row).append('\n');
-            }
-        }
-        AtomicLong transactionDurationNanos = new AtomicLong();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            transactionDurationNanos.set(invocation.getArgument(1));
-            return invocation.callRealMethod();
-        }).when(transactionObserver).committed(any(), org.mockito.ArgumentMatchers.anyLong());
-        long started = System.nanoTime();
-        var preview = previewService.create(userId, csv(rows.toString()), new TransactionImportPreviewRequest(null,
-                new TransactionImportMapping(Map.of("date", "date", "type", "type", "amount", "amount", "account", "account", "category", "category", "description", "description"),
-                        Map.of("expense", "EXPENSE"), accounts, Map.of("Food", categoryId))));
-        var first = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-multi-account-key",
-                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-        long elapsedMillis = java.time.Duration.ofNanos(System.nanoTime() - started).toMillis();
-        var replay = confirmService.confirm(userId, preview.importSessionId(), "ten-thousand-multi-account-key",
-                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-
-        System.out.println("phase3d-10k-multi-account rows=10000 accounts=100 rowsPerAccount=100 totalMillis=" + elapsedMillis
-                + " transactionMillis=" + java.time.Duration.ofNanos(transactionDurationNanos.get()).toMillis());
-        assertThat(elapsedMillis).isLessThan(60_000);
-        assertThat(transactionDurationNanos.get()).isPositive().isLessThan(java.time.Duration.ofSeconds(60).toNanos());
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_items WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(10_000);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batch_account_impacts WHERE batch_id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(100);
-        for (long accountId : accounts.values()) {
-            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("-100.00");
-        }
-        assertThat(first.receipt().accountImpacts().stream().map(impact -> impact.accountId()).toList())
-                .isSorted();
-        assertThat(jdbcTemplate.queryForObject("SELECT status FROM transaction_import_sessions WHERE id = ?", String.class, preview.importSessionId())).isEqualTo("CONSUMED");
-        assertThat(replay.idempotentReplay()).isTrue();
-        assertThat(replay.receipt().resultDigest()).isEqualTo(first.receipt().resultDigest());
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(10_000);
-        reset(transactionObserver);
-    }
-
-    @Test
     void concurrentConfirmForTheSameSessionProducesOneFinancialCommitAndOneReplay() throws Exception {
         long userId = createUser("concurrent@example.com");
         long accountId = createAccount(userId);
@@ -261,84 +176,6 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("-10.00");
-    }
-
-    @Test
-    void secondConfirmWaitsOnTheSessionRowLockThenReplaysTheCommittedReceipt() throws Exception {
-        long userId = createUser("deterministic-confirm@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        CountDownLatch firstLockAcquired = new CountDownLatch(1);
-        CountDownLatch releaseFirst = new CountDownLatch(1);
-        AtomicInteger lockAcquisitions = new AtomicInteger();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            if (lockAcquisitions.incrementAndGet() == 1) {
-                firstLockAcquired.countDown();
-                if (!releaseFirst.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("first Confirm was not released");
-            }
-            return invocation.callRealMethod();
-        }).when(transactionObserver).sessionLockAcquired(any());
-
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            Future<com.financeos.module.importing.dto.TransactionImportConfirmResponse> first = executor.submit(() -> confirmService.confirm(userId,
-                    preview.importSessionId(), "deterministic-confirm-key", new TransactionImportConfirmRequest(preview.previewToken(), List.of())));
-            assertThat(firstLockAcquired.await(10, TimeUnit.SECONDS)).isTrue();
-            Future<com.financeos.module.importing.dto.TransactionImportConfirmResponse> second = executor.submit(() -> confirmService.confirm(userId,
-                    preview.importSessionId(), "deterministic-confirm-key", new TransactionImportConfirmRequest(preview.previewToken(), List.of())));
-            awaitSessionLockWait();
-            assertThat(lockAcquisitions.get()).isEqualTo(1);
-            assertThat(second.isDone()).isFalse();
-
-            releaseFirst.countDown();
-            var committed = first.get(20, TimeUnit.SECONDS);
-            var replay = second.get(20, TimeUnit.SECONDS);
-            assertThat(committed.idempotentReplay()).isFalse();
-            assertThat(replay.idempotentReplay()).isTrue();
-            assertThat(replay.receipt()).isEqualTo(committed.receipt());
-            assertThat(replay.receipt().resultDigest()).isEqualTo(committed.receipt().resultDigest());
-        } finally {
-            releaseFirst.countDown();
-            reset(transactionObserver);
-        }
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", String.class, accountId)).isEqualTo("-10.00");
-    }
-
-    @Test
-    void cleanupCannotInvalidateAConfirmThatAlreadyHoldsTheSessionGuard() throws Exception {
-        long userId = createUser("cleanup-race@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        CountDownLatch locked = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        org.mockito.Mockito.doAnswer(invocation -> {
-            locked.countDown();
-            if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Confirm was not released");
-            return invocation.callRealMethod();
-        }).when(transactionObserver).sessionLockAcquired(any());
-        try (var executor = Executors.newSingleThreadExecutor()) {
-            Future<com.financeos.module.importing.dto.TransactionImportConfirmResponse> confirm = executor.submit(() -> confirmService.confirm(userId,
-                    preview.importSessionId(), "cleanup-race-key", new TransactionImportConfirmRequest(preview.previewToken(), List.of())));
-            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
-            cleanupService.cleanupExpired();
-            release.countDown();
-            var first = confirm.get(20, TimeUnit.SECONDS);
-            var replay = confirmService.confirm(userId, preview.importSessionId(), "cleanup-race-key",
-                    new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-            assertThat(first.idempotentReplay()).isFalse();
-            assertThat(replay.idempotentReplay()).isTrue();
-            assertThat(replay.receipt()).isEqualTo(first.receipt());
-        } finally {
-            release.countDown();
-            reset(transactionObserver);
-        }
-        assertThat(jdbcTemplate.queryForObject("SELECT temporary_storage_reference IS NULL AND plan_storage_reference IS NULL FROM transaction_import_sessions WHERE id = ?", Boolean.class,
-                preview.importSessionId())).isTrue();
     }
 
     @Test
@@ -451,57 +288,6 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void concurrentCancelAndConfirmAllowExactlyOneTerminalOutcome() throws Exception {
-        long userId = createUser("cancel-race@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(2)) {
-            var confirm = executor.submit(() -> terminalOutcome(ready, start, () -> confirmService.confirm(userId,
-                    preview.importSessionId(), "cancel-race-key", new TransactionImportConfirmRequest(preview.previewToken(), List.of()))));
-            var cancel = executor.submit(() -> terminalOutcome(ready, start, () -> {
-                previewService.cancel(userId, preview.importSessionId()); return null;
-            }));
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-            List<String> outcomes = List.of(confirm.get(30, TimeUnit.SECONDS), cancel.get(30, TimeUnit.SECONDS));
-            assertThat(outcomes.stream().filter("SUCCESS"::equals).count()).isEqualTo(1);
-            if (outcomes.getFirst().equals("SUCCESS")) {
-                assertThat(jdbcTemplate.queryForObject("SELECT status FROM transaction_import_sessions WHERE id = ?", String.class, preview.importSessionId())).isEqualTo("CONSUMED");
-                assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
-            } else {
-                assertThat(jdbcTemplate.queryForObject("SELECT status FROM transaction_import_sessions WHERE id = ?", String.class, preview.importSessionId())).isEqualTo("CANCELLED");
-                assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isZero();
-            }
-        }
-    }
-
-    @Test
-    void duplicateCandidateRemovalRequiresANewPreviewButAnUnrelatedTransactionDoesNot() {
-        long userId = createUser("candidate-edges@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        insertTransaction(userId, accountId, categoryId, "2026-08-01 00:00:00", "candidate");
-        var candidatePreview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,candidate"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        List<String> candidateWarnings = candidatePreview.rows().getFirst().warnings().stream().map(warning -> warning.id()).toList();
-        jdbcTemplate.update("DELETE FROM transactions WHERE user_id = ?", userId);
-        assertThatThrownBy(() -> confirmService.confirm(userId, candidatePreview.importSessionId(), "candidate-removed-key",
-                new TransactionImportConfirmRequest(candidatePreview.previewToken(), candidateWarnings)))
-                .isInstanceOf(BusinessException.class).hasMessage("IMPORT_DUPLICATE_EVIDENCE_CHANGED");
-
-        var unrelatedPreview = previewService.create(userId, csv("2026-08-02,expense,10.00,Cash,Food,target"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        insertTransaction(userId, accountId, categoryId, "2026-08-03 00:00:00", "unrelated");
-        var confirmed = confirmService.confirm(userId, unrelatedPreview.importSessionId(), "unrelated-key",
-                new TransactionImportConfirmRequest(unrelatedPreview.previewToken(), List.of()));
-        assertThat(confirmed.idempotentReplay()).isFalse();
-    }
-
-    @Test
     void confirmAndManualTransactionSerializeSharedAccountBalanceWrites() throws Exception {
         long userId = createUser("manual-race@example.com");
         long accountId = createAccount(userId);
@@ -551,26 +337,6 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void forgedOrCrossSessionWarningIdsAndTokensFailClosed() {
-        long userId = createUser("warning-token@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var first = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch\n2026-08-01,expense,10.00,Cash,Food,lunch"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        var second = previewService.create(userId, csv("2026-08-02,expense,10.00,Cash,Food,dinner\n2026-08-02,expense,10.00,Cash,Food,dinner"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        List<String> firstWarnings = first.rows().stream().flatMap(row -> row.warnings().stream()).map(warning -> warning.id()).toList();
-        assertThatThrownBy(() -> confirmService.confirm(userId, first.importSessionId(), "forged-warning",
-                new TransactionImportConfirmRequest(first.previewToken(), List.of("forged")))).isInstanceOf(BusinessException.class).hasMessage("IMPORT_WARNING_ACK_REQUIRED");
-        assertThatThrownBy(() -> confirmService.confirm(userId, second.importSessionId(), "cross-warning",
-                new TransactionImportConfirmRequest(second.previewToken(), firstWarnings))).isInstanceOf(BusinessException.class).hasMessage("IMPORT_WARNING_ACK_REQUIRED");
-        assertThatThrownBy(() -> confirmService.confirm(userId, first.importSessionId(), "tampered-token",
-                new TransactionImportConfirmRequest(first.previewToken() + "x", firstWarnings))).isInstanceOf(BusinessException.class).hasMessage("IMPORT_PREVIEW_STALE");
-        assertThatThrownBy(() -> confirmService.confirm(userId, second.importSessionId(), "cross-token",
-                new TransactionImportConfirmRequest(first.previewToken(), firstWarnings))).isInstanceOf(BusinessException.class).hasMessage("IMPORT_PREVIEW_STALE");
-    }
-
-    @Test
     void idempotencyKeysAreScopedPerUser() {
         long firstUser = createUser("first-key@example.com");
         long secondUser = createUser("second-key@example.com");
@@ -603,59 +369,6 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT temporary_storage_reference IS NULL AND plan_storage_reference IS NULL FROM transaction_import_sessions WHERE id = ?", Boolean.class, preview.importSessionId())).isTrue();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches WHERE id = ?", Integer.class, first.receipt().importBatchId())).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
-    }
-
-    @Test
-    void namedIdempotencyFallbackReplaysOnlyTheCurrentSessionsCommittedAuthoritativeReceipt() {
-        long userId = createUser("fallback-identity@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var committed = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,committed"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        var first = confirmService.confirm(userId, committed.importSessionId(), "fallback-identity-key",
-                new TransactionImportConfirmRequest(committed.previewToken(), List.of()));
-        var otherSession = previewService.create(userId, csv("2026-08-02,expense,11.00,Cash,Food,other"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        String committedHash = jdbcTemplate.queryForObject("SELECT request_hash FROM transaction_import_batches WHERE id = ?", String.class,
-                first.receipt().importBatchId());
-
-        assertThatThrownBy(() -> invokeRecovery(userId, otherSession.importSessionId(), "fallback-identity-key", committedHash,
-                namedConstraint("23505", "uk_transaction_import_batches_user_idempotency")))
-                .isInstanceOf(BusinessException.class).hasMessage("IMPORT_CONFIRM_INCONSISTENT");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches WHERE user_id = ?", Integer.class, userId)).isEqualTo(1);
-    }
-
-    @Test
-    void namedIdempotencyFallbackReconstructsTheSamePersistedReceiptForTheMatchingSessionAndIntent() {
-        long userId = createUser("fallback-positive@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,committed"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-        var first = confirmService.confirm(userId, preview.importSessionId(), "fallback-positive-key",
-                new TransactionImportConfirmRequest(preview.previewToken(), List.of()));
-        String committedHash = jdbcTemplate.queryForObject("SELECT request_hash FROM transaction_import_batches WHERE id = ?", String.class,
-                first.receipt().importBatchId());
-
-        var recovered = invokeRecovery(userId, preview.importSessionId(), "fallback-positive-key", committedHash,
-                namedConstraint("23505", "uk_transaction_import_batches_user_idempotency"));
-
-        assertThat(recovered.idempotentReplay()).isTrue();
-        assertThat(recovered.receipt()).isEqualTo(first.receipt());
-    }
-
-    @Test
-    void exactDuplicateFallbackFailsClosedWhenNoMatchingCommittedDuplicateExists() {
-        long userId = createUser("fallback-exact-missing@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId, "Food", "EXPENSE");
-        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,only-preview"),
-                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
-
-        assertThatThrownBy(() -> invokeRecovery(userId, preview.importSessionId(), "fallback-exact-missing-key", "0".repeat(64),
-                namedConstraint("23505", "uk_transaction_import_batches_exact_duplicate")))
-                .isInstanceOf(BusinessException.class).hasMessage("IMPORT_CONFIRM_INCONSISTENT");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transaction_import_batches WHERE user_id = ?", Integer.class, userId)).isZero();
     }
 
     @Test

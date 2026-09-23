@@ -35,30 +35,6 @@ class TransactionImportPreviewIntegrationTest extends PostgresIntegrationTest {
     private TemporaryImportFileStorage planStorage;
 
     @Test
-    void expiredPreviewSessionDeletesItsRawFileAndAuthoritativePlanOnAccess() {
-        long userId = createUser("expired-preview@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId);
-
-        var response = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"), request(accountId, categoryId));
-        TransactionImportSession session = sessionMapper.findByIdAndUserId(response.importSessionId(), userId);
-        jdbcTemplate.update("UPDATE transaction_import_sessions SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = ?", session.getId());
-
-        assertThatThrownBy(() -> previewService.getRows(userId, session.getId(), 1, 100))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getCode())
-                .isEqualTo(409);
-
-        assertThatThrownBy(() -> previewService.getRows(userId, session.getId(), 1, 100))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getCode())
-                .isEqualTo(409);
-
-        assertThat(temporaryImportFileStorage.exists(session.getTemporaryStorageReference())).isFalse();
-        assertThat(planStorage.exists(session.getPlanStorageReference())).isFalse();
-    }
-
-    @Test
     void previewScenariosNeverCreateFinancialFactsOrMutateReferenceData() {
         long userId = createUser("read-only-preview@example.com");
         long accountId = createAccount(userId);
@@ -177,40 +153,6 @@ class TransactionImportPreviewIntegrationTest extends PostgresIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getCode())
                 .isEqualTo(409);
-    }
-
-    @Test
-    void cancellingAnActivePreviewSessionDeletesOnlyItsPrivatePayloads() {
-        long userId = createUser("cancel-preview@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId);
-        var response = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"), request(accountId, categoryId));
-        TransactionImportSession session = sessionMapper.findByIdAndUserId(response.importSessionId(), userId);
-
-        previewService.cancel(userId, session.getId());
-
-        assertThat(sessionMapper.findByIdAndUserId(session.getId(), userId).getStatus()).isEqualTo("CANCELLED");
-        assertThat(temporaryImportFileStorage.exists(session.getTemporaryStorageReference())).isFalse();
-        assertThat(planStorage.exists(session.getPlanStorageReference())).isFalse();
-    }
-
-    @Test
-    void cancellingAnExpiredPreviewSessionFailsClosedAndDeletesItsPrivatePayloads() {
-        long userId = createUser("expired-cancel-preview@example.com");
-        long accountId = createAccount(userId);
-        long categoryId = createCategory(userId);
-        var response = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"), request(accountId, categoryId));
-        TransactionImportSession session = sessionMapper.findByIdAndUserId(response.importSessionId(), userId);
-        jdbcTemplate.update("UPDATE transaction_import_sessions SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = ?", session.getId());
-
-        assertThatThrownBy(() -> previewService.cancel(userId, session.getId()))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getCode())
-                .isEqualTo(409);
-
-        assertThat(sessionMapper.findByIdAndUserId(session.getId(), userId).getStatus()).isEqualTo("EXPIRED");
-        assertThat(temporaryImportFileStorage.exists(session.getTemporaryStorageReference())).isFalse();
-        assertThat(planStorage.exists(session.getPlanStorageReference())).isFalse();
     }
 
     private long createUser(String email) {

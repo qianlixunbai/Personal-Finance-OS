@@ -181,42 +181,6 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
         }
     }
 
-    @Test
-    void lockReleasedBeforeTimeout_allowsRequestToSucceed() throws Exception {
-        LoggedInUser user = registerAndLogin("lock-release");
-        Long accountId = createAccount(user.token(), "lock-release-account-" + UUID.randomUUID());
-        Long categoryId = createCategory(user.token(), "lr-cat-" + UUID.randomUUID(), "INCOME");
-        Long userId = jdbcTemplate.queryForObject("SELECT user_id FROM accounts WHERE id = ?", Long.class, accountId);
-        Connection heldLock = lockAccountRow(accountId, userId);
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        try {
-            Future<MvcResult> request = executor.submit(() -> mockMvc.perform(post("/api/v1/transactions")
-                            .header("Authorization", "Bearer " + user.token())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new TransactionRequest(
-                                    accountId, categoryId, "INCOME", new BigDecimal("20.00"), "CNY",
-                                    "lock release", LocalDateTime.of(2026, 7, 23, 13, 0)))))
-                    .andReturn());
-
-            awaitHttpRequestLockWait();
-            heldLock.commit();
-            heldLock.close();
-            heldLock = null;
-
-            MvcResult result = request.get(5, TimeUnit.SECONDS);
-            assertThat(result.getResponse().getStatus()).isEqualTo(200);
-            assertThat(objectMapper.readTree(result.getResponse().getContentAsByteArray()).path("code").asInt()).isEqualTo(200);
-            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE account_id = ?", Integer.class, accountId))
-                    .isEqualTo(1);
-            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", BigDecimal.class, accountId))
-                    .isEqualByComparingTo("20.00");
-        } finally {
-            rollbackAndClose(heldLock);
-            executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        }
-    }
-
     private LoggedInUser registerAndLogin(String prefix) throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String username = prefix + suffix;

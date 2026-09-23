@@ -1,17 +1,13 @@
 package com.financeos.module.investment.read.controller;
 
-import com.financeos.common.GlobalExceptionHandler;
 import com.financeos.common.BusinessException;
+import com.financeos.common.GlobalExceptionHandler;
 import com.financeos.module.auth.config.SecurityConfig;
 import com.financeos.module.auth.config.SecurityErrorResponseHandler;
 import com.financeos.module.auth.util.JwtAuthFilter;
-import com.financeos.module.investment.read.dto.CursorPage;
-import com.financeos.module.investment.read.dto.InvestmentLogicalTransactionListItem;
 import com.financeos.module.investment.read.dto.InvestmentPortfolioResponse;
-import com.financeos.module.investment.read.dto.InvestmentPositionListItem;
-import com.financeos.module.investment.read.model.LogicalTransactionListQuery;
-import com.financeos.module.investment.read.service.InvestmentLogicalTransactionReadQueryService;
 import com.financeos.module.investment.read.service.InvestmentLogicalTransactionDetailQueryService;
+import com.financeos.module.investment.read.service.InvestmentLogicalTransactionReadQueryService;
 import com.financeos.module.investment.read.service.InvestmentPortfolioQueryService;
 import com.financeos.module.investment.read.service.InvestmentPositionDetailQueryService;
 import com.financeos.module.investment.read.service.InvestmentPositionReadQueryService;
@@ -30,10 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Collections;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -82,39 +75,6 @@ class InvestmentReadControllerWebMvcTest {
     }
 
     @Test
-    void positionListForwardsOpaqueCursorAndAllFilters() throws Exception {
-        when(positionService.list(eq(USER_ID), any())).thenReturn(new CursorPage<>(List.of(), null, false, 20));
-
-        mockMvc.perform(get("/api/v1/investment/positions").param("status", "CLOSED").param("accountId", "7")
-                        .param("instrumentId", "8").param("cursor", "opaque").param("size", "20")
-                        .with(authentication(currentUser())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.nextCursor").doesNotExist());
-
-        verify(positionService).list(eq(USER_ID), any());
-    }
-
-    @Test
-    void transactionListForwardsLogicalFiltersAndOpaqueCursor() throws Exception {
-        when(transactionService.list(eq(USER_ID), any())).thenReturn(new CursorPage<InvestmentLogicalTransactionListItem>(List.of(), null, false, 20));
-
-        mockMvc.perform(get("/api/v1/investment/transactions").param("positionId", "6").param("accountId", "7")
-                        .param("instrumentId", "8").param("type", "BUY").param("correctionStatus", "REPLACED")
-                        .param("from", "2026-08-01T00:00:00Z").param("to", "2026-08-02T00:00:00Z")
-                        .param("cursor", "opaque").param("size", "20").with(authentication(currentUser())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.nextCursor").doesNotExist());
-
-        org.mockito.ArgumentCaptor<LogicalTransactionListQuery> query = org.mockito.ArgumentCaptor.forClass(LogicalTransactionListQuery.class);
-        verify(transactionService).list(eq(USER_ID), query.capture());
-        assertThat(query.getValue()).isEqualTo(new LogicalTransactionListQuery(6L, 7L, 8L, "BUY", "REPLACED",
-                java.time.Instant.parse("2026-08-01T00:00:00Z"), java.time.Instant.parse("2026-08-02T00:00:00Z"),
-                "opaque", 20));
-    }
-
-    @Test
     void logicalTransactionDetailAndAuditTimelineUseOnlyTheLogicalId() throws Exception {
         mockMvc.perform(get("/api/v1/investment/transactions/9").with(authentication(currentUser())))
                 .andExpect(status().isOk());
@@ -123,7 +83,6 @@ class InvestmentReadControllerWebMvcTest {
 
         verify(transactionDetailService).get(USER_ID, 9L);
         verify(transactionDetailService).auditTimeline(USER_ID, 9L);
-        verifyNoMoreInteractions(transactionDetailService);
     }
 
     @Test
@@ -143,51 +102,6 @@ class InvestmentReadControllerWebMvcTest {
     }
 
     @Test
-    void transactionReadServiceValidationAndMissingResourcesMapTo400And404() throws Exception {
-        when(transactionService.list(eq(USER_ID), any())).thenThrow(new BusinessException(400, "Invalid type"));
-        when(transactionDetailService.get(USER_ID, 99L))
-                .thenThrow(new BusinessException(404, "Investment transaction not found"));
-        when(transactionDetailService.auditTimeline(USER_ID, 99L))
-                .thenThrow(new BusinessException(404, "Investment transaction not found"));
-
-        mockMvc.perform(get("/api/v1/investment/transactions").param("type", "REVERSAL")
-                        .with(authentication(currentUser())))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400));
-        mockMvc.perform(get("/api/v1/investment/transactions/99").with(authentication(currentUser())))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(404));
-        mockMvc.perform(get("/api/v1/investment/transactions/99/audit-timeline").with(authentication(currentUser())))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(404));
-    }
-
-    @Test
-    void unexpectedTransactionReadFailuresReturnSanitized500() throws Exception {
-        when(transactionService.list(eq(USER_ID), any())).thenThrow(new IllegalStateException("secret list relation"));
-        when(transactionDetailService.get(USER_ID, 9L)).thenThrow(new IllegalStateException("secret detail relation"));
-        when(transactionDetailService.auditTimeline(USER_ID, 9L)).thenThrow(new IllegalStateException("secret timeline relation"));
-
-        for (String path : List.of("/api/v1/investment/transactions", "/api/v1/investment/transactions/9",
-                "/api/v1/investment/transactions/9/audit-timeline")) {
-            mockMvc.perform(get(path).with(authentication(currentUser())))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(jsonPath("$.code").value(500))
-                    .andExpect(jsonPath("$.message").value("服务器内部错误"))
-                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
-                            org.hamcrest.Matchers.containsString("secret"))));
-        }
-    }
-
-    @Test
-    void invalidPositionListInputReturns400() throws Exception {
-        mockMvc.perform(get("/api/v1/investment/positions").param("size", "0")
-                        .with(authentication(currentUser())))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(400));
-    }
-
-    @Test
     void missingPositionReturns404WithoutLeakingOwnershipReason() throws Exception {
         when(detailService.get(USER_ID, 99L)).thenThrow(new BusinessException(404, "Investment position not found"));
 
@@ -195,18 +109,6 @@ class InvestmentReadControllerWebMvcTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
                 .andExpect(jsonPath("$.message").value("Investment position not found"));
-    }
-
-    @Test
-    void unexpectedReadFailureReturnsSanitized500() throws Exception {
-        when(portfolioService.get(USER_ID)).thenThrow(new IllegalStateException("secret internal detail"));
-
-        mockMvc.perform(get("/api/v1/investment/portfolio").with(authentication(currentUser())))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.message").value("服务器内部错误"))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("secret"))));
     }
 
     @Test

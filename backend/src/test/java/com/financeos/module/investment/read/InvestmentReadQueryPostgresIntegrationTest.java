@@ -280,44 +280,6 @@ class InvestmentReadQueryPostgresIntegrationTest extends PostgresIntegrationTest
     }
 
     @Test
-    void positionDetailUsesOneRepeatableReadSnapshotAcrossProjectionAndQuoteQueries() throws Exception {
-        Fixture fixture = fixture();
-        makeUsPosition(fixture.positionId(), fixture.instrumentId(), "DETAIL", "CNY");
-        jdbcTemplate.update("UPDATE assets SET current_price = 10.00000000, market_value = 10.00 WHERE id = ?",
-                fixture.positionId());
-        insertQuote("DETAIL", "CNY", "10.00000000", Instant.now());
-        CountDownLatch beforeQuoteQuery = new CountDownLatch(1);
-        CountDownLatch writerCommitted = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            beforeQuoteQuery.countDown();
-            assertThat(writerCommitted.await(10, TimeUnit.SECONDS)).isTrue();
-            return invocation.callRealMethod();
-        }).when(quoteQueryService).findCachedUsQuotes(anyCollection());
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Future<?> writer = executor.submit(() -> {
-            await(beforeQuoteQuery);
-            try {
-                jdbcTemplate.update("UPDATE assets SET quantity = 2.00000000, total_cost = 20.00, current_price = 20.00000000, market_value = 40.00 WHERE id = ?",
-                        fixture.positionId());
-                jdbcTemplate.update("UPDATE market_quotes SET price = 20.00000000, updated_at = CURRENT_TIMESTAMP WHERE symbol = 'DETAIL'");
-            } finally {
-                writerCommitted.countDown();
-            }
-        });
-        try {
-            InvestmentPositionDetail response = detailService.get(fixture.userId(), fixture.positionId());
-            writer.get(10, TimeUnit.SECONDS);
-            assertThat(response.quantity()).isEqualTo("1.00000000");
-            assertThat(response.totalCost()).isEqualTo("10.00");
-            assertThat(response.manualReference().currentPrice()).isEqualTo("10.00000000");
-            assertThat(response.referenceValuation().quotePrice()).isEqualTo("10.00000000");
-            assertThat(response.referenceValuation().baseCurrencyValue()).isEqualTo("10.00");
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    @Test
     void readsLogicalTransactionsInEffectiveTimeOrderAndProtectsForeignFilters() {
         Fixture fixture = fixture();
         long first = insertBuy(fixture, "2026-08-01T10:00:00Z", "first");

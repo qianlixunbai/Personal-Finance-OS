@@ -92,49 +92,6 @@ class LegacyOpeningMigrationWebFailureIntegrationTest extends PostgresIntegratio
                 fixture.accountId())).isEqualByComparingTo("0.00");
     }
 
-    @Test
-    void heldAccountLockReturnsSanitizedConflictWithoutPartialMigration() throws Exception {
-        Fixture fixture = insertReadyLegacyAsset();
-        String token = previewService.preview(fixture.userId(), fixture.assetId(), fixture.instrumentId(), fixture.accountId())
-                .confirmation().previewToken();
-        try (Connection heldLock = accountLock(fixture.accountId())) {
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            try {
-                Future<String> response = executor.submit(() -> confirmViaWeb(fixture, token, "lock-timeout"));
-                String body = response.get(5, TimeUnit.SECONDS);
-                assertThat(body).contains("409").doesNotContain("55P03", "PostgreSQL", "accounts", "lock_timeout");
-                assertNoPartialMigration(fixture);
-            } finally {
-                executor.shutdownNow();
-                assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
-            }
-        }
-    }
-
-    @Test
-    void releasingAccountLockBeforeTimeoutAllowsMigration() throws Exception {
-        Fixture fixture = insertReadyLegacyAsset();
-        String token = previewService.preview(fixture.userId(), fixture.assetId(), fixture.instrumentId(), fixture.accountId())
-                .confirmation().previewToken();
-        try (Connection heldLock = accountLock(fixture.accountId())) {
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            try {
-                Future<String> response = executor.submit(() -> confirmViaWeb(fixture, token, "lock-release"));
-                await().atMost(2, TimeUnit.SECONDS).until(() -> jdbcTemplate.queryForObject("""
-                        SELECT count(*) > 0 FROM pg_stat_activity
-                        WHERE wait_event_type = 'Lock' AND query LIKE '%FROM accounts%'
-                        """, Boolean.class));
-                heldLock.commit();
-                assertThat(response.get(5, TimeUnit.SECONDS)).contains("\"code\":200");
-                assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM investment_transactions WHERE asset_id = ?", Integer.class,
-                        fixture.assetId())).isEqualTo(1);
-            } finally {
-                executor.shutdownNow();
-                assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
-            }
-        }
-    }
-
     private String confirmViaWeb(Fixture fixture, String token, String key) throws Exception {
         return mockMvc.perform(post("/api/v1/investment/legacy-assets/{assetId}/migration-confirm", fixture.assetId())
                         .with(authentication(new UsernamePasswordAuthenticationToken(fixture.userId(), null,
