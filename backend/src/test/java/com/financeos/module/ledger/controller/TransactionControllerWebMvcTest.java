@@ -10,6 +10,7 @@ import com.financeos.module.auth.config.SecurityErrorResponseHandler;
 import com.financeos.module.auth.util.JwtAuthFilter;
 import com.financeos.module.ledger.dto.TransactionRequest;
 import com.financeos.module.ledger.dto.TransactionResponse;
+import com.financeos.module.ledger.service.TransactionCommandService;
 import com.financeos.module.ledger.service.TransactionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletRequest;
@@ -34,6 +35,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -67,6 +69,9 @@ class TransactionControllerWebMvcTest {
 
     @MockBean
     private TransactionService transactionService;
+
+    @MockBean
+    private TransactionCommandService transactionCommandService;
 
     @BeforeEach
     void passThroughJwtFilter() throws Exception {
@@ -151,7 +156,7 @@ class TransactionControllerWebMvcTest {
 
     @Test
     void createReturnsTransactionAndForwardsCompleteValidatedRequest() throws Exception {
-        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class)))
+        when(transactionCommandService.create(eq(USER_ID), isNull(), any(TransactionRequest.class)))
                 .thenReturn(transactionResponse(99L, "INCOME", "123.45"));
 
         MvcResult result = mockMvc.perform(post("/api/v1/transactions")
@@ -170,8 +175,25 @@ class TransactionControllerWebMvcTest {
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsByteArray());
         assertThat(json.at("/data/amount").decimalValue()).isEqualByComparingTo("123.45");
         ArgumentCaptor<TransactionRequest> requestCaptor = ArgumentCaptor.forClass(TransactionRequest.class);
-        verify(transactionService).create(eq(USER_ID), requestCaptor.capture());
+        verify(transactionCommandService).create(eq(USER_ID), isNull(), requestCaptor.capture());
         assertThat(requestCaptor.getValue()).isEqualTo(transactionRequest("INCOME", "123.45", "salary"));
+    }
+
+    @Test
+    void createForwardsIdempotencyKeyHeaderToTheCommandService() throws Exception {
+        when(transactionCommandService.create(eq(USER_ID), eq("tx-key-1"), any(TransactionRequest.class)))
+                .thenReturn(transactionResponse(99L, "EXPENSE", "40.00"));
+
+        mockMvc.perform(post("/api/v1/transactions")
+                        .with(authentication(currentUser()))
+                        .header("Idempotency-Key", "tx-key-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequestJson("EXPENSE", "40.00", "groceries")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").isNumber());
+
+        verify(transactionCommandService).create(eq(USER_ID), eq("tx-key-1"), any(TransactionRequest.class));
     }
 
     @Test
@@ -187,12 +209,12 @@ class TransactionControllerWebMvcTest {
                 .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verifyNoInteractions(transactionService);
+        verifyNoInteractions(transactionService, transactionCommandService);
     }
 
     @Test
     void createMapsBusinessRuleFailureToUnifiedBadRequest() throws Exception {
-        when(transactionService.create(eq(USER_ID), any(TransactionRequest.class)))
+        when(transactionCommandService.create(eq(USER_ID), isNull(), any(TransactionRequest.class)))
                 .thenThrow(new BusinessException(400, "当前版本暂不支持该流水类型"));
 
         mockMvc.perform(post("/api/v1/transactions")

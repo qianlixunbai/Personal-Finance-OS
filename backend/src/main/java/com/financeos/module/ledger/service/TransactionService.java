@@ -18,7 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.List;
 
 @Service
@@ -34,12 +38,14 @@ public class TransactionService {
     private final TransactionMapper transactionMapper;
     private final CategoryMapper categoryMapper;
     private final AccountBalanceService accountBalanceService;
+    private final TransactionWriteRules writeRules;
 
     public TransactionService(TransactionMapper transactionMapper, CategoryMapper categoryMapper,
-                              AccountBalanceService accountBalanceService) {
+                              AccountBalanceService accountBalanceService, TransactionWriteRules writeRules) {
         this.transactionMapper = transactionMapper;
         this.categoryMapper = categoryMapper;
         this.accountBalanceService = accountBalanceService;
+        this.writeRules = writeRules;
     }
 
     public PageResult<TransactionResponse> pageByUser(Long userId, int page, int size,
@@ -71,10 +77,16 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse create(Long userId, TransactionRequest req) {
+    public TransactionResponse create(Long userId, String idempotencyKey, TransactionRequest req) {
         ensureSupportedType(req.type());
         validateCategory(userId, req.categoryId(), req.type());
-        validateAmountAndDescription(req);
+        writeRules.validateAmount(req.type(), req.amount(), req.description());
+        String key = canonicalIdempotencyKey(idempotencyKey);
+        String hash = key == null ? null : requestHash(userId, req);
+        if (key != null) {
+            Transaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+            if (existing != null) return replayOf(existing, hash);
+        }
         LockedAccounts lockedAccounts = accountBalanceService.lockOwnedAccounts(userId, List.of(req.accountId()));
         Account account = lockedAccounts.accounts().getFirst();
         requireActive(account);
@@ -82,10 +94,64 @@ public class TransactionService {
         Transaction transaction = new Transaction();
         transaction.setUserId(userId);
         applyRequest(transaction, req, currency);
+        transaction.setIdempotencyKey(key);
+        transaction.setRequestHash(hash);
         requireExactlyOne(transactionMapper.insert(transaction), "transaction insert");
         accountBalanceService.applyDeltas(lockedAccounts,
                 List.of(new AccountBalanceMutation(account.getId(), effect(req.type(), req.amount()), true)));
         return toResponse(transaction);
+    }
+
+    /**
+     * Idempotent replay for a concurrent duplicate that lost the unique-index race.
+     * Runs outside a transaction: the losing attempt already rolled back, so this is a
+     * plain read of the fact committed by the winner.
+     */
+    public TransactionResponse replayConcurrentCreate(Long userId, String idempotencyKey, TransactionRequest req) {
+        String key = canonicalIdempotencyKey(idempotencyKey);
+        if (key == null) throw new IllegalStateException("idempotent replay requires an Idempotency-Key");
+        Transaction existing = transactionMapper.findByUserIdAndIdempotencyKey(userId, key);
+        if (existing == null) throw new IllegalStateException("idempotent replay target is missing");
+        return replayOf(existing, requestHash(userId, req));
+    }
+
+    private TransactionResponse replayOf(Transaction existing, String hash) {
+        if (!hash.equals(existing.getRequestHash())) {
+            throw new BusinessException(409, "Idempotency-Key 已用于不同的请求内容");
+        }
+        return toResponse(existing);
+    }
+
+    private String canonicalIdempotencyKey(String value) {
+        if (value == null) return null;
+        if (value.isBlank() || value.length() > 100 || !value.equals(value.trim())) {
+            throw new BusinessException(400, "Idempotency-Key 必须为 1 到 100 个字符且首尾无空白");
+        }
+        return value;
+    }
+
+    private String requestHash(Long userId, TransactionRequest req) {
+        String canonical = String.join("\n",
+                "operation=TRANSACTION_CREATE",
+                "formulaVersion=TRANSACTION_CREATE_V1",
+                "userId=" + userId,
+                "accountId=" + req.accountId(),
+                "categoryId=" + req.categoryId(),
+                "type=" + req.type(),
+                "amount=" + req.amount().setScale(TransactionWriteRules.MONEY_SCALE).toPlainString(),
+                "currency=" + canonicalOptional(req.currency()),
+                "description=" + canonicalOptional(req.description()),
+                "transactedAt=" + req.transactedAt());
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private String canonicalOptional(String value) {
+        return value == null ? "NULL" : "VALUE:" + value.getBytes(StandardCharsets.UTF_8).length + ":" + value;
     }
 
     @Transactional
@@ -94,7 +160,7 @@ public class TransactionService {
         Transaction transaction = lockOwnedTransaction(userId, id);
         ensureSupportedType(transaction.getType());
         validateCategory(userId, req.categoryId(), req.type());
-        validateAmountAndDescription(req);
+        writeRules.validateAmount(req.type(), req.amount(), req.description());
         Long oldAccountId = transaction.getAccountId();
         LockedAccounts lockedAccounts = accountBalanceService.lockOwnedAccounts(
                 userId, List.of(oldAccountId, req.accountId()));
@@ -164,16 +230,6 @@ public class TransactionService {
         if (TYPE_TRANSFER.equals(type) || TYPE_REFUND.equals(type)) throw new BusinessException(400, "当前版本暂不支持该流水类型");
         if (!TYPE_INCOME.equals(type) && !TYPE_EXPENSE.equals(type) && !TYPE_ADJUSTMENT.equals(type)) {
             throw new BusinessException(400, "非法流水类型");
-        }
-    }
-
-    private void validateAmountAndDescription(TransactionRequest req) {
-        BigDecimal amount = req.amount();
-        if (TYPE_INCOME.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(400, "收入金额必须大于 0");
-        if (TYPE_EXPENSE.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) <= 0) throw new BusinessException(400, "支出金额必须大于 0");
-        if (TYPE_ADJUSTMENT.equals(req.type()) && amount.compareTo(BigDecimal.ZERO) == 0) throw new BusinessException(400, "余额调整金额不能为 0");
-        if (TYPE_ADJUSTMENT.equals(req.type()) && (req.description() == null || req.description().isBlank())) {
-            throw new BusinessException(400, "余额调整必须填写原因");
         }
     }
 

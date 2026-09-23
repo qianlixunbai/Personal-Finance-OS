@@ -1,26 +1,30 @@
 package com.financeos.module.ledger.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("transactions")
-public class Transaction {
+@TableName("transfers")
+public class Transfer {
+
     @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("user_id")
     private Long userId;
 
-    @TableField("account_id")
-    private Long accountId;
+    @TableField("from_account_id")
+    private Long fromAccountId;
 
-    @TableField("category_id")
-    private Long categoryId;
-
-    private String type;
+    @TableField("to_account_id")
+    private Long toAccountId;
 
     private BigDecimal amount;
 
@@ -31,15 +35,6 @@ public class Transaction {
     @TableField("transacted_at")
     private LocalDateTime transactedAt;
 
-    @TableField("idempotency_key")
-    private String idempotencyKey;
-
-    @TableField("request_hash")
-    private String requestHash;
-
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt = LocalDateTime.now();
-
-    @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
-    private LocalDateTime updatedAt = LocalDateTime.now();
 }

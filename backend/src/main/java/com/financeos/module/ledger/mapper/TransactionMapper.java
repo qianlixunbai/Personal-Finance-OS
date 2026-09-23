@@ -16,12 +16,21 @@ public interface TransactionMapper extends BaseMapper<Transaction> {
 
     @Select("""
             SELECT id, user_id, account_id, category_id, type, amount, currency, description,
-                   transacted_at, created_at, updated_at
+                   transacted_at, created_at, updated_at, idempotency_key, request_hash
             FROM transactions
             WHERE id = #{transactionId} AND user_id = #{userId}
             FOR UPDATE
             """)
     Transaction selectOwnedForUpdate(@Param("userId") Long userId, @Param("transactionId") Long transactionId);
+
+    @Select("""
+            SELECT id, user_id, account_id, category_id, type, amount, currency, description,
+                   transacted_at, created_at, updated_at, idempotency_key, request_hash
+            FROM transactions
+            WHERE user_id = #{userId} AND idempotency_key = #{idempotencyKey}
+            """)
+    Transaction findByUserIdAndIdempotencyKey(@Param("userId") Long userId,
+                                              @Param("idempotencyKey") String idempotencyKey);
 
     @Select("""
             SELECT EXISTS (

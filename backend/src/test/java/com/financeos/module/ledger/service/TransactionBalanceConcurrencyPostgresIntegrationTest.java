@@ -294,7 +294,7 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
     private void createAfterBarrier(CyclicBarrier barrier, Long userId, Long accountId, Long categoryId, String amount) {
         try {
             barrier.await(5, TimeUnit.SECONDS);
-            transactionService.create(userId, new TransactionRequest(accountId, categoryId, "INCOME",
+            transactionService.create(userId, null, new TransactionRequest(accountId, categoryId, "INCOME",
                     new BigDecimal(amount), "CNY", "concurrent", LocalDateTime.of(2026, 7, 23, 12, 0)));
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -302,7 +302,7 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
     }
 
     private Long create(Long userId, Long accountId, Long categoryId, String type, String amount) {
-        return transactionService.create(userId, new TransactionRequest(accountId, categoryId, type,
+        return transactionService.create(userId, null, new TransactionRequest(accountId, categoryId, type,
                 new BigDecimal(amount), "CNY", "test", LocalDateTime.of(2026, 7, 23, 12, 0))).id();
     }
 
