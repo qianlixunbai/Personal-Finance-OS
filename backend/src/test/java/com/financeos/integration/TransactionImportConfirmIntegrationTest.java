@@ -108,7 +108,7 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
                     confirmService.confirm(userId, preview.importSessionId(), "evidence-lock-race-key",
                             new TransactionImportConfirmRequest(preview.previewToken(), List.of())));
             assertThat(accountLocksAcquired.await(10, TimeUnit.SECONDS)).isTrue();
-            Future<?> manual = executor.submit(() -> transactionService.create(userId,
+            Future<?> manual = executor.submit(() -> transactionService.create(userId, null,
                     new TransactionRequest(accountId, categoryId, "EXPENSE", new java.math.BigDecimal("10.00"), "CNY", "lunch",
                             LocalDateTime.of(2026, 8, 1, 0, 0))));
 
@@ -513,7 +513,7 @@ class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
         try (var executor = Executors.newFixedThreadPool(2)) {
             var imported = executor.submit(() -> { ready.countDown(); start.await(5, TimeUnit.SECONDS); return confirmService.confirm(userId,
                     preview.importSessionId(), "manual-race-key", new TransactionImportConfirmRequest(preview.previewToken(), List.of())); });
-            var manual = executor.submit(() -> { ready.countDown(); start.await(5, TimeUnit.SECONDS); return transactionService.create(userId,
+            var manual = executor.submit(() -> { ready.countDown(); start.await(5, TimeUnit.SECONDS); return transactionService.create(userId, null,
                     new TransactionRequest(accountId, categoryId, "EXPENSE", new java.math.BigDecimal("10.00"), "CNY", "manual", LocalDateTime.of(2026, 8, 2, 0, 0))); });
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();

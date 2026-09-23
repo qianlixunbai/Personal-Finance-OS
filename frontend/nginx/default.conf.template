@@ -6,6 +6,9 @@ server {
     index index.html;
 
     location /api/ {
+        # Deliberately above the backend's own 5 MiB import limit so the backend
+        # stays the single source of truth and can return the structured API error.
+        client_max_body_size 6m;
         proxy_pass http://${BACKEND_HOST}:${BACKEND_PORT};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

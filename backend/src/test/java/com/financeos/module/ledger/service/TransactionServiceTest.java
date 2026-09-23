@@ -32,7 +32,7 @@ class TransactionServiceTest {
         when(fixture.balances.lockOwnedAccounts(1L, List.of(10L))).thenReturn(locked);
         when(fixture.transactions.insert(any(Transaction.class))).thenReturn(1);
 
-        fixture.service.create(1L, request(10L, 20L, "INCOME", "50.00"));
+        fixture.service.create(1L, null, request(10L, 20L, "INCOME", "50.00"));
 
         ArgumentCaptor<List<AccountBalanceMutation>> mutations = ArgumentCaptor.forClass(List.class);
         verify(fixture.balances).applyDeltas(eq(locked), mutations.capture());
@@ -110,11 +110,46 @@ class TransactionServiceTest {
         verify(fixture.transactions, never()).updateById(any(Transaction.class));
     }
 
+    @Test
+    void createRejectsAmountWithMoreThanTwoDecimalsBeforeTouchingBalance() {
+        Fixture fixture = fixture();
+        when(fixture.categories.selectById(20L)).thenReturn(category(20L, "INCOME"));
+
+        assertThatThrownBy(() -> fixture.service.create(1L, null, request(10L, 20L, "INCOME", "1.005")))
+                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
+        verify(fixture.balances, never()).lockOwnedAccounts(any(), any());
+        verify(fixture.transactions, never()).insert(any(Transaction.class));
+    }
+
+    @Test
+    void createRejectsAmountBeyondNumeric18Scale2Range() {
+        Fixture fixture = fixture();
+        when(fixture.categories.selectById(20L)).thenReturn(category(20L, "INCOME"));
+
+        assertThatThrownBy(() -> fixture.service.create(1L, null, request(10L, 20L, "INCOME", "10000000000000000.00")))
+                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
+        verify(fixture.balances, never()).lockOwnedAccounts(any(), any());
+        verify(fixture.transactions, never()).insert(any(Transaction.class));
+    }
+
+    @Test
+    void updateRejectsAmountWithMoreThanTwoDecimalsBeforeTouchingBalance() {
+        Fixture fixture = fixture();
+        when(fixture.transactions.selectOwnedForUpdate(1L, 99L)).thenReturn(transaction(99L, 10L, "INCOME", "30.00"));
+        when(fixture.categories.selectById(21L)).thenReturn(category(21L, "EXPENSE"));
+
+        assertThatThrownBy(() -> fixture.service.update(1L, 99L, request(10L, 21L, "EXPENSE", "0.001")))
+                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
+        verify(fixture.balances, never()).lockOwnedAccounts(any(), any());
+        verify(fixture.transactions, never()).updateById(any(Transaction.class));
+    }
+
     private Fixture fixture() {
         TransactionMapper transactions = mock(TransactionMapper.class);
         CategoryMapper categories = mock(CategoryMapper.class);
         AccountBalanceService balances = mock(AccountBalanceService.class);
-        return new Fixture(transactions, categories, balances, new TransactionService(transactions, categories, balances));
+        return new Fixture(transactions, categories, balances,
+                new TransactionService(transactions, categories, balances, new TransactionWriteRules()));
     }
 
     private LockedAccounts locked(Account account) {

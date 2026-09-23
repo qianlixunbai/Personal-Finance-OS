@@ -32,9 +32,34 @@ public class GlobalExceptionHandler {
         if (hasConcurrencySqlState(e)) {
             return handleConcurrencyConflict(new ConcurrencyConflictException());
         }
-        log.error("Database operation failed", e);
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(ApiResponse.error(503, "数据库服务暂时不可用"));
+        // Client-caused constraint violations must not masquerade as "database unavailable":
+        // a 503 tells the caller to retry a request that can never succeed.
+        //
+        // 23514 is deliberately NOT mapped to 400. This codebase uses CHECK constraints as the
+        // last line of defence for server-side invariants (amount formulas, receipt shape), and
+        // its own triggers raise 23514 for internal consistency failures. Reporting those as a
+        // client error would hide real defects, so they fail closed as 500.
+        switch (findSqlState(e)) {
+            case "23505" -> {
+                log.warn("Unique constraint violated", e);
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponse.error(409, "资源已存在或与现有数据冲突"));
+            }
+            case "23514" -> {
+                log.error("Check constraint violated", e);
+                return ResponseEntity.internalServerError()
+                        .body(ApiResponse.error(500, "数据一致性校验失败"));
+            }
+            case "22003" -> {
+                log.warn("Numeric value out of range", e);
+                return badRequest("数值超出允许范围");
+            }
+            default -> {
+                log.error("Database operation failed", e);
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(ApiResponse.error(503, "数据库服务暂时不可用"));
+            }
+        }
     }
 
     @ExceptionHandler(ExchangeRateProviderException.class)
@@ -156,6 +181,15 @@ public class GlobalExceptionHandler {
             }
         }
         return false;
+    }
+
+    private String findSqlState(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof java.sql.SQLException sqlException && sqlException.getSQLState() != null) {
+                return sqlException.getSQLState();
+            }
+        }
+        return null;
     }
 
     private boolean importRetryable(String errorCode) {

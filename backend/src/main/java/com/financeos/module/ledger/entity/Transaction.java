@@ -31,6 +31,12 @@ public class Transaction {
     @TableField("transacted_at")
     private LocalDateTime transactedAt;
 
+    @TableField("idempotency_key")
+    private String idempotencyKey;
+
+    @TableField("request_hash")
+    private String requestHash;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt = LocalDateTime.now();
 

@@ -4,6 +4,7 @@ import com.financeos.common.ApiResponse;
 import com.financeos.common.PageResult;
 import com.financeos.module.ledger.dto.TransactionRequest;
 import com.financeos.module.ledger.dto.TransactionResponse;
+import com.financeos.module.ledger.service.TransactionCommandService;
 import com.financeos.module.ledger.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,9 +31,12 @@ import java.time.LocalDateTime;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final TransactionCommandService transactionCommandService;
 
-    public TransactionController(TransactionService transactionService) {
+    public TransactionController(TransactionService transactionService,
+                                 TransactionCommandService transactionCommandService) {
         this.transactionService = transactionService;
+        this.transactionCommandService = transactionCommandService;
     }
 
     private Long userId(Authentication auth) {
@@ -62,8 +67,9 @@ public class TransactionController {
     @PostMapping
     @Operation(summary = "Create a transaction", security = @SecurityRequirement(name = "bearerAuth"))
     public ApiResponse<TransactionResponse> create(@Valid @RequestBody TransactionRequest req,
+                                                   @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                                    Authentication auth) {
-        return ApiResponse.ok(transactionService.create(userId(auth), req));
+        return ApiResponse.ok(transactionCommandService.create(userId(auth), idempotencyKey, req));
     }
 
     @PutMapping("/{id}")
