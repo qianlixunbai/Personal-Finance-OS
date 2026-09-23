@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
-class FlywayTransferVersionEighteenMigrationIntegrationTest {
+class FlywayTransferVersionNineteenMigrationIntegrationTest {
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:17-alpine");
@@ -27,8 +27,8 @@ class FlywayTransferVersionEighteenMigrationIntegrationTest {
     }
 
     @Test
-    void upgradesVersionSeventeenAndEnforcesOwnedTransferFacts() throws Exception {
-        flyway(MigrationVersion.fromVersion("17")).migrate();
+    void upgradesVersionEighteenAndEnforcesOwnedTransferFacts() throws Exception {
+        flyway(MigrationVersion.fromVersion("18")).migrate();
         try (Connection connection = connection()) {
             connection.createStatement().execute("""
                     INSERT INTO users (username, email, password_hash) VALUES
@@ -49,7 +49,7 @@ class FlywayTransferVersionEighteenMigrationIntegrationTest {
                     VALUES (1, 1, 2, 10.00, 'CNY', 'valid transfer', CURRENT_TIMESTAMP)
                     """);
 
-            assertThat(appliedVersion(connection)).isEqualTo("18");
+            assertThat(appliedVersion(connection)).isEqualTo("19");
             assertThatThrownBy(() -> connection.createStatement().execute("""
                     INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
                     VALUES (1, 1, 1, 10.00, 'CNY', CURRENT_TIMESTAMP)

@@ -81,7 +81,7 @@ class FlywayTransactionImportVersionSeventeenUpgradeIntegrationTest {
 
         flyway(null).migrate();
 
-        assertThat(appliedVersion()).isEqualTo("18");
+        assertThat(appliedVersion()).isEqualTo("19");
         for (int index = 0; index < TIMESTAMPS.size(); index++) {
             TimestampFixture fixture = TIMESTAMPS.get(index);
             UUID batchId = batchId(index);
