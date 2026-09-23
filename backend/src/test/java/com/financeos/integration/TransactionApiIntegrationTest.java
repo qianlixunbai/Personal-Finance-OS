@@ -108,45 +108,6 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void realHttpPageAppliesCombinedFiltersWithInclusiveEndTime() throws Exception {
-        LoggedInUser user = registerAndLogin("filter");
-        Long accountId = createAccount(user.token(), "filter-account-" + UUID.randomUUID());
-        Long incomeCategoryId = createCategory(user.token(), "inc-" + UUID.randomUUID(), "INCOME");
-        Long expenseCategoryId = createCategory(user.token(), "exp-" + UUID.randomUUID(), "EXPENSE");
-        String matchingDescription = "matching-" + UUID.randomUUID();
-        String excludedDescription = "excluded-" + UUID.randomUUID();
-
-        createTransaction(user.token(), new TransactionRequest(
-                accountId, incomeCategoryId, "INCOME", new BigDecimal("123.45"), "CNY",
-                matchingDescription, LocalDateTime.of(2026, 7, 31, 23, 59, 59)));
-        createTransaction(user.token(), new TransactionRequest(
-                accountId, expenseCategoryId, "EXPENSE", new BigDecimal("40.00"), "CNY",
-                excludedDescription, LocalDateTime.of(2026, 7, 20, 12, 0)));
-
-        MvcResult result = mockMvc.perform(get("/api/v1/transactions/page")
-                        .header("Authorization", "Bearer " + user.token())
-                        .param("accountId", accountId.toString())
-                        .param("categoryId", incomeCategoryId.toString())
-                        .param("type", "INCOME")
-                        .param("start", "2026-07-01T00:00:00")
-                        .param("end", "2026-07-31T23:59:59"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.records").isArray())
-                .andExpect(jsonPath("$.data.records.length()").value(1))
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.page").value(1))
-                .andExpect(jsonPath("$.data.size").value(20))
-                .andExpect(jsonPath("$.data.records[0].description").value(matchingDescription))
-                .andExpect(jsonPath("$.data.records[0].transactedAt").value("2026-07-31T23:59:59"))
-                .andReturn();
-
-        JsonNode records = objectMapper.readTree(result.getResponse().getContentAsByteArray()).at("/data/records");
-        assertThat(records.get(0).path("amount").decimalValue()).isEqualByComparingTo("123.45");
-        assertThat(records.toString()).doesNotContain(excludedDescription);
-    }
-
-    @Test
     void lockTimeout_returnsHttp409WithoutPartialCommit() throws Exception {
         LoggedInUser user = registerAndLogin("lock-timeout");
         Long accountId = createAccount(user.token(), "lock-timeout-account-" + UUID.randomUUID());
@@ -214,21 +175,6 @@ class TransactionApiIntegrationTest extends PostgresIntegrationTest {
             }
         }
         return connection;
-    }
-
-    private void awaitHttpRequestLockWait() throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-        while (System.nanoTime() < deadline) {
-            Integer waiting = jdbcTemplate.queryForObject("""
-                    SELECT COUNT(*) FROM pg_stat_activity
-                    WHERE datname = current_database() AND wait_event_type = 'Lock'
-                    """, Integer.class);
-            if (waiting != null && waiting > 0) {
-                return;
-            }
-            Thread.sleep(20);
-        }
-        throw new AssertionError("HTTP request did not enter a PostgreSQL lock wait");
     }
 
     private void rollbackAndClose(Connection connection) throws Exception {

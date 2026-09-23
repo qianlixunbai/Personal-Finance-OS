@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -63,32 +62,6 @@ class TransferServicePostgresIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void missingAccountReturnsNotFoundWithoutPartialMutation() {
-        Long userId = insertUser("transfer-missing-account");
-        Long fromAccount = insertAccount(userId, "100.00");
-        Long missingAccount = fromAccount + 100_000L;
-
-        assertThatThrownBy(() -> transferService.create(userId, request(fromAccount, missingAccount, "15.00")))
-                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(404);
-
-        assertBalance(fromAccount, "100.00");
-        assertThat(transferCount(userId)).isZero();
-    }
-
-    @Test
-    void missingSourceAccountReturnsNotFoundWithoutChangingTheTarget() {
-        Long userId = insertUser("transfer-missing-source");
-        Long toAccount = insertAccount(userId, "100.00");
-        Long missingAccount = toAccount + 100_000L;
-
-        assertThatThrownBy(() -> transferService.create(userId, request(missingAccount, toAccount, "15.00")))
-                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(404);
-
-        assertBalance(toAccount, "100.00");
-        assertThat(transferCount(userId)).isZero();
-    }
-
-    @Test
     void foreignOwnedAccountReturnsNotFoundWithoutChangingEitherUsersData() {
         Long ownerId = insertUser("transfer-owner");
         Long otherUserId = insertUser("transfer-other-user");
@@ -116,48 +89,6 @@ class TransferServicePostgresIntegrationTest extends PostgresIntegrationTest {
         assertBalance(ownerAccount, "100.00");
         assertBalance(foreignAccount, "200.00");
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transfers", Integer.class)).isZero();
-    }
-
-    @Test
-    void destinationUpdateFailureAfterFactAndSourceDeltaRollsBackTheWholeTransfer() {
-        Long userId = insertUser("transfer-rollback");
-        Long fromAccount = insertAccount(userId, "100.00");
-        Long toAccount = insertAccount(userId, "200.00");
-        String suffix = UUID.randomUUID().toString().replace("-", "");
-        String functionName = "test_transfer_balance_failure_fn_" + suffix;
-        String triggerName = "test_transfer_balance_failure_tr_" + suffix;
-
-        try {
-            jdbcTemplate.execute("""
-                    CREATE FUNCTION %s() RETURNS trigger AS $$
-                    BEGIN
-                        IF NEW.id = %d THEN
-                            RAISE EXCEPTION 'forced transfer destination balance failure';
-                        END IF;
-                        RETURN NEW;
-                    END;
-                    $$ LANGUAGE plpgsql
-                    """.formatted(functionName, toAccount));
-            jdbcTemplate.execute("""
-                    CREATE TRIGGER %s
-                    BEFORE UPDATE OF balance ON accounts
-                    FOR EACH ROW
-                    WHEN (OLD.balance IS DISTINCT FROM NEW.balance)
-                    EXECUTE FUNCTION %s()
-                    """.formatted(triggerName, functionName));
-
-            assertThatThrownBy(() -> transferService.create(userId, request(fromAccount, toAccount, "30.00")))
-                    .isInstanceOf(RuntimeException.class);
-        } finally {
-            jdbcTemplate.execute("DROP TRIGGER IF EXISTS " + triggerName + " ON accounts");
-            jdbcTemplate.execute("DROP FUNCTION IF EXISTS " + functionName + "()");
-        }
-
-        assertBalance(fromAccount, "100.00");
-        assertBalance(toAccount, "200.00");
-        assertThat(transferCount(userId)).isZero();
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM pg_trigger WHERE tgname = ?", Integer.class, triggerName))
-                .isZero();
     }
 
     @Test

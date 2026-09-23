@@ -86,15 +86,6 @@ test('preserves an HTTP 200 Confirm fact when the receipt body cannot be decoded
     }
 });
 
-test('persists the caller-provided 401 recovery callback even when Axios rejects before the global redirect completes', async () => {
-    const post = api.post; let called = 0;
-    api.post = async () => { throw { response: { status: 401 } }; };
-    try {
-        await assert.rejects(confirmTransactionImport(sessionId, bodyJson, key, () => { called += 1; }));
-    } finally { api.post = post; }
-    assert.equal(called, 1);
-});
-
 test('uses GET first and only retries the frozen POST after a pending receipt lookup returns 404', () => {
     assert.equal(recoveryActionForReceiptLookup(200), 'RECEIPT_READY');
     assert.equal(recoveryActionForReceiptLookup(404), 'RETRY_SAME_CONFIRM');

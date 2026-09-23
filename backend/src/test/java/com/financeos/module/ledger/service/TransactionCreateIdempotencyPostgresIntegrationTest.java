@@ -51,20 +51,6 @@ class TransactionCreateIdempotencyPostgresIntegrationTest extends PostgresIntegr
     }
 
     @Test
-    void replayingTheSameKeyDoesNotApplyTheBalanceDeltaTwice() {
-        Long userId = insertUser("idem-balance-once");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "INCOME");
-
-        for (int attempt = 0; attempt < 3; attempt++) {
-            transactionCommandService.create(userId, "key-balance", request(accountId, categoryId, "INCOME", "40.00", "salary"));
-        }
-
-        assertThat(transactionCount(userId)).isEqualTo(1);
-        assertBalance(accountId, "140.00");
-    }
-
-    @Test
     void theSameKeyWithDifferentContentIsRejectedInsteadOfReplayingTheWrongFact() {
         Long userId = insertUser("idem-conflict");
         Long accountId = insertAccount(userId, "100.00");

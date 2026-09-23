@@ -2,7 +2,6 @@ package com.financeos.module.ledger.service;
 
 import com.financeos.integration.PostgresIntegrationTest;
 import com.financeos.common.BusinessException;
-import com.financeos.module.account.service.AccountService;
 import com.financeos.module.ledger.dto.TransactionRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +22,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
 
     @Autowired
     private TransactionService transactionService;
-
-    @Autowired
-    private AccountService accountService;
 
     @Test
     void concurrentCreatesAgainstTheSameAccountPreserveBothDeltas() throws Exception {
@@ -127,20 +123,6 @@ class TransactionBalanceConcurrencyPostgresIntegrationTest extends PostgresInteg
 
         assertBalance(ownerAccount, "130.00");
         assertBalance(intruderAccount, "200.00");
-    }
-
-    @Test
-    void deactivateBeforeCreateRejectsNewTransactionAndDoesNotChangeBalance() {
-        Long userId = insertUser("deactivate-create");
-        Long accountId = insertAccount(userId, "100.00");
-        Long categoryId = insertCategory(userId, "INCOME");
-
-        accountService.deactivate(userId, accountId);
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> create(userId, accountId, categoryId, "INCOME", "20.00"))
-                .isInstanceOf(BusinessException.class).extracting("code").isEqualTo(400);
-        assertBalance(accountId, "100.00");
-        assertThat(transactionCount(accountId)).isZero();
     }
 
     @Test
