@@ -1,13 +1,13 @@
 package com.financeos.module.ledger.controller;
 
 import com.financeos.common.ApiResponse;
+import com.financeos.module.ledger.dto.TransferRequest;
 import com.financeos.module.ledger.dto.TransferResponse;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import com.financeos.module.ledger.service.TransferService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import com.financeos.module.ledger.dto.TransferRequest;
-import com.financeos.module.ledger.service.TransferService;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransferController {
     private final TransferService transferService;
 
-    public TransferController(TransferService transferService){
+    public TransferController(TransferService transferService) {
         this.transferService = transferService;
     }
 

@@ -1,6 +1,6 @@
 # API
 
-本文记录 `zh-cn` 当前公开 HTTP 契约。事实来源是当前 15 个业务 Controller、DTO、Security 配置和异常映射；数据库表或内部 Service 不自动构成公开 API。
+本文记录 `zh-cn` 当前公开 HTTP 契约。事实来源是当前 16 个业务 Controller、DTO、Security 配置和异常映射；数据库表或内部 Service 不自动构成公开 API。
 
 ## 1. 通用约定
 
@@ -45,6 +45,7 @@ Header 名称不能互换。key 在用户域内使用，必须非空、无首尾
 | `AccountController` | `/api/v1/accounts` | Account 查询与维护 |
 | `CategoryController` | `/api/v1/categories` | Category 查询与创建 |
 | `TransactionController` | `/api/v1/transactions` | 普通流水 CRUD |
+| `TransferController` | `/api/v1/transfers` | Account 之间转账 |
 | `AssetController` | `/api/v1/assets` | Legacy Asset 与参考数据刷新 |
 | `DashboardController` | `/api/v1` | Dashboard |
 | `InvestmentInstrumentController` | `/api/v1/investment/instruments` | Instrument |
@@ -98,6 +99,14 @@ Header 名称不能互换。key 在用户域内使用，必须非空、无首尾
 | DELETE | `/api/v1/transactions/{id}` | 删除并反转旧 effect |
 
 请求字段为 accountId、categoryId、type、amount、currency、description、transactedAt。当前只接受 `INCOME`、`EXPENSE`、`ADJUSTMENT`。
+
+### Transfer
+
+| 方法 | 路径 | 请求与响应 |
+| --- | --- | --- |
+| POST | `/api/v1/transfers` | 请求 `fromAccountId`、`toAccountId`、`amount`、`transactedAt`、可选 `description`；响应包含 `id`、两侧 account ID、`amount`、`currency`、`description`、`transactedAt`、`createdAt` |
+
+`amount` 必须为正数，最多 2 位小数且符合 `NUMERIC(18,2)`。同一账户作为转出和转入账户返回 400；账户不存在或不属于当前用户返回 404。币种由服务端设为 CNY。
 
 ### Dashboard
 
