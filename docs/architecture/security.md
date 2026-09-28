@@ -70,7 +70,8 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 - 普通 GET 不调用外部服务；
 - Provider 返回的 symbol、币对、价格和时间必须校验；
 - Provider 失败不得修改 Account、Transaction、InvestmentTransaction 或成本投影。
-- AI Provider Foundation 默认关闭，当前没有用户请求入口、Finance 数据读取、Tool 或数据库写入；启用时要求完整配置，并将调用失败映射为脱敏错误。
+- AI Provider Foundation 默认关闭；内部 Finance Tools 只调用既有只读查询服务，不调用 Cloud AI、Market 或 FX Provider，也不执行刷新或数据库写入。当前没有用户请求入口或模型自动调用。
+- Tool 的 `authenticatedUserId` 只能由未来受信任的服务端认证上下文提供，不属于模型参数；各既有查询服务继续按该用户 ID 限定财务数据。接入 HTTP 或模型调用时，必须先落实这一身份注入边界。
 
 ## 7. 错误与日志
 

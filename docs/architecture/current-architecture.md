@@ -31,7 +31,7 @@ flowchart TB
 - PostgreSQL 保存用户财务事实、不可变审计记录和受控投影；
 - Import 原文件与 frozen preview plan 使用服务端私有临时存储，取消、过期或提交后清理；
 - 外部行情与 FX 只形成参考快照，不能修改账务真值。
-- AI Provider Foundation 默认关闭，目前只有内部调用能力；不读取 Finance 数据，也不修改账务真值。
+- AI Provider Foundation 默认关闭；AI 模块另有内部只读 Finance Tool 边界，当前没有用户入口或模型自动调用，Tool 不修改账务真值。
 
 ## 2. 后端模块
 
@@ -51,7 +51,7 @@ flowchart TB
 | `investment.read` | Portfolio、Position、logical transaction、audit timeline | asset、investment facts |
 | `importing` | CSV/XLSX 解析、mapping、Preview、Confirm、Receipt、cleanup | ledger、account、category |
 | `dashboard` | 用户财务概览聚合 | account、ledger、asset |
-| `ai` | 可替换的 AI Provider 基础能力；当前仅有单一 Cloud 实现 | 外部 AI API，不依赖金融数据模块 |
+| `ai` | 单一 Cloud AI Provider 基础能力和内部只读 Finance Tools | Provider 调用独立于既有 Finance Query Service；Tool 只依赖只读 Service |
 | `common` / `config` | 统一响应、异常、分页与应用配置 | 不承载业务规则 |
 
 Controller 只处理 HTTP 边界；Service 负责业务编排与事务；Mapper 负责数据访问；DTO 隔离外部契约与持久化对象。
@@ -140,6 +140,14 @@ Confirm 的所有金融事实和 Receipt evidence 位于同一 PostgreSQL 事务
 - Portfolio 与 Position 当前值来自受控 `Asset` 投影；
 - audit timeline 和 immutable receipt 表达历史，不替代当前投影；
 - 普通 GET 不调用外部 Provider，也不获取金融写锁。
+- 内部 Finance Tools 分别复用 `DashboardService`、`TransactionQueryService` 和 `InvestmentPortfolioQueryService`，不直接访问 Mapper 或执行 SQL；当前没有 HTTP 入口或自动 Tool Calling。
+- 财务概览沿用 Dashboard 的账户余额加 `Asset.currentPrice` 口径；投资组合的 `referenceValuation` 仅用缓存行情与汇率计算，带覆盖率、时效状态和缺失值，不代表账务资产总额。Portfolio 仅覆盖 transaction-driven Position。
+
+| 内部 Tool | 既有只读服务 | 输出口径 |
+| --- | --- | --- |
+| `getFinancialOverview` | `DashboardService` | CNY 财务资产总额、当前月收支；当前无负债模型，净值等于资产总额 |
+| `getMonthlyCashFlow` | `TransactionQueryService` | 指定连续 1–12 个自然月的 CNY 收入、支出、净现金流；无记录月份补零 |
+| `getInvestmentPortfolioSummary` | `InvestmentPortfolioQueryService` | transaction-driven 持仓计数与成本，以及可缺失的缓存市场参考估值 |
 
 ## 7. 安全与一致性
 
@@ -162,4 +170,4 @@ JWT principal 是 user ID。所有用户资源查询、锁定和写入同时包�
 - 长期技术决策新增 ADR，不把 ADR 合并进本文件；
 - 当前实现变化同步更新本文件、Database、API 和对应 domain 文档；
 - 阶段设计与验收材料归档，不作为当前架构的替代来源；
-- 不为 Roadmap 候选提前引入微服务、Redis、MQ、AI Agent 或完整交易模型；AI Provider Foundation 的边界见 [ADR-016](../ADR/ADR-016-ai-provider-foundation.md)。
+- 不为 Roadmap 候选提前引入微服务、Redis、MQ、AI Agent 或完整交易模型；AI Provider Foundation 与只读 Tool 边界分别见 [ADR-016](../ADR/ADR-016-ai-provider-foundation.md)、[ADR-017](../ADR/ADR-017-read-only-finance-tools.md)。

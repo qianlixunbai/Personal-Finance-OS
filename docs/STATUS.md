@@ -2,15 +2,15 @@
 
 > 本文件是 Personal Finance OS 当前状态的唯一事实来源。
 
-**核对基线：** `zh-cn` @ `0fef63c`
+**核对基线：** `zh-cn` @ `8a91a83`
 
-**核对日期：** 2026-08-29
+**核对日期：** 2026-09-28
 
 ## 当前产品阶段
 
-当前处于 **v3.0 Transaction Import Frontend 最终验收准备阶段**。
+**AI Phase 2 — Read-only Finance Tools** 已确认通过。AI Phase 1 Provider Foundation 已进入正式基线；Phase 2 仅建立内部受控 Finance Tool 读取边界，当前没有用户入口、模型自动 Tool Calling 或 Agent。
 
-Transaction Import Frontend A–D 已实现，当前代码覆盖 CSV / XLSX 上传、同一 Session 字段映射、服务端分页 Preview、warning acknowledgement、Confirm、未知结果恢复、权威 Receipt 路由、reload、多标签页保护和真实浏览器 E2E。
+Transaction Import Frontend A–D 已实现，当前代码覆盖 CSV / XLSX 上传、同一 Session 字段映射、服务端分页 Preview、warning acknowledgement、Confirm、未知结果恢复、权威 Receipt 路由、reload、多标签页保护和真实浏览器 E2E。其最终独立 Closing Re-Review 仍待完成。
 
 最新 Frontend Closing Review 的结论仍是：
 
@@ -32,6 +32,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | 投资读取与 UI | Portfolio、Position、logical transaction、audit timeline、投资命令与纠正 UI |
 | Transaction Import Backend | CSV / XLSX、mapping、Preview、validation、Confirm、权威 Receipt |
 | Transaction Import Frontend | 上传到回执的完整 UI、恢复、lossless amount transport 与 E2E；最终独立 Closing Re-Review 待完成 |
+| AI | Phase 1 单一 Cloud Provider Foundation；Phase 2 内部只读财务概览、月度现金流和投资组合摘要 Tool 已确认通过，尚无模型自动调用 |
 | 工程基础 | Flyway V1–V17、PostgreSQL Testcontainers、Docker、GitHub Actions |
 
 ## 已关闭的重要阶段
@@ -49,13 +50,11 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 
 ## 当前正在推进的工作
 
-1. 对 Transaction Import Frontend A–D 执行最终独立、只读 Closing Re-Review。
-2. 在最终关闭前复核最近两次 auth/reload recovery remediation 是否继续满足 frozen contract。
-3. 保持当前功能边界，不自动启动下一项产品能力。
+1. Transaction Import Frontend A–D 的最终独立、只读 Closing Re-Review 仍待完成。
 
 ## 下一核心能力
 
-下一项确定工作是完成 **Transaction Import Frontend 最终独立 Closing Re-Review**。其后尚未冻结新的产品实施阶段；[Roadmap](product/roadmap.md) 中的能力均须经过范围与验收标准确认后才能进入实施。
+下一项尚未确定新的 AI 实施阶段。模型自动 Tool Calling、用户入口以及完整 AI Analyst 均不属于已完成能力；Transaction Import Frontend 最终独立 Closing Re-Review 仍待完成。
 
 ## 主要未完成范围
 
