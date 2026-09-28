@@ -48,6 +48,7 @@ backend/src/main/java/com/financeos/
     │   ├── storage/         私有临时文件存储
     │   ├── dto/、entity/、mapper/
     │   └── config/
+    ├── ai/                  默认关闭的 AI Provider Foundation；无金融数据访问
     └── dashboard/           财务概览聚合
 ```
 

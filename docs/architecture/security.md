@@ -23,13 +23,14 @@ JWT expiration 当前为 24 小时。客户端不能通过请求体声明 user I
 
 ## 3. Secret 管理
 
-当前至少需要三类独立 secret：
+当前有三类必需 secret；启用 Cloud AI 时另需独立 API Key：
 
 | Secret | 用途 |
 | --- | --- |
 | `JWT_SECRET` | JWT 签名 |
 | `MIGRATION_PREVIEW_SECRET` | Legacy opening preview token |
 | `FINANCE_IMPORT_CONFIRM_TOKEN_SECRET` | Transaction Import Confirm preview token |
+| `FINANCE_AI_API_KEY` | 可选 Cloud AI Provider 凭据；仅在 AI 启用时要求配置 |
 
 生产代码不提供 Import Confirm 的公开默认 secret；未显式配置或长度不足 32 字符时应用安全 fail-fast。secret 不得写入源码、已跟踪 `.env`、日志、截图或 Markdown 示例的真实值。
 
@@ -64,11 +65,12 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 ## 6. 外部 Provider 边界
 
 - Market Data 与 FX 默认关闭；
-- 只有显式 refresh 才能调用 Provider；
-- connect/read timeout、TTL、用户级/全局限流与 single-flight 限制调用；
+- Market Data 与 FX 只有显式 refresh 才能调用 Provider；
+- Market Data 与 FX 使用 connect/read timeout、TTL、用户级/全局限流与 single-flight 限制调用；
 - 普通 GET 不调用外部服务；
 - Provider 返回的 symbol、币对、价格和时间必须校验；
 - Provider 失败不得修改 Account、Transaction、InvestmentTransaction 或成本投影。
+- AI Provider Foundation 默认关闭，当前没有用户请求入口、Finance 数据读取、Tool 或数据库写入；启用时要求完整配置，并将调用失败映射为脱敏错误。
 
 ## 7. 错误与日志
 

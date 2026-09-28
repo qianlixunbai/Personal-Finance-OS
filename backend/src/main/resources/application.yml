@@ -57,6 +57,15 @@ fx-data:
     per-user-per-minute: 5
     global-per-minute: 30
 
+finance-ai:
+  enabled: ${FINANCE_AI_ENABLED:false}
+  provider: ${FINANCE_AI_PROVIDER:}
+  base-url: ${FINANCE_AI_BASE_URL:}
+  api-key: ${FINANCE_AI_API_KEY:}
+  model: ${FINANCE_AI_MODEL:}
+  connect-timeout: ${FINANCE_AI_CONNECT_TIMEOUT:3s}
+  read-timeout: ${FINANCE_AI_READ_TIMEOUT:30s}
+
 server:
   port: 8080
 

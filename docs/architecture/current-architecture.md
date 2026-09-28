@@ -15,6 +15,7 @@ flowchart TB
     FILES[(私有临时 Import payload / plan)]
     MARKET[Market Data Provider]
     FX[FX Provider]
+    AI[Cloud AI Provider]
 
     USER --> FE
     FE -->|REST / JWT| API
@@ -22,6 +23,7 @@ flowchart TB
     API --> FILES
     API -->|显式 refresh| MARKET
     API -->|显式 refresh| FX
+    API -->|AI 模块内部调用，当前无用户入口| AI
 ```
 
 - 前端负责交互、基础输入检查、状态恢复和服务端结果展示；
@@ -29,6 +31,7 @@ flowchart TB
 - PostgreSQL 保存用户财务事实、不可变审计记录和受控投影；
 - Import 原文件与 frozen preview plan 使用服务端私有临时存储，取消、过期或提交后清理；
 - 外部行情与 FX 只形成参考快照，不能修改账务真值。
+- AI Provider Foundation 默认关闭，目前只有内部调用能力；不读取 Finance 数据，也不修改账务真值。
 
 ## 2. 后端模块
 
@@ -48,6 +51,7 @@ flowchart TB
 | `investment.read` | Portfolio、Position、logical transaction、audit timeline | asset、investment facts |
 | `importing` | CSV/XLSX 解析、mapping、Preview、Confirm、Receipt、cleanup | ledger、account、category |
 | `dashboard` | 用户财务概览聚合 | account、ledger、asset |
+| `ai` | 可替换的 AI Provider 基础能力；当前仅有单一 Cloud 实现 | 外部 AI API，不依赖金融数据模块 |
 | `common` / `config` | 统一响应、异常、分页与应用配置 | 不承载业务规则 |
 
 Controller 只处理 HTTP 边界；Service 负责业务编排与事务；Mapper 负责数据访问；DTO 隔离外部契约与持久化对象。
@@ -158,4 +162,4 @@ JWT principal 是 user ID。所有用户资源查询、锁定和写入同时包�
 - 长期技术决策新增 ADR，不把 ADR 合并进本文件；
 - 当前实现变化同步更新本文件、Database、API 和对应 domain 文档；
 - 阶段设计与验收材料归档，不作为当前架构的替代来源；
-- 不为 Roadmap 候选提前引入微服务、Redis、MQ、AI 或完整交易模型。
+- 不为 Roadmap 候选提前引入微服务、Redis、MQ、AI Agent 或完整交易模型；AI Provider Foundation 的边界见 [ADR-016](../ADR/ADR-016-ai-provider-foundation.md)。
