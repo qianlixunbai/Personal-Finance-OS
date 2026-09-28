@@ -70,8 +70,10 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 - 普通 GET 不调用外部服务；
 - Provider 返回的 symbol、币对、价格和时间必须校验；
 - Provider 失败不得修改 Account、Transaction、InvestmentTransaction 或成本投影。
-- AI Provider 默认关闭；内部受控编排仅允许模型请求三个手写 allowlist 的只读 Finance Tool。Tool 只调用既有只读查询服务，不执行 Market / FX 刷新或数据库写入。当前没有用户请求入口。
-- 内部 `ask` 的 `authenticatedUserId` 必须由受信任 Java 调用方提供，Tool schema 和模型参数均不包含用户 ID；既有查询服务继续按该用户 ID 限定财务数据。后续接入 HTTP 时须从已认证 principal 注入身份。
+- AI Provider 默认关闭；`POST /api/v1/ai/ask` 只允许 JWT 认证用户调用。受控编排仅允许模型请求三个手写 allowlist 的只读 Finance Tool。Tool 只调用既有只读查询服务，不执行 Market / FX 刷新或数据库写入。
+- HTTP Controller 从已认证的 `Long` principal 注入 `authenticatedUserId`；请求体、Tool schema 和模型参数均不包含用户 ID。既有查询服务继续按该用户 ID 限定财务数据。
+- `question` 拒绝空白、超长和未知 JSON 字段。单实例用户级内存限流默认每分钟 8 次，可由 `FINANCE_AI_USER_REQUEST_LIMIT_PER_MINUTE` 调整；超限在编排器调用前返回 429。多实例的总量保护需后续设计。
+- AI 回答是基于只读 Tool Fact 的模型解释，不是金融真值；不保存到 Account、Transaction、Investment 或 Dashboard。当前无聊天历史、Memory 或流式输出。
 - 模型参数视为不可信输入；未知 Tool、额外参数、格式错误和预算超限立即失败。Tool 结果仅含 Finance Fact DTO，Provider 与 Tool 错误均不得暴露凭据、请求正文、财务结果或内部异常。
 
 ## 7. 错误与日志
@@ -84,6 +86,8 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 - 其他用户资源是否存在。
 
 一致性失败返回脱敏 500；锁超时和 deadlock 映射为可重试冲突；数据库不可用统一返回服务不可用。Import domain error 只暴露稳定 code 和必要的 retryable 属性。
+
+AI HTTP 错误只返回固定的脱敏消息；不在应用日志中记录完整 question、Tool result、Provider response、财务金额、Authorization、JWT 或 API Key。
 
 ## 8. 客户端恢复安全
 

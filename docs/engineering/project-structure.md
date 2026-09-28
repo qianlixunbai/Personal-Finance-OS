@@ -48,7 +48,7 @@ backend/src/main/java/com/financeos/
     │   ├── storage/         私有临时文件存储
     │   ├── dto/、entity/、mapper/
     │   └── config/
-    ├── ai/                  默认关闭的 Cloud Provider、受控编排与三个只读 Finance Tools
+    ├── ai/                  认证单轮问答 API、默认关闭的 Cloud Provider、受控编排与三个只读 Finance Tools
     └── dashboard/           财务概览聚合
 ```
 

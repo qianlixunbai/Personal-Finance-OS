@@ -1,6 +1,6 @@
 # API
 
-本文记录 `zh-cn` 当前公开 HTTP 契约。事实来源是当前 16 个业务 Controller、DTO、Security 配置和异常映射；数据库表或内部 Service 不自动构成公开 API。
+本文记录 `zh-cn` 当前公开 HTTP 契约。事实来源是当前业务 Controller、DTO、Security 配置和异常映射；数据库表或内部 Service 不自动构成公开 API。
 
 ## 1. 通用约定
 
@@ -57,6 +57,7 @@ Header 名称不能互换。key 在用户域内使用，必须非空、无首尾
 | `TransactionImportPreviewController` | `/api/v1/imports/transactions` | upload、mapping、Preview、rows、cancel |
 | `TransactionImportConfirmController` | `/api/v1/imports/transactions` | Confirm |
 | `TransactionImportBatchController` | `/api/v1/imports/transactions/batches` | Receipt GET |
+| `AiController` | `/api/v1/ai` | 认证用户单轮 AI 问答 |
 
 ## 3. 基础财务
 
@@ -234,7 +235,28 @@ Confirm 不接受客户端 rows、余额或 Account impacts。exact duplicate、
 
 Receipt 包含 Session/Batch、状态、文件名和 digest、row counts、transaction references、Account impacts、confirmedAt、contractVersion 与 resultDigest。临时 PreviewPlan 清理后仍可读取。
 
-## 10. 错误语义
+## 10. AI Analyst 单轮问答
+
+| 属性 | 契约 |
+| --- | --- |
+| 方法与路径 | `POST /api/v1/ai/ask` |
+| 身份 | `Authorization: Bearer <JWT>`；user ID 来自服务端 `Long` principal |
+| 请求 | `{"question":"我的财务概览怎么样？"}`；必填、非空白、最多 3000 字符；未知字段拒绝 |
+| 成功响应 | `{"code":200,"message":"success","data":{"answer":"..."}}` |
+| 调用边界 | 用户级每分钟 8 次内存限流（可配置）；随后调用 `FinanceAiOrchestrator.ask` |
+
+请求不接受 `userId`、Provider、模型、Tool、系统指令或调用预算。回答仅是基于只读 Finance Tool Fact 的 AI 解释，不是新的金融事实。当前无会话、历史、持久化、Memory 或 streaming。
+
+| HTTP | AI 错误 |
+| --- | --- |
+| 400 | question 无效或 JSON 请求体不符合契约 |
+| 401 | JWT 缺失或无效 |
+| 429 | 本用户 AI 请求限流 |
+| 502 | Provider 响应格式无效 |
+| 503 | AI 关闭（固定消息“AI 服务未启用”）、Provider 不可用或受控 AI 编排失败 |
+| 500 | 未预期的服务端错误，响应脱敏 |
+
+## 11. 错误语义
 
 | HTTP | 当前语义 |
 | --- | --- |
@@ -245,7 +267,7 @@ Receipt 包含 Session/Batch、状态、文件名和 digest、row counts、trans
 | 409 | 幂等、replay、Session、warning、duplicate evidence 或锁冲突 |
 | 413 | Import 文件大小或行数超限 |
 | 415 | Import 扩展名、请求格式或 content type 不支持 |
-| 429 | Market / FX refresh 限流 |
+| 429 | Market / FX refresh 或 AI 用户级限流 |
 | 500 | 一致性失败或未知内部错误 |
 | 502 | Provider 返回无效数据 |
 | 503 | 数据库或 Provider 暂时不可用 |
@@ -256,6 +278,6 @@ Receipt 包含 Session/Batch、状态、文件名和 digest、row counts、trans
 
 CSV / XLSX parser 的超时分支构造业务 code `408`，但 `GlobalExceptionHandler.resolveHttpStatus` 当前没有 408 映射，会使用 HTTP 500。客户端不能把 HTTP 408 当作当前稳定契约；这是实现层待修复不一致，本轮文档任务未改代码。
 
-## 11. OpenAPI 边界
+## 12. OpenAPI 边界
 
 开发 profile 放行 `/v3/api-docs/**`、`/swagger-ui.html` 与 `/swagger-ui/**`；production profile 关闭 OpenAPI / Swagger UI。本文是人工维护的当前契约摘要，字段级真值仍以 Controller、DTO 和生成的开发环境 OpenAPI 为准。

@@ -65,6 +65,7 @@ finance-ai:
   model: ${FINANCE_AI_MODEL:}
   connect-timeout: ${FINANCE_AI_CONNECT_TIMEOUT:3s}
   read-timeout: ${FINANCE_AI_READ_TIMEOUT:30s}
+  user-request-limit-per-minute: ${FINANCE_AI_USER_REQUEST_LIMIT_PER_MINUTE:8}
 
 server:
   port: 8080

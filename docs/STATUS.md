@@ -2,13 +2,13 @@
 
 > 本文件是 Personal Finance OS 当前状态的唯一事实来源。
 
-**本阶段实施起点：** `zh-cn` @ `a68e3f9`
+**本阶段实施起点：** `zh-cn` @ `e33b4af`
 
-**核对日期：** 2026-09-28
+**核对日期：** 2026-09-29
 
 ## 当前产品阶段
 
-**AI Phase 3 — Controlled Tool Calling / Orchestration** 已完成并确认 GO。定向离线测试通过；据用户提供的 IDEA 手动运行输出，真实百炼 `deepseek-v4.1-flash` smoke 两次 HTTP 均为 200，模型请求 `getFinancialOverview`、接受虚构 Finance Fact 的 tool message，并返回与虚构金额一致的最终回答。Phase 1 Provider Foundation 与 Phase 2 Read-only Finance Tools 已进入正式基线。当前仍无用户聊天入口或自主 Agent。
+**AI Phase 4 — Authenticated AI Analyst HTTP API** 已实现并由用户确认 GO。离线定向测试与后端编译通过；据用户 2026-09-29 在 IDEA 启动后完成的真实 HTTP smoke：未认证请求返回 401，附加 `userId` 与空白问题均返回 400，认证用户问答返回 200、回答非空且响应只含统一包装与 `answer`。用户在本机核对了当前账号的数据范围，以及回答正文和后端日志未暴露 Tool/Provider 内部内容或敏感信息。Phase 3 已正式完成并确认 GO；其真实百炼 Tool Calling smoke 是前一阶段的历史证据。Phase 1 Provider Foundation 与 Phase 2 Read-only Finance Tools 已进入正式基线。当前仍无多轮聊天入口或自主 Agent。
 
 Transaction Import Frontend A–D 已实现，当前代码覆盖 CSV / XLSX 上传、同一 Session 字段映射、服务端分页 Preview、warning acknowledgement、Confirm、未知结果恢复、权威 Receipt 路由、reload、多标签页保护和真实浏览器 E2E。其最终独立 Closing Re-Review 仍待完成。
 
@@ -32,7 +32,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | 投资读取与 UI | Portfolio、Position、logical transaction、audit timeline、投资命令与纠正 UI |
 | Transaction Import Backend | CSV / XLSX、mapping、Preview、validation、Confirm、权威 Receipt |
 | Transaction Import Frontend | 上传到回执的完整 UI、恢复、lossless amount transport 与 E2E；最终独立 Closing Re-Review 待完成 |
-| AI | 单一 Cloud Provider、三个只读 Finance Tools，以及内部受控 Tool Calling；手写 allowlist、服务端身份传入、最多 3 轮 / 5 次 Tool 调用；无聊天 HTTP 入口 |
+| AI | JWT 认证单轮问答 `POST /api/v1/ai/ask`、用户级内存限流、脱敏错误；单一 Cloud Provider、三个只读 Finance Tools，以及受控 Tool Calling；手写 allowlist、服务端身份传入、最多 3 轮 / 5 次 Tool 调用；无历史、Memory 或 streaming |
 | 工程基础 | Flyway V1–V17、PostgreSQL Testcontainers、Docker、GitHub Actions |
 
 ## 已关闭的重要阶段
@@ -54,7 +54,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 
 ## 下一核心能力
 
-下一项 AI 能力尚未确定。用户聊天入口、完整 AI Analyst 与自主 Agent 均不属于已完成能力；Transaction Import Frontend 最终独立 Closing Re-Review 仍待完成。
+下一项 AI 能力尚未确定。多轮聊天、会话持久化、Memory、RAG、流式输出与自主 Agent 均不属于已完成能力；Transaction Import Frontend 最终独立 Closing Re-Review 仍待完成。
 
 ## 主要未完成范围
 

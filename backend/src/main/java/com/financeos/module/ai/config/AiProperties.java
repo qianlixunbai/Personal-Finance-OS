@@ -20,9 +20,13 @@ public class AiProperties {
     private String model;
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(30);
+    private int userRequestLimitPerMinute = 8;
 
     @PostConstruct
     public void validateEnabledConfiguration() {
+        if (userRequestLimitPerMinute <= 0) {
+            throw invalidConfiguration("user-request-limit-per-minute must be positive");
+        }
         if (!enabled) {
             return;
         }

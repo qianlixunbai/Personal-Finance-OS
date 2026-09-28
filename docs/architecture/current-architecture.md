@@ -23,7 +23,7 @@ flowchart TB
     API --> FILES
     API -->|显式 refresh| MARKET
     API -->|显式 refresh| FX
-    API -->|AI 模块内部调用，当前无用户入口| AI
+    API -->|认证用户单轮 AI 问答| AI
 ```
 
 - 前端负责交互、基础输入检查、状态恢复和服务端结果展示；
@@ -31,7 +31,7 @@ flowchart TB
 - PostgreSQL 保存用户财务事实、不可变审计记录和受控投影；
 - Import 原文件与 frozen preview plan 使用服务端私有临时存储，取消、过期或提交后清理；
 - 外部行情与 FX 只形成参考快照，不能修改账务真值。
-- AI Provider 默认关闭；内部 `FinanceAiOrchestrator` 可在有限轮次内让 Cloud AI 请求三个只读 Finance Tool，当前没有用户入口，Tool 不修改账务真值。
+- AI Provider 默认关闭；JWT 认证用户可通过 `POST /api/v1/ai/ask` 发起单轮问答。`FinanceAiOrchestrator` 在有限轮次内让 Cloud AI 请求三个只读 Finance Tool，Tool 不修改账务真值。
 
 ## 2. 后端模块
 
@@ -51,7 +51,7 @@ flowchart TB
 | `investment.read` | Portfolio、Position、logical transaction、audit timeline | asset、investment facts |
 | `importing` | CSV/XLSX 解析、mapping、Preview、Confirm、Receipt、cleanup | ledger、account、category |
 | `dashboard` | 用户财务概览聚合 | account、ledger、asset |
-| `ai` | 单一 Cloud AI Provider、内部受控 Tool Calling 和三个只读 Finance Tools | 编排层显式 allowlist；Tool 只依赖既有只读 Query Service |
+| `ai` | 认证用户单轮问答 API、单一 Cloud AI Provider、受控 Tool Calling 和三个只读 Finance Tools | 编排层显式 allowlist；Tool 只依赖既有只读 Query Service |
 | `common` / `config` | 统一响应、异常、分页与应用配置 | 不承载业务规则 |
 
 Controller 只处理 HTTP 边界；Service 负责业务编排与事务；Mapper 负责数据访问；DTO 隔离外部契约与持久化对象。
@@ -140,7 +140,7 @@ Confirm 的所有金融事实和 Receipt evidence 位于同一 PostgreSQL 事务
 - Portfolio 与 Position 当前值来自受控 `Asset` 投影；
 - audit timeline 和 immutable receipt 表达历史，不替代当前投影；
 - 普通 GET 不调用外部 Provider，也不获取金融写锁。
-- 内部 Finance Tools 分别复用 `DashboardService`、`TransactionQueryService` 和 `InvestmentPortfolioQueryService`，不直接访问 Mapper 或执行 SQL；受控 Tool Calling 仅有内部 Java 入口，没有 HTTP 聊天入口。
+- 内部 Finance Tools 分别复用 `DashboardService`、`TransactionQueryService` 和 `InvestmentPortfolioQueryService`，不直接访问 Mapper 或执行 SQL；认证用户的 HTTP Controller 只把服务端 principal 与问题交给受控编排器。每个请求无状态，不保存聊天记录。
 - 财务概览沿用 Dashboard 的账户余额加 `Asset.currentPrice` 口径；投资组合的 `referenceValuation` 仅用缓存行情与汇率计算，带覆盖率、时效状态和缺失值，不代表账务资产总额。Portfolio 仅覆盖 transaction-driven Position。
 
 | 内部 Tool | 既有只读服务 | 输出口径 |
@@ -151,7 +151,7 @@ Confirm 的所有金融事实和 Receipt evidence 位于同一 PostgreSQL 事务
 
 ## 7. 安全与一致性
 
-JWT principal 是 user ID。所有用户资源查询、锁定和写入同时包含 user ownership；跨用户与不存在保持安全 `404`。密码使用 BCrypt，生产 secret 必须外部注入。
+JWT principal 是 user ID。AI 问答只接受此服务端身份，受用户级内存限流保护；模型回答不是金融事实来源。所有用户资源查询、锁定和写入同时包含 user ownership；跨用户与不存在保持安全 `404`。密码使用 BCrypt，生产 secret 必须外部注入。
 
 事务、锁顺序、幂等与回滚见 [Consistency](consistency.md)；认证、文件解析和 Provider 边界见 [Security](security.md)。
 
@@ -170,4 +170,4 @@ JWT principal 是 user ID。所有用户资源查询、锁定和写入同时包�
 - 长期技术决策新增 ADR，不把 ADR 合并进本文件；
 - 当前实现变化同步更新本文件、Database、API 和对应 domain 文档；
 - 阶段设计与验收材料归档，不作为当前架构的替代来源；
-- 不为 Roadmap 候选提前引入微服务、Redis、MQ、自主 Agent 或完整交易模型；AI Provider、只读 Tool 与受控 Tool Calling 分别见 [ADR-016](../ADR/ADR-016-ai-provider-foundation.md)、[ADR-017](../ADR/ADR-017-read-only-finance-tools.md)、[ADR-018](../ADR/ADR-018-controlled-ai-tool-calling.md)。
+- 不为 Roadmap 候选提前引入微服务、Redis、MQ、自主 Agent 或完整交易模型；AI Provider、只读 Tool、受控 Tool Calling 与认证 HTTP 边界分别见 [ADR-016](../ADR/ADR-016-ai-provider-foundation.md)、[ADR-017](../ADR/ADR-017-read-only-finance-tools.md)、[ADR-018](../ADR/ADR-018-controlled-ai-tool-calling.md)、[ADR-019](../ADR/ADR-019-authenticated-ai-analyst-api.md)。

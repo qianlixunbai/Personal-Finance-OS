@@ -1,10 +1,15 @@
 package com.financeos.common;
 
+import com.financeos.module.ai.provider.AiErrorType;
+import com.financeos.module.ai.provider.AiProviderException;
+import com.financeos.module.ai.service.FinanceAiErrorType;
+import com.financeos.module.ai.service.FinanceAiException;
 import com.financeos.module.asset.marketdata.fx.provider.ExchangeRateProviderException;
 import com.financeos.module.investment.migration.LegacyMigrationConsistencyException;
 import com.financeos.module.investment.command.InvestmentWriteConsistencyException;
 import com.financeos.module.investment.command.InvestmentReversalConsistencyException;
 import com.financeos.module.investment.command.InvestmentReplacementConsistencyException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -16,6 +21,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
@@ -75,6 +82,39 @@ public class GlobalExceptionHandler {
             default -> "FX data is temporarily unavailable";
         };
         return ResponseEntity.status(resolveHttpStatus(status)).body(ApiResponse.error(status, message));
+    }
+
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAiProviderException(AiProviderException exception) {
+        AiErrorType errorType = exception.getErrorType();
+        if (errorType == AiErrorType.DISABLED) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error(503, "AI 服务未启用"));
+        }
+        if (errorType == AiErrorType.RESPONSE_FORMAT) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(502, "AI 服务返回了无效响应"));
+        }
+        if (errorType == AiErrorType.INVALID_REQUEST) {
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error(500, "服务器内部错误"));
+        }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(503, "AI 服务暂时不可用"));
+    }
+
+    @ExceptionHandler(FinanceAiException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFinanceAiException(FinanceAiException exception) {
+        FinanceAiErrorType errorType = exception.getErrorType();
+        if (errorType == FinanceAiErrorType.INVALID_QUESTION) {
+            return badRequest("问题不能为空");
+        }
+        if (errorType == FinanceAiErrorType.INVALID_USER) {
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error(500, "服务器内部错误"));
+        }
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(503, "AI 分析暂时不可用"));
     }
 
     @ExceptionHandler(BusinessException.class)
@@ -149,8 +189,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        log.error("Unexpected error", e);
+        if (isAiAskEndpoint()) {
+            log.error("Unexpected error on AI endpoint (type: {})", e.getClass().getSimpleName());
+        } else {
+            log.error("Unexpected error", e);
+        }
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "服务器内部错误"));
+    }
+
+    private boolean isAiAskEndpoint() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
+            return false;
+        }
+        HttpServletRequest request = attributes.getRequest();
+        return "/api/v1/ai/ask".equals(request.getRequestURI())
+                || "/api/v1/ai/ask".equals(request.getServletPath());
     }
 
     private ResponseEntity<ApiResponse<Void>> badRequest(String message) {
