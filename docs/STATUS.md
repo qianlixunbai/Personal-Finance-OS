@@ -2,13 +2,19 @@
 
 > 本文件是 Personal Finance OS 当前状态的唯一事实来源。
 
-**本阶段实施起点：** `zh-cn` @ `e33b4af`
+**本阶段实施起点：** `zh-cn` @ `bb2ff37948782a40180a312374c5a986087019cf`
 
-**核对日期：** 2026-09-29
+**核对日期：** 2026-09-30
 
 ## 当前产品阶段
 
-**AI Phase 4 — Authenticated AI Analyst HTTP API** 已实现并由用户确认 GO。离线定向测试与后端编译通过；据用户 2026-09-29 在 IDEA 启动后完成的真实 HTTP smoke：未认证请求返回 401，附加 `userId` 与空白问题均返回 400，认证用户问答返回 200、回答非空且响应只含统一包装与 `answer`。用户在本机核对了当前账号的数据范围，以及回答正文和后端日志未暴露 Tool/Provider 内部内容或敏感信息。Phase 3 已正式完成并确认 GO；其真实百炼 Tool Calling smoke 是前一阶段的历史证据。Phase 1 Provider Foundation 与 Phase 2 Read-only Finance Tools 已进入正式基线。当前仍无多轮聊天入口或自主 Agent。
+**AI Phase 5 — Frontend AI Analyst Entry：CLOSED — GO。** `/ai` 位于既有认证路由内，桌面侧栏与移动底栏均提供“AI 分析”入口。页面通过既有 Axios client 提交单个问题，只展示纯文本回答；快捷问题仅填充输入，新请求与失败保留上一条成功结果，且不保存历史或携带多轮上下文。本阶段保持后端零修改、无新增依赖。
+
+2026-09-30 离线验证：实现阶段 `npm run test:e2e:ai` 的 9 个定向 Playwright mock 用例实际通过（10.9s），覆盖认证导航、空白/trim/3000 上限、JWT/请求体、请求防重、旧结果保留/替换、429/502/503/500、401、HTML 文本安全和无历史持久化。1280px、820px、768px、390px、320px 的长回答无横向溢出；390px / 320px 的移动底栏六项点击区域分别约为 65 × 60px / 53 × 60px。另已查看虚构 mock 回答的桌面与窄屏截图。最终封板时再次运行 `npm run build`、`npm run lint`，均通过；E2E 通过后无生产代码修改，未重复 E2E 或真实 AI 调用。Vite 保留主 bundle 超过 500 kB 的构建提示，本阶段未调整打包结构。
+
+真实 runtime UI 验收依据：用户于 2026-09-30 完成 backend + frontend 人工 UI smoke 并确认 GO。正式导航可进入受认证保护的 `/ai`，建议问题只填充，用户提交后 loading 正常；真实 `POST /api/v1/ai/ask` 成功，回答符合当前登录用户的数据状态，且未暴露 Tool/Provider/userId 等内部结构。回答以安全纯文本展示，刷新不恢复问题或回答，390px / 320px 未发现明显横向溢出或导航不可用问题。此为用户确认的人工验证，区别于上述 mock 测试。
+
+**AI Phase 4 — Authenticated AI Analyst HTTP API** 已实现并由用户确认 GO。以下为历史证据：离线定向测试与后端编译通过；据用户 2026-09-29 在 IDEA 启动后完成的真实 HTTP smoke：未认证请求返回 401，附加 `userId` 与空白问题均返回 400，认证用户问答返回 200、回答非空且响应只含统一包装与 `answer`。用户在本机核对了当前账号的数据范围，以及回答正文和后端日志未暴露 Tool/Provider 内部内容或敏感信息。Phase 3 已正式完成并确认 GO；其真实百炼 Tool Calling smoke 是前一阶段的历史证据。Phase 1 Provider Foundation 与 Phase 2 Read-only Finance Tools 已进入正式基线。当前仍无多轮聊天入口或自主 Agent。
 
 Transaction Import Frontend A–D 已实现，当前代码覆盖 CSV / XLSX 上传、同一 Session 字段映射、服务端分页 Preview、warning acknowledgement、Confirm、未知结果恢复、权威 Receipt 路由、reload、多标签页保护和真实浏览器 E2E。其最终独立 Closing Re-Review 仍待完成。
 
@@ -32,7 +38,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | 投资读取与 UI | Portfolio、Position、logical transaction、audit timeline、投资命令与纠正 UI |
 | Transaction Import Backend | CSV / XLSX、mapping、Preview、validation、Confirm、权威 Receipt |
 | Transaction Import Frontend | 上传到回执的完整 UI、恢复、lossless amount transport 与 E2E；最终独立 Closing Re-Review 待完成 |
-| AI | JWT 认证单轮问答 `POST /api/v1/ai/ask`、用户级内存限流、脱敏错误；单一 Cloud Provider、三个只读 Finance Tools，以及受控 Tool Calling；手写 allowlist、服务端身份传入、最多 3 轮 / 5 次 Tool 调用；无历史、Memory 或 streaming |
+| AI | `/ai` 前端只读分析入口，复用 Axios / JWT，最多 3000 字符、请求防重、纯文本回答与稳定错误提示；JWT 认证单轮问答 `POST /api/v1/ai/ask`、用户级内存限流、脱敏错误；单一 Cloud Provider、三个只读 Finance Tools，以及受控 Tool Calling；手写 allowlist、服务端身份传入、最多 3 轮 / 5 次 Tool 调用；无历史、Memory 或 streaming |
 | 工程基础 | Flyway V1–V17、PostgreSQL Testcontainers、Docker、GitHub Actions |
 
 ## 已关闭的重要阶段
@@ -45,6 +51,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | v3.0 Investment Ledger / Write / Read | CLOSED — GO | [Investment Reviews](archive/review/README.md) |
 | Investment Command & Correction UI | CLOSED — GO | [Closing Review](archive/review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) |
 | Transaction Import Contract / Backend Foundation / Preview / Confirm | CLOSED — GO | [Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md) |
+| AI Phase 5 — Frontend AI Analyst Entry | CLOSED — GO | 本文件记录的离线验证与用户 2026-09-30 真实人工 UI smoke 确认 |
 
 各阶段的 HEAD、测试数字、P0/P1/P2/P3 和 GO/NO-GO 只以对应 Closing Review 的历史快照为准。
 
@@ -54,7 +61,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 
 ## 下一核心能力
 
-下一项 AI 能力尚未确定。多轮聊天、会话持久化、Memory、RAG、流式输出与自主 Agent 均不属于已完成能力；Transaction Import Frontend 最终独立 Closing Re-Review 仍待完成。
+AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话持久化、Memory、RAG、流式输出与自主 Agent 均不属于已完成能力；Transaction Import Frontend 最终独立 Closing Re-Review 仍待完成。
 
 ## 主要未完成范围
 
@@ -78,6 +85,7 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 
 ## 最近正式验收依据
 
+- AI Phase 5：本文件记录的 9 个定向 mock E2E 通过、封板 build/lint 复验，以及用户 2026-09-30 真实人工 UI smoke GO。
 - 后端 Import Confirm：[Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)，结论为 `CLOSED — GO`。
 - Import Frontend：[Frontend Closing Review](archive/review/V3.0-Transaction-Import-Frontend-Closing-Review.md)，记录 A–D 实现、两次最新 remediation 与验证证据，但明确保留最终独立 Closing Re-Review。
 

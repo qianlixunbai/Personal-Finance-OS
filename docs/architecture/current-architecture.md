@@ -63,10 +63,13 @@ React 应用当前提供：
 - `/` Dashboard；
 - `/accounts`、`/assets`、`/transactions`；
 - `/investments` 投资读取、命令与纠正工作区；
+- `/ai` 只读 AI 财务分析入口；
 - `/transactions/import` 普通流水导入工作区；
 - `/transactions/import/receipts/:batchId` 权威回执路由。
 
 `src/api/` 封装 REST 调用，`src/hooks/` 编排投资与 Import 状态机，`src/components/` 提供可复用 UI。前端不重新计算余额、成本、PnL、duplicate evidence 或 Receipt digest。
+
+AI 入口沿用 `PrivateRoute`、桌面侧栏和移动底栏，通过 `src/api/ai.ts` 调用既有 Axios client 的 `POST /ai/ask`。JWT 与 401 登录失效仍由全局 interceptor 处理，请求仅包含 trim 后的 `question`，输入上限为 3000 字符。建议问题只填充输入框，须由用户提交；请求期间禁用提交与输入，不自动重试。新请求与失败均保留上一条成功回答及对应问题，新成功结果替换旧结果。回答使用 React 纯文本展示并保留换行，不解析模型 HTML 或 Markdown；页面只在内存中保存当前输入与最后成功结果，不保存聊天历史或提供多轮上下文。
 
 Import Confirm 与 Receipt GET 使用 raw text + lossless JSON 解码，避免 JavaScript `Number` 破坏服务端金额精度。pending intent 只保存用户、Session/Batch、幂等键、path、精确 JSON body 与恢复状态，不保存文件、Preview rows、Receipt 或余额。
 

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import AiAnalyst from './pages/AiAnalyst';
 import Accounts from './pages/Accounts';
 import Assets from './pages/Assets';
 import Transactions from './pages/Transactions';
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
                 <Route index element={<Dashboard />} />
+                <Route path="ai" element={<AiAnalyst />} />
                 <Route path="accounts" element={<Accounts />} />
                 <Route path="assets" element={<Assets />} />
                 <Route path="transactions" element={<Transactions />} />

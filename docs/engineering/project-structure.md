@@ -103,7 +103,7 @@ frontend/
 │   │   ├── importing/       Upload/Mapping/Preview/Confirm/Receipt
 │   │   └── investment/      投资命令与 pending recovery
 │   ├── hooks/               Investment / Import coordinator
-│   ├── pages/               基础财务、Investments、Transaction Import
+│   ├── pages/               基础财务、Investments、Transaction Import、AiAnalyst
 │   ├── types/               API 与恢复状态类型
 │   ├── utils/               格式、cursor、lossless transport、storage
 │   ├── App.tsx              路由
@@ -115,7 +115,7 @@ frontend/
 └── Dockerfile
 ```
 
-当前路由覆盖 Dashboard、Accounts、Assets、Transactions、Investments、Transaction Import 和 Receipt。
+当前路由覆盖 Dashboard、Accounts、Assets、Transactions、Investments、Transaction Import、Receipt 和 `/ai` AI 财务分析。AI 的薄 API 封装位于 `src/api/ai.ts`，复用统一 Axios client；页面位于 `src/pages/AiAnalyst.tsx`，是无历史的单轮只读分析入口。
 
 ## 6. Docker、CI 与脚本
 
