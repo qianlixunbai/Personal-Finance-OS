@@ -27,6 +27,7 @@
 - Import Receipt 前端使用 lossless JSON transport 读取 Account impact 金额；
 - 客户端不能提交 gross/net/cash delta、余额、receipt、projection、currency、user ID 或服务端 posting time；
 - 普通 Account / Asset / Transaction 继续使用各自现有 DTO，不套用投资命令 schema。
+- 普通 Transaction 表单以精确的十进制 JSON string 提交 `amount`；现有 Jackson `BigDecimal` 绑定同时接受 JSON number 和 string，服务端 scale、范围及符号校验不变。普通流水响应仍为 JSON number，交易页面局部使用 lossless JSON 解码并保留金额字符串，包含列表展示与编辑回填。
 
 ### 幂等 Header
 

@@ -45,6 +45,27 @@ class TransactionImportConfirmRuntimeIntegrationTest extends PostgresIntegration
     @LocalServerPort private int port;
 
     @Test
+    void losslessImportAmountStillPersistsExactFactBalanceAndReceiptOverRealHttp() throws Exception {
+        User user = registerAndLogin("runtime-c7-import");
+        long accountId = account(user.id(), "Cash");
+        long categoryId = category(user.id(), "Food");
+        String amount = "100000000000000.01";
+        JsonNode preview = preview(user, "c7.csv", "text/csv", CSV.replace("12.34", amount).getBytes(StandardCharsets.UTF_8), mapping(accountId, categoryId));
+        ResponseEntity<String> response = exchange(HttpMethod.POST, "/api/v1/imports/transactions/" + preview.at("/data/importSessionId").asText() + "/confirm",
+                bearer(user, "runtime-c7-import-key"), Map.of("previewToken", preview.at("/data/previewToken").asText(), "acknowledgedWarningIds", List.of()));
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        JsonNode receipt = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readTree(response.getBody());
+        assertThat(receipt.at("/data/receipt/accountImpacts/0/delta").decimalValue()).isEqualByComparingTo("-" + amount);
+        assertThat(receipt.at("/data/receipt/accountImpacts/0/balanceAfter").decimalValue()).isEqualByComparingTo("-" + amount);
+        assertThat(jdbcTemplate.queryForObject("SELECT amount FROM transactions WHERE account_id = ?", java.math.BigDecimal.class, accountId)).isEqualByComparingTo(amount);
+        assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id = ?", java.math.BigDecimal.class, accountId)).isEqualByComparingTo("-" + amount);
+        ResponseEntity<String> get = exchange(HttpMethod.GET, "/api/v1/imports/transactions/batches/" + receipt.at("/data/receipt/importBatchId").asText(), bearer(user, null), null);
+        assertThat(get.getStatusCode().value()).isEqualTo(200);
+        JsonNode retrieved = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readTree(get.getBody());
+        assertThat(retrieved.at("/data/accountImpacts/0/balanceAfter").decimalValue()).isEqualByComparingTo("-" + amount);
+    }
+
+    @Test
     void csvRuntimeFlowUsesJwtReplaysAuthoritativeReceiptAndRejectsIdempotencyConflict() throws Exception {
         User user = registerAndLogin("runtime-csv");
         long accountId = account(user.id(), "Cash");
