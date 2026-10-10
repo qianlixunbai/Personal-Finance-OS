@@ -23,6 +23,7 @@ ADR 保存长期有效的架构和技术决策。ADR 独立于当前架构和历
 | [ADR-017](ADR-017-read-only-finance-tools.md) | AI 只读 Finance Tool 边界与用户身份来源 |
 | [ADR-018](ADR-018-controlled-ai-tool-calling.md) | 有界、显式 allowlist 的 AI Tool Calling |
 | [ADR-019](ADR-019-authenticated-ai-analyst-api.md) | JWT 认证的单轮 AI Analyst HTTP API |
+| [ADR-020](ADR-020-import-receipt-historical-transaction-reference.md) | Import Receipt 历史流水引用与 INSERT 校验 |
 
 编号 002–004 当前没有对应已跟踪 ADR；不为填补编号而创建空文件。
 

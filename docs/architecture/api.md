@@ -97,9 +97,11 @@ Header 名称不能互换。key 在用户域内使用，必须非空、无首尾
 | GET | `/api/v1/transactions/{id}` | 详情 |
 | POST | `/api/v1/transactions` | 创建并应用一次余额 effect |
 | PUT | `/api/v1/transactions/{id}` | 更新并反转旧 effect、应用新 effect |
-| DELETE | `/api/v1/transactions/{id}` | 删除并反转旧 effect |
+| DELETE | `/api/v1/transactions/{id}` | 删除并反转当前流水的 effect |
 
 请求字段为 accountId、categoryId、type、amount、currency、description、transactedAt。当前只接受 `INCOME`、`EXPENSE`、`ADJUSTMENT`。
+
+导入创建的普通流水同样允许标准 PUT / DELETE。成功 DELETE 返回 HTTP 200；PUT 后 DELETE 撤销当前金额、类型与账户对应的 effect，不使用原始 Import Receipt Impact。原始 Import Receipt 保持不变；已删除流水再次 GET / DELETE 返回 404，跨用户访问也返回 404。
 
 ### Transfer
 
@@ -234,6 +236,8 @@ Confirm 不接受客户端 rows、余额或 Account impacts。exact duplicate、
 | GET | `/api/v1/imports/transactions/batches/{importBatchId}` | 从 committed persistence 重建用户自己的权威 Receipt |
 
 Receipt 包含 Session/Batch、状态、文件名和 digest、row counts、transaction references、Account impacts、confirmedAt、contractVersion 与 resultDigest。临时 PreviewPlan 清理后仍可读取。
+
+`createdTransactionId` 对应的 transaction reference 是创建时的历史证据，不保证当前流水存在。标准 PUT / DELETE 不改变原始 Receipt、counts、Account impacts 或 `resultDigest`。删除后原 Confirm 的同 key、同 intent 重放仍返回 HTTP 200、原始 Receipt 与 `idempotentReplay=true`，不重建流水或再次影响余额；Receipt 与 Replay 的用户隔离不变。详见 [ADR-020](../ADR/ADR-020-import-receipt-historical-transaction-reference.md)。
 
 ## 10. AI Analyst 单轮问答
 

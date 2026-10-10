@@ -49,7 +49,7 @@ class FlywayTransferVersionNineteenMigrationIntegrationTest {
                     VALUES (1, 1, 2, 10.00, 'CNY', 'valid transfer', CURRENT_TIMESTAMP)
                     """);
 
-            assertThat(appliedVersion(connection)).isEqualTo("19");
+            assertThat(appliedVersion(connection)).isEqualTo("20");
             assertThatThrownBy(() -> connection.createStatement().execute("""
                     INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
                     VALUES (1, 1, 1, 10.00, 'CNY', CURRENT_TIMESTAMP)

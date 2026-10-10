@@ -5,7 +5,7 @@
 ## 1. 数据库定位
 
 - PostgreSQL 17；
-- Flyway 当前版本链为 `V1`–`V17`；
+- Flyway 当前版本链为 `V1`–`V20`；
 - 业务、参考与审计表共 15 张，另有 Flyway 自身的 `flyway_schema_history`；
 - 新结构只能新增前向 Migration，不能修改已经应用的历史文件；
 - 不能安全推导的历史状态使用 fail-fast，不伪造绑定、receipt 或 correction evidence。
@@ -31,6 +31,7 @@
 | V15 | 允许清理 Session 的临时文件引用 |
 | V16 | Session–Batch 绑定、Account impact、result digest 与 Import receipt 不可变 trigger |
 | V17 | 前向修复历史 Import receipt digest 的 timestamp canonicalization |
+| V20 | 将 Import Item 的 Transaction 引用改为历史证据；INSERT 同用户引用校验，解除普通 DELETE 的持续 FK 依赖 |
 
 V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在同一 Migration 中临时禁用和恢复对应 immutable trigger；它没有修改 V16 checksum。
 
@@ -83,11 +84,15 @@ V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在�
 ## 5. 普通流水与 Import 关系
 
 - 手工录入与 Import Confirm 都创建 `transactions`；没有第二张“导入流水真值表”；
-- V14 为 `transactions(user_id, id)` 增加复合唯一键，供 Import Item 的 owned FK 使用；
-- `transaction_import_items.created_transaction_id` 在 V16 后非空，并通过 `(user_id, transaction_id)` 指向用户自己的普通流水；
+- V14 为 `transactions(user_id, id)` 增加复合唯一键及 Import Item 的 owned Transaction FK；V20 保留复合唯一键，移除这一持续 FK；
+- `transaction_import_items.created_transaction_id` 在 V16 后非空；V20 起为不可变历史创建引用，在 INSERT 时由 `trg_transaction_import_items_validate_transaction_reference` 校验同用户 Transaction 的存在；
+- INSERT 校验同时匹配 `user_id` 和 `created_transaction_id`，使用 `FOR KEY SHARE` 持有行锁至事务结束；缺失或跨用户引用返回 `23503`。INSERT 提交后的正常 Transaction DELETE 不改变历史 ID；
+- Item → Batch 的 `(user_id, batch_id)` FK 和全部既有 immutable triggers 保留；Receipt / digest 重建不关联当前 Transaction；
 - Import Batch 与 Session 使用 `(user_id, session_id)` 唯一绑定；一个 Session 只能形成一个 committed Batch；
 - 每个 Batch / source row 唯一，每个 Batch / Account 只有一条 Account impact；
 - Import receipt 数据由 immutable trigger 拒绝 UPDATE / DELETE。
+
+V20 通过 Flyway 的 PostgreSQL 事务执行，按 `transactions` → `transaction_import_items` 顺序获取 `ACCESS EXCLUSIVE` 锁。锁内先检查旧引用，建立 INSERT trigger 后再移除持续 FK；任何失败整体回滚。迁移不执行历史数据 DML、不改写 Batch、Item、Impact 或 digest。迁移期间相关表读写会等待，应安排维护窗口；异常历史引用必须 fail-fast，由人工调查，不自动修复。详见 [ADR-020](../ADR/ADR-020-import-receipt-historical-transaction-reference.md)。
 
 ## 6. 投资账本不变量
 
@@ -154,7 +159,7 @@ V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在�
 
 ## 11. Migration 维护
 
-1. 不修改 V1–V17 历史文件；
+1. 不修改已应用的历史文件；本次 C1 保留 V1–V19 原样，仅新增 V20；
 2. 新变化使用下一个前向版本；
 3. 升级前明确历史数据前提与 fail-fast 条件；
 4. named constraint、index 和 trigger 名称可能属于错误分类契约；

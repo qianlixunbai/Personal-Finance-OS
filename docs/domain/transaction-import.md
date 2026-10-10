@@ -234,7 +234,13 @@ Receipt 从 committed persistence 重建，包含：
 - 按 Account 排序的 row count、balanceBefore、delta、balanceAfter；
 - confirmedAt、contractVersion 与 resultDigest。
 
-Batch、Item 和 Account impact 由数据库 trigger 保护为不可变。重建时会验证 count、created transaction binding、`balanceAfter = balanceBefore + delta` 与 resultDigest；不一致返回 `IMPORT_CONFIRM_INCONSISTENT`。
+Batch、Item 和 Account impact 由数据库 trigger 保护为不可变。重建时会验证 count、历史创建引用非空、`balanceAfter = balanceBefore + delta` 与 resultDigest；不一致返回 `IMPORT_CONFIRM_INCONSISTENT`。Receipt 重建不要求当前 Transaction 仍存在。
+
+`createdTransactionId` 是 Confirm 创建流水时的历史引用。V20 在 Item INSERT 时以 `(user_id, created_transaction_id)` 校验真实、同用户的 Transaction，并以 `FOR KEY SHARE` 防止引用在 INSERT 提交前被并发删除；持续 Item → Transaction FK 已移除。Item → Batch 所有权 FK、非空约束和全部 immutable triggers 保留，详见 [ADR-020](../ADR/ADR-020-import-receipt-historical-transaction-reference.md)。
+
+导入流水可通过标准 PUT / DELETE 维护。DELETE 撤销当前流水的余额 effect；例如原始支出 100 经 PUT 改为支出 200 后，DELETE 撤销 200。原始 Receipt 的 references、Account impacts、counts 和 `resultDigest` 始终不变，它们不代表当前余额或当前流水内容。
+
+流水删除后，原 Confirm 的同 key、同 intent Replay 仍返回原始 Receipt，`idempotentReplay=true`；不补建已删除流水，也不产生第二次余额影响。历史 ID 可能在当前 Transaction GET 中返回 404。
 
 临时文件和 PreviewPlan 删除后，Receipt GET 仍应工作。
 
