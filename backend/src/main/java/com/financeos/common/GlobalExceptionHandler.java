@@ -37,6 +37,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataAccessException(DataAccessException e) {
         if (hasConcurrencySqlState(e)) {
+            DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.DATA_ACCESS, e);
             return handleConcurrencyConflict(new ConcurrencyConflictException());
         }
         // Client-caused constraint violations must not masquerade as "database unavailable":
@@ -46,23 +47,24 @@ public class GlobalExceptionHandler {
         // last line of defence for server-side invariants (amount formulas, receipt shape), and
         // its own triggers raise 23514 for internal consistency failures. Reporting those as a
         // client error would hide real defects, so they fail closed as 500.
-        switch (findSqlState(e)) {
+        String sqlState = findSqlState(e);
+        switch (sqlState == null ? "" : sqlState) {
             case "23505" -> {
-                log.warn("Unique constraint violated", e);
+                DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.DATA_ACCESS, e);
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(ApiResponse.error(409, "资源已存在或与现有数据冲突"));
             }
             case "23514" -> {
-                log.error("Check constraint violated", e);
+                DatabaseFailureLog.error(log, DatabaseFailureLog.Path.DATA_ACCESS, e);
                 return ResponseEntity.internalServerError()
                         .body(ApiResponse.error(500, "数据一致性校验失败"));
             }
             case "22003" -> {
-                log.warn("Numeric value out of range", e);
+                DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.DATA_ACCESS, e);
                 return badRequest("数值超出允许范围");
             }
             default -> {
-                log.error("Database operation failed", e);
+                DatabaseFailureLog.error(log, DatabaseFailureLog.Path.DATA_ACCESS, e);
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body(ApiResponse.error(503, "数据库服务暂时不可用"));
             }
@@ -119,7 +121,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
-        log.warn("Business exception: {}", e.getMessage());
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.BUSINESS, e);
+        } else {
+            log.warn("Business exception: {}", e.getMessage());
+        }
         if (e.getMessage() != null && e.getMessage().startsWith("IMPORT_")) {
             return ResponseEntity.status(resolveHttpStatus(e.getCode()))
                     .body(ApiResponse.domainError(e.getCode(), e.getMessage(), importRetryable(e.getMessage())));
@@ -130,25 +136,41 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(LegacyMigrationConsistencyException.class)
     public ResponseEntity<ApiResponse<Void>> handleMigrationConsistencyException(LegacyMigrationConsistencyException e) {
-        log.error("Migration consistency check failed", e);
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.error(log, DatabaseFailureLog.Path.MIGRATION_CONSISTENCY, e);
+        } else {
+            log.error("Migration consistency check failed", e);
+        }
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Migration consistency check failed"));
     }
 
     @ExceptionHandler(InvestmentWriteConsistencyException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvestmentWriteConsistencyException(InvestmentWriteConsistencyException e) {
-        log.error("Investment write consistency check failed", e);
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.error(log, DatabaseFailureLog.Path.INVESTMENT_WRITE_CONSISTENCY, e);
+        } else {
+            log.error("Investment write consistency check failed", e);
+        }
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Investment write consistency check failed"));
     }
 
     @ExceptionHandler(InvestmentReversalConsistencyException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvestmentReversalConsistencyException(InvestmentReversalConsistencyException e) {
-        log.error("Investment reversal consistency check failed", e);
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.error(log, DatabaseFailureLog.Path.INVESTMENT_REVERSAL_CONSISTENCY, e);
+        } else {
+            log.error("Investment reversal consistency check failed", e);
+        }
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Investment reversal consistency check failed"));
     }
 
     @ExceptionHandler(InvestmentReplacementConsistencyException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvestmentReplacementConsistencyException(InvestmentReplacementConsistencyException e) {
-        log.error("Investment replacement consistency check failed", e);
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.error(log, DatabaseFailureLog.Path.INVESTMENT_REPLACEMENT_CONSISTENCY, e);
+        } else {
+            log.error("Investment replacement consistency check failed", e);
+        }
         return ResponseEntity.internalServerError().body(ApiResponse.error(500, "Investment replacement consistency check failed"));
     }
 
@@ -189,7 +211,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        if (isAiAskEndpoint()) {
+        if (DatabaseFailureLog.hasDatabaseFailure(e)) {
+            DatabaseFailureLog.error(log, DatabaseFailureLog.Path.UNEXPECTED, e);
+        } else if (isAiAskEndpoint()) {
             log.error("Unexpected error on AI endpoint (type: {})", e.getClass().getSimpleName());
         } else {
             log.error("Unexpected error", e);

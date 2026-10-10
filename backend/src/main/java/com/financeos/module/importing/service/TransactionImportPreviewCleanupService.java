@@ -1,5 +1,6 @@
 package com.financeos.module.importing.service;
 
+import com.financeos.common.DatabaseFailureLog;
 import com.financeos.module.importing.entity.TransactionImportSession;
 import com.financeos.module.importing.mapper.TransactionImportSessionMapper;
 import com.financeos.module.importing.storage.TemporaryImportFileStorage;
@@ -92,7 +93,11 @@ public class TransactionImportPreviewCleanupService {
                 sessionMapper.markExpired(session.getId(), session.getUserId(), now);
                 sessionMapper.clearCleanupReferences(session.getId(), session.getUserId());
             } catch (RuntimeException exception) {
-                log.warn("Transaction import preview cleanup failed for session {}", session.getId(), exception);
+                if (DatabaseFailureLog.hasDatabaseFailure(exception)) {
+                    DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.IMPORT_PREVIEW_CLEANUP, exception);
+                } else {
+                    log.warn("Transaction import preview cleanup failed for session {}", session.getId(), exception);
+                }
             }
         }
     }
