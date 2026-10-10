@@ -3,6 +3,7 @@ import type { EChartsOption } from 'echarts';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/format';
 import { buildAssetAllocationData, type AssetAllocation, type AssetAllocationChartData } from './assetAllocationData';
+import { formatAssetAllocationTooltip } from './assetAllocationTooltip';
 import { ChartCard } from './ChartCard';
 import { EChart } from './EChart';
 import { useWideViewport } from './useWideViewport';
@@ -34,7 +35,7 @@ export function AssetAllocationChart({ assetAllocation }: { assetAllocation: Ass
                 extraCssText: 'box-shadow: 0 12px 28px rgba(0, 0, 0, .35);',
                 formatter: (params) => {
                     const item = params as unknown as { marker?: string; data: AssetAllocationChartData };
-                    return `${item.marker ?? ''}${item.data.name}<br/>市值：${formatCurrency(item.data.value)}<br/>占比：${item.data.percentage.toFixed(2)}%`;
+                    return formatAssetAllocationTooltip(item);
                 },
             },
             color: allocationColors,
