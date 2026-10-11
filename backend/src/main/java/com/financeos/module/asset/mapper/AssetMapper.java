@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Mapper
 public interface AssetMapper extends BaseMapper<Asset> {
@@ -46,6 +47,28 @@ public interface AssetMapper extends BaseMapper<Asset> {
     boolean existsTransactionDrivenPosition(@Param("userId") Long userId,
                                              @Param("accountId") Long accountId,
                                              @Param("instrumentId") Long instrumentId);
+
+    @Select("""
+            <script>
+            SELECT EXISTS(
+                SELECT 1 FROM assets a
+                LEFT JOIN investment_instruments i ON i.user_id = a.user_id AND i.id = a.instrument_id
+                WHERE a.user_id = #{userId}
+                  AND a.account_id = #{accountId}
+                  AND a.position_mode = 'TRANSACTION_DRIVEN'
+                <if test="supportedClasses.size() > 0">
+                  AND (i.asset_class IS NULL OR i.asset_class NOT IN
+                    <foreach collection="supportedClasses" item="assetClass" open="(" separator="," close=")">
+                      #{assetClass}
+                    </foreach>
+                  )
+                </if>
+            )
+            </script>
+            """)
+    boolean existsIncompatibleTransactionDrivenPosition(@Param("userId") Long userId,
+                                                         @Param("accountId") Long accountId,
+                                                         @Param("supportedClasses") List<String> supportedClasses);
 
     @Update("""
             UPDATE assets

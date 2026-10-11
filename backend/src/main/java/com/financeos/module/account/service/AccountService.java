@@ -8,11 +8,13 @@ import com.financeos.module.account.dto.AccountRequest;
 import com.financeos.module.account.dto.AccountResponse;
 import com.financeos.module.account.entity.Account;
 import com.financeos.module.account.mapper.AccountMapper;
+import com.financeos.module.investment.instrument.service.InvestmentPositionBindingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AccountService {
@@ -21,10 +23,13 @@ public class AccountService {
 
     private final AccountMapper accountMapper;
     private final AccountBalanceService accountBalanceService;
+    private final InvestmentPositionBindingService positionBindingService;
 
-    public AccountService(AccountMapper accountMapper, AccountBalanceService accountBalanceService) {
+    public AccountService(AccountMapper accountMapper, AccountBalanceService accountBalanceService,
+                          InvestmentPositionBindingService positionBindingService) {
         this.accountMapper = accountMapper;
         this.accountBalanceService = accountBalanceService;
+        this.positionBindingService = positionBindingService;
     }
 
     public List<AccountResponse> listByUser(Long userId) {
@@ -73,6 +78,9 @@ public class AccountService {
         Account account = lockOwnedAccount(userId, accountId);
         String currency = req.currency() != null ? req.currency() : account.getCurrency();
         validateCurrency(currency);
+        if (!Objects.equals(account.getType(), req.type())) {
+            positionBindingService.validateAccountTypeChange(userId, accountId, req.type());
+        }
         if (accountMapper.updateMetadata(userId, accountId, req.name(), req.type(), currency) != 1) {
             throw new IllegalStateException("account metadata update did not affect exactly one row");
         }

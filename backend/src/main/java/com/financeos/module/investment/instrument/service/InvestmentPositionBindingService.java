@@ -3,11 +3,16 @@ package com.financeos.module.investment.instrument.service;
 import com.financeos.common.BusinessException;
 import com.financeos.module.account.entity.Account;
 import com.financeos.module.account.service.AccountQueryService;
+import com.financeos.module.asset.mapper.AssetMapper;
 import com.financeos.module.investment.instrument.InstrumentStatus;
 import com.financeos.module.investment.instrument.InvestmentAssetClass;
 import com.financeos.module.investment.instrument.entity.InvestmentInstrument;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -23,11 +28,28 @@ public class InvestmentPositionBindingService {
 
     private final InvestmentInstrumentQueryService instrumentQueryService;
     private final AccountQueryService accountQueryService;
+    private final AssetMapper assetMapper;
 
     public InvestmentPositionBindingService(InvestmentInstrumentQueryService instrumentQueryService,
-                                            AccountQueryService accountQueryService) {
+                                            AccountQueryService accountQueryService,
+                                            AssetMapper assetMapper) {
         this.instrumentQueryService = instrumentQueryService;
         this.accountQueryService = accountQueryService;
+        this.assetMapper = assetMapper;
+    }
+
+    /** Caller must hold the owned Account row lock through its metadata update. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void validateAccountTypeChange(Long userId, Long accountId, String accountType) {
+        List<String> supportedClasses = Arrays.stream(InvestmentAssetClass.values())
+                .filter(assetClass -> isSupportedAccountClass(accountType, assetClass))
+                .map(Enum::name)
+                .toList();
+        // CLOSED bindings remain immutable and can be reopened by historical corrections.
+        // LEGACY bindings may still be explicitly remapped during opening migration.
+        if (assetMapper.existsIncompatibleTransactionDrivenPosition(userId, accountId, supportedClasses)) {
+            throw new BusinessException(409, "账户类型与已有投资仓位绑定不兼容");
+        }
     }
 
     public ValidatedPositionBinding validate(Long userId, Long accountId, Long instrumentId) {
