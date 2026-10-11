@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from './Visual';
 import { clearTransactionImportDraft, scanPendingTransactionImports } from '../utils/transactionImportStorage';
+import { clearAuthSession, withAuthSessionMutation } from '../utils/authSession';
 
 const links = [
     { to: '/', label: '仪表盘', icon: 'activity', end: true },
@@ -65,7 +66,7 @@ export default function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const [loadedAt] = useState(() => new Date());
-    const logout = () => {
+    const logout = async () => {
         const unresolved = Object.keys(localStorage).some(key => key.startsWith('finance-os:investment-command:pending:v1:'));
         if (unresolved && !window.confirm('仍有未完成的投资命令。退出不会删除恢复记录，重新登录后仍需继续处理。确认退出吗？')) return;
         const userId = Number(localStorage.getItem('finance-os:auth-user-id:v1'));
@@ -74,7 +75,7 @@ export default function Layout() {
             return;
         }
         if (Number.isSafeInteger(userId) && userId > 0) clearTransactionImportDraft(sessionStorage, userId);
-        localStorage.removeItem('token'); localStorage.removeItem('finance-os:auth-user-id:v1'); navigate('/login');
+        await withAuthSessionMutation(clearAuthSession); navigate('/login');
     };
     const pageName = links.find(link => link.to === location.pathname)?.label ?? '财务工作区';
 

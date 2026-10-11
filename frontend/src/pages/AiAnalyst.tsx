@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { askFinanceAi } from '../api/ai';
 import { AlertMessage, EmptyState } from '../components/Feedback';
 import { PageHeader } from '../components/PageHeader';
 import { getErrorMessage } from '../utils/error';
+import { AiAuthSafetyError, readAuthSession, sameAuthSession, subscribeAuthSessionChange, type AuthSession } from '../utils/authSession';
 
 const maxQuestionLength = 3000;
 const suggestedQuestions = [
@@ -23,11 +24,40 @@ export default function AiAnalyst() {
     const [status, setStatus] = useState<RequestStatus>('idle');
     const [error, setError] = useState('');
     const [lastSuccess, setLastSuccess] = useState<SuccessfulAnswer | null>(null);
-    const requestLock = useRef(false);
+    const session = useRef(readAuthSession());
+    const mounted = useRef(false);
+    const requestLock = useRef<{ session: AuthSession } | null>(null);
+
+    const syncSession = useCallback(() => {
+        const current = readAuthSession();
+        if (sameAuthSession(session.current, current)) return true;
+        session.current = current;
+        requestLock.current = null;
+        setQuestion('');
+        setLastSuccess(null);
+        setError('');
+        setStatus('idle');
+        return false;
+    }, []);
+
+    useEffect(() => {
+        mounted.current = true;
+        const unsubscribe = subscribeAuthSessionChange(syncSession);
+        syncSession();
+        return () => {
+            mounted.current = false;
+            requestLock.current = null;
+            unsubscribe();
+        };
+    }, [syncSession]);
+
+    const changeQuestion = (value: string) => {
+        if (syncSession() && session.current) setQuestion(value);
+    };
 
     const submitQuestion = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (requestLock.current) return;
+        if (!syncSession() || !session.current || requestLock.current) return;
 
         const submittedQuestion = question.trim();
         if (!submittedQuestion) return;
@@ -37,18 +67,24 @@ export default function AiAnalyst() {
             return;
         }
 
-        requestLock.current = true;
+        const request = { session: session.current };
+        requestLock.current = request;
+        const isValid = () => mounted.current && syncSession()
+            && requestLock.current === request && sameAuthSession(request.session, session.current);
         setError('');
         setStatus('loading');
         try {
-            const answer = await askFinanceAi(submittedQuestion);
+            const answer = await askFinanceAi(submittedQuestion, request.session);
+            if (!isValid()) return;
             setLastSuccess({ question: submittedQuestion, answer });
             setStatus('success');
         } catch (requestError) {
-            setError(getErrorMessage(requestError, fallbackMessage(requestError)));
+            if (!isValid()) return;
+            setError(requestError instanceof AiAuthSafetyError ? requestError.message
+                : getErrorMessage(requestError, fallbackMessage(requestError)));
             setStatus('error');
         } finally {
-            requestLock.current = false;
+            if (isValid()) requestLock.current = null;
         }
     };
 
@@ -67,7 +103,7 @@ export default function AiAnalyst() {
                     maxLength={maxQuestionLength}
                     rows={5}
                     disabled={status === 'loading'}
-                    onChange={event => setQuestion(event.target.value)}
+                    onChange={event => changeQuestion(event.target.value)}
                     aria-describedby="ai-analyst-question-count"
                 />
             </label>
@@ -86,7 +122,7 @@ export default function AiAnalyst() {
                 key={suggestion}
                 type="button"
                 disabled={status === 'loading'}
-                onClick={() => setQuestion(suggestion)}
+                onClick={() => changeQuestion(suggestion)}
             >{suggestion}</button>)}
         </section>
 

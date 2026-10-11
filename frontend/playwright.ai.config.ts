@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
     testDir: './tests/e2e',
-    testMatch: 'ai-analyst.spec.ts',
+    testMatch: ['ai-analyst.spec.ts', 'ai-state-isolation.spec.ts'],
     workers: 1,
     retries: 0,
     timeout: 30_000,
