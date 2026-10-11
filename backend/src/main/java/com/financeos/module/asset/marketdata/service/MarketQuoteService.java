@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MarketQuoteService {
     private static final String MARKET = "US";
     private static final String STALE_WARNING = "Refresh failed; the most recently successful reference quote is shown.";
+    private static final String OLDER_QUOTE_WARNING = "Provider returned an older quote; the most recently persisted reference quote is shown.";
     private static final java.util.regex.Pattern SYMBOL = java.util.regex.Pattern.compile("^[A-Z][A-Z0-9.-]{0,14}$");
 
     private final AssetMapper assetMapper;
@@ -88,8 +89,13 @@ public class MarketQuoteService {
             MarketDataQuote providerQuote = marketDataProvider.fetchQuote(symbol);
             validateProviderQuote(providerQuote, symbol);
             MarketQuote quote = toEntity(providerQuote);
-            persistenceService.upsert(quote);
-            return queryService.response(quote, MarketQuoteFreshness.FRESH, MarketQuoteRefreshResult.UPDATED, null);
+            MarketQuotePersistenceService.UpsertResult persisted = persistenceService.upsert(quote);
+            MarketQuoteFreshness freshness = queryService.freshnessOf(persisted.quote());
+            MarketQuoteRefreshResult result = persisted.written() ? MarketQuoteRefreshResult.UPDATED
+                    : freshness == MarketQuoteFreshness.FRESH ? MarketQuoteRefreshResult.CACHE_HIT
+                    : MarketQuoteRefreshResult.STALE_FALLBACK;
+            return queryService.response(persisted.quote(), freshness, result,
+                    persisted.written() ? null : OLDER_QUOTE_WARNING);
         } catch (MarketDataRateLimitException exception) {
             return fallbackOrThrow(snapshot, 429);
         } catch (MarketDataProviderException exception) {
