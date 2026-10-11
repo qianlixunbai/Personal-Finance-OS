@@ -9,6 +9,9 @@ import com.financeos.module.ledger.dto.MonthlyCashFlowAggregate;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.service.TransactionQueryService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -41,6 +44,7 @@ public class DashboardService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
     public DashboardDto getDashboard(Long userId) {
         LocalDateTime now = LocalDateTime.now(clock);
         YearMonth currentMonth = YearMonth.from(now);
