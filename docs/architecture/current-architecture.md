@@ -12,7 +12,7 @@ flowchart TB
     FE[React 19 / TypeScript / Vite]
     API[Spring Boot 3.3.5 / Java 21]
     DB[(PostgreSQL 17)]
-    FILES[(私有临时 Import payload / plan)]
+    FILES[(持久受管根中的短生命周期 Import payload / plan)]
     MARKET[Market Data Provider]
     FX[FX Provider]
     AI[Cloud AI Provider]
@@ -29,7 +29,7 @@ flowchart TB
 - 前端负责交互、基础输入检查、状态恢复和服务端结果展示；
 - 后端负责身份、业务规则、金融计算、事务、锁、幂等和聚合；
 - PostgreSQL 保存用户财务事实、不可变审计记录和受控投影；
-- Import 原文件与 frozen preview plan 使用服务端私有临时存储，取消、过期或提交后清理；
+- Import 原文件与 frozen preview plan 存在持久受管 RAW / PLAN 根中，文件本身是短生命周期数据；V21 Registry / Storage Binding 授权读取与回收，取消、过期或提交后退休并持久重试清理；
 - 外部行情与 FX 只形成参考快照，不能修改账务真值。
 - AI Provider 默认关闭；JWT 认证用户可通过 `POST /api/v1/ai/ask` 发起单轮问答。`FinanceAiOrchestrator` 在有限轮次内让 Cloud AI 请求三个只读 Finance Tool，Tool 不修改账务真值。
 
@@ -42,15 +42,15 @@ flowchart TB
 | `auth` / `user` | 注册、登录、JWT filter、BCrypt、当前 principal | common、users |
 | `account` | Account CRUD、账户行锁、唯一余额变更原语 | user、PostgreSQL |
 | `category` | 系统分类和用户分类 | user |
-| `ledger` | 普通 Transaction CRUD、余额联动、duplicate probe | account、category |
+| `ledger` | 普通 Transaction CRUD、可选创建幂等、余额联动、duplicate probe；独立 Transfer 创建与双账户余额联动 | account、category |
 | `asset` | Legacy Asset、Market Quote、FX、reference valuation | account、Provider boundary |
 | `investment.instrument` | 用户级 Instrument 与 Position binding | account、asset |
 | `investment.ledger` | calculator、canonical replay、trace 与 digest | 不依赖 HTTP |
 | `investment.migration` | Legacy opening preview / confirm | account、instrument、ledger |
 | `investment.command` | BUY / SELL / DIVIDEND、reversal、replacement | account、instrument、ledger、asset |
 | `investment.read` | Portfolio、Position、logical transaction、audit timeline | asset、investment facts |
-| `importing` | CSV/XLSX 解析、mapping、Preview、Confirm、Receipt、cleanup | ledger、account、category |
-| `dashboard` | 用户财务概览聚合 | account、ledger、asset |
+| `importing` | CSV/XLSX 解析、mapping、Preview、Confirm、Receipt、持久文件 Registry / Storage Binding 与 cleanup | ledger、account、category |
+| `dashboard` | 用户财务概览聚合；独立 `REPEATABLE_READ` 只读事务快照 | account、ledger、asset |
 | `ai` | 认证用户单轮问答 API、单一 Cloud AI Provider、受控 Tool Calling 和三个只读 Finance Tools | 编排层显式 allowlist；Tool 只依赖既有只读 Query Service |
 | `common` / `config` | 统一响应、异常、分页与应用配置 | 不承载业务规则 |
 
@@ -78,11 +78,13 @@ Import Confirm 与 Receipt GET 使用 raw text + lossless JSON 解码，避免 J
 | 数据 | 角色 |
 | --- | --- |
 | `transactions` | 可更新/删除的普通财务事实；Import 也只通过正式写规则创建此类事实 |
-| `Account.balance` | 与普通流水、Import、投资现金 effect 同事务维护的现金余额投影 |
+| `transfers` | 独立双账户转账事实，不生成普通收支 Transaction，不执行银行转账 |
+| `Account.balance` | 与普通流水、Transfer、Import、投资现金 effect 同事务维护的现金余额投影 |
 | `investment_transactions` | append-only 投资事实与 posting-time receipt |
 | `investment_transaction_corrections` | append-only replacement command envelope |
 | transaction-driven `Asset` | canonical replay 后的当前 Position 投影 |
-| `transaction_import_*` | Session 生命周期、committed Batch、Item 与 Account impact receipt evidence |
+| Import Session / Batch / Item / Impact | Session 生命周期与 committed receipt evidence |
+| `transaction_import_storage_bindings` / `transaction_import_file_objects` | 部署级绑定和持久文件生命周期 Registry，不是金融事实 |
 | `market_quotes` / `exchange_rates` | 共享参考快照，不是账务事实 |
 
 详细 schema 见 [Database](database.md)，领域语义见 [domain](../domain/)。
@@ -99,6 +101,8 @@ Import Confirm 与 Receipt GET 使用 raw text + lossless JSON 解码，避免 J
 → 应用余额 delta
 → 提交
 ```
+
+独立 `POST /api/v1/transfers` 按账户 ID 升序锁定同一用户的两侧 ACTIVE CNY 账户，在单事务内写 `transfers` 并扣减/增加余额；普通 Transaction 与 Import 仍只接受 `INCOME` / `EXPENSE` / `ADJUSTMENT`。
 
 ### 5.2 投资命令
 
@@ -130,14 +134,15 @@ Opening、BUY、SELL、DIVIDEND、standalone reversal 与 replacement 共用后�
 → 逐行写 Transaction
 → 聚合后一次/账户余额 delta
 → Batch + Items + Account Impacts + Session CONSUMED
-→ 提交后清理临时 payload
+→ 提交后退休 RAW / PLAN，Registry 保留失败重试直到安全删除
 ```
 
-Confirm 的所有金融事实和 Receipt evidence 位于同一 PostgreSQL 事务。详细规则见 [Transaction Import](../domain/transaction-import.md)。
+Confirm 先在文件 guard 内完成有界内存读取、释放 guard，再进入 Session → Account 金融事务；所有金融事实和 Receipt evidence 位于同一 PostgreSQL 事务。Registry 的短事务不持有文件 I/O。详细规则见 [Transaction Import](../domain/transaction-import.md)。
 
 ## 6. 读取路径
 
 - 基础列表使用 offset page/size 分页；
+- `DashboardService.getDashboard` 使用 `REQUIRES_NEW` + `REPEATABLE_READ` 只读事务，概览的多条查询共用一个数据库快照；
 - Position 和 logical transaction 使用 opaque cursor seek pagination；
 - 投资列表默认返回逻辑业务事件，不把 correction physical fact 当作独立业务交易；
 - Portfolio 与 Position 当前值来自受控 `Asset` 投影；
@@ -160,12 +165,12 @@ JWT principal 是 user ID。AI 问答只接受此服务端身份，受用户级�
 
 ## 8. 数据库与部署
 
-- schema 由 Flyway V1–V17 前向迁移；
+- schema 由 Flyway V1–V21 前向迁移；最终普通表共 19 张，统计口径见 [Database](database.md)；
 - PostgreSQL 特有的复合 FK、partial unique、trigger、deferred integrity、行锁和 `lock_timeout` 由 Testcontainers 验证；
 - Docker Compose 描述 PostgreSQL → backend readiness → frontend health 的单机拓扑；
 - production profile 关闭 OpenAPI / Swagger，只暴露 health。
 
-当前 Compose 未传递 Import Confirm token secret，因而不能宣称现有标准 Compose 路径完整可运行。该已知不一致见 [Deployment](../engineering/deployment.md)。
+当前 Compose 已传递三类必需 secret、Import RAW / PLAN 根与三个稳定 UUID，并挂载 `import_storage` 持久卷；首次存储须显式预配，正常启动不创建生产根。C9 方案 A 仅支持 Windows / Linux 单主机持久本地根及 Linux Docker 持久受管卷；旧 V20 活跃 Session 必须停写后离线迁移并保留原 Confirm secret、TTL 与冻结证据。未知孤儿不自动删除，多主机、网络共享及断电耐久性未验收。配置已存在和 C9 关闭均不代表标准 Compose 端到端生产部署已验收，详见 [Deployment](../engineering/deployment.md)。
 
 ## 9. 演进规则
 

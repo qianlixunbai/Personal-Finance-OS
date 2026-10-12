@@ -78,6 +78,7 @@ flowchart LR
 
 - 注册、登录、JWT、用户数据隔离与安全 `404`；
 - Account、Category、`INCOME` / `EXPENSE` / `ADJUSTMENT` 与后端余额联动；
+- 独立 Transfer API 在同一事务内联动两侧 CNY 账户余额，不执行银行转账，也不生成普通收支流水；
 - Dashboard 的净资产、现金流、趋势、资产分布和最近流水聚合；
 - Market Quote、FX snapshot 与只读 CNY reference valuation；
 - Investment Instrument、Legacy opening migration、BUY / SELL / DIVIDEND；
@@ -92,7 +93,7 @@ flowchart LR
 | 层次 | 当前技术 |
 | --- | --- |
 | 后端 | Java 21、Spring Boot 3.3.5、Spring Security、JWT、MyBatis-Plus |
-| 数据 | PostgreSQL 17、Flyway V1–V17、Testcontainers |
+| 数据 | PostgreSQL 17、Flyway V1–V21、Testcontainers |
 | 前端 | React 19、TypeScript、Vite、ECharts、Axios |
 | 文件导入 | Apache Commons CSV、Apache POI |
 | 交付 | Maven Wrapper、npm、Docker Compose、GitHub Actions |
@@ -119,6 +120,8 @@ $env:JWT_SECRET = "at-least-32-characters-secret"
 $env:MIGRATION_PREVIEW_SECRET = "another-32-characters-secret"
 $env:FINANCE_IMPORT_CONFIRM_TOKEN_SECRET = "a-third-32-characters-secret"
 ```
+
+非 `test` profile 还必须配置持久 Import RAW / PLAN 根与三个稳定 UUID，并先通过显式 Provisioner 预配；配置与旧 Session 离线升级合同见 [部署指南](docs/engineering/deployment.md)。仅设置上述 secret 不足以启动当前后端。
 
 启动后端：
 

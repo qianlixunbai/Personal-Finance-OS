@@ -15,7 +15,7 @@ JWT expiration 当前为 24 小时。客户端不能通过请求体声明 user I
 
 ## 2. 用户数据隔离
 
-- Account、用户 Category、普通 Transaction、Asset、Instrument、投资事实、correction command 与 Import Session/Batch/Item/Impact 均按 user 隔离；
+- Account、用户 Category、普通 Transaction、独立 Transfer、Asset、Instrument、投资事实、correction command 与 Import Session/Batch/Item/Impact 均按 user 隔离；
 - 查询、锁与写入同时使用 `user_id` 和资源 ID；
 - 关键数据库关系使用 owned composite FK；
 - 不存在与跨用户资源采用相同安全 `404`；
@@ -34,7 +34,7 @@ JWT expiration 当前为 24 小时。客户端不能通过请求体声明 user I
 
 生产代码不提供 Import Confirm 的公开默认 secret；未显式配置或长度不足 32 字符时应用安全 fail-fast。secret 不得写入源码、已跟踪 `.env`、日志、截图或 Markdown 示例的真实值。
 
-当前 Compose 未传递第三个 secret，详见 [Deployment](../engineering/deployment.md)。
+当前 Compose 与 `.env.example` 已声明并传递前三个 secret，且 Import secret 独立于 Legacy opening secret。JWT 使用 UTF-8 key 经 JJWT 校验，HMAC key 至少 32 字节；两类 preview secret 由各自 Service 要求至少 32 字符。缺失或过短配置不能安全启动。Compose 当前未透传 `FINANCE_AI_*`；应用层默认关闭 AI，显式启用还要求 `FINANCE_AI_PROVIDER=CLOUD`、合法 HTTPS `FINANCE_AI_BASE_URL`、`FINANCE_AI_API_KEY` 与 `FINANCE_AI_MODEL`。这些配置事实不代表生产启动或端到端部署验收，详见 [Deployment](../engineering/deployment.md)。
 
 ## 4. Import token 与幂等边界
 
@@ -58,9 +58,11 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 - XLSX ZIP entry、展开大小、压缩比、XML node/attribute/depth 和解析时间均有限制；
 - XML DTD、entity、XInclude 和外部 schema 解析被禁止；
 - 客户端文件名只用于清洗后的展示，不参与服务器路径；
-- 私有存储引用是受格式限制的 UUID，并在 normalize 后验证仍位于指定 root。
+- 私有存储引用是 canonical UUID，由 V21 持久 Registry 绑定 storage、owner 和 Session；文件操作须在受信 root guard 内取得授权，不仅依赖路径 normalize。
 
-临时 payload 在取消、过期或成功提交后清理。清理失败只记录脱敏 warning，不回滚已经提交的金融事务。
+RAW / PLAN 根和 `.import-binding` / `.import-control` 必须持久保留，由部署方提供稳定 UUID、独占权限与父目录保护；生产启动只验证，不创建缺失根或元数据。首次新建空专用根由 `ImportStorageProvisioner --provision` 显式预配。方案 A 限定 Windows / Linux 单主机及 Linux Docker 持久受管卷；绑定异常持久 quarantine，恢复路径或 marker 不自动解除隔离。不能保证识别高权限停机克隆，多主机、网络共享与断电耐久性未验收。
+
+短生命周期 payload 在取消、过期或成功提交后进入 RETIRED，再由 Registry 授权安全删除；失败保留持久重试，不回滚已经提交的金融事务，也不声称固定时间内物理删除。旧 V20 活跃 Session 按确切 DB 引用显式离线迁移，保留原 Confirm secret、15 分钟 TTL 与 `expires_at`，不重建 frozen Plan/token；未知历史孤儿不自动枚举或删除。完整运维合同见 [Deployment](../engineering/deployment.md)。
 
 ## 6. 外部 Provider 边界
 
@@ -73,7 +75,7 @@ tampered、过期、跨用户、跨 Session、stale revision 或 warning mismatc
 - AI Provider 默认关闭；`POST /api/v1/ai/ask` 只允许 JWT 认证用户调用。受控编排仅允许模型请求三个手写 allowlist 的只读 Finance Tool。Tool 只调用既有只读查询服务，不执行 Market / FX 刷新或数据库写入。
 - HTTP Controller 从已认证的 `Long` principal 注入 `authenticatedUserId`；请求体、Tool schema 和模型参数均不包含用户 ID。既有查询服务继续按该用户 ID 限定财务数据。
 - `question` 拒绝空白、超长和未知 JSON 字段。单实例用户级内存限流默认每分钟 8 次，可由 `FINANCE_AI_USER_REQUEST_LIMIT_PER_MINUTE` 调整；超限在编排器调用前返回 429。多实例的总量保护需后续设计。
-- AI 回答是基于只读 Tool Fact 的模型解释，不是金融真值；不保存到 Account、Transaction、Investment 或 Dashboard。当前无聊天历史、Memory 或流式输出。
+- AI 回答是基于只读 Tool Fact 的模型解释，不是金融真值；不保存到 Account、Transaction、Investment 或 Dashboard。当前无聊天历史、Memory、RAG、流式输出或自主 Agent。
 - 模型参数视为不可信输入；未知 Tool、额外参数、格式错误和预算超限立即失败。Tool 结果仅含 Finance Fact DTO，Provider 与 Tool 错误均不得暴露凭据、请求正文、财务结果或内部异常。
 
 ## 7. 错误与日志

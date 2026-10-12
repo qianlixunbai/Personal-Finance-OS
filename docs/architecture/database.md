@@ -5,8 +5,8 @@
 ## 1. 数据库定位
 
 - PostgreSQL 17；
-- Flyway 当前版本链为 `V1`–`V20`；
-- 业务、参考与审计表共 15 张，另有 Flyway 自身的 `flyway_schema_history`；
+- Flyway 当前版本链为 `V1`–`V21`；
+- `public` 普通表共 19 张：业务/参考/审计表 16 张，Import Registry / Storage Binding 技术表 2 张，Flyway 自身的 `flyway_schema_history` 1 张；不含系统 catalog、索引、序列、视图或临时表。统计来自隔离 PostgreSQL 17 的最终 catalog（`pg_class.relkind = 'r'`），不是 SQL 文本计数，见 [C10 Review](../archive/review/G4-1-C10-Documentation-Schema-Security-Drift-Review.md)；
 - 新结构只能新增前向 Migration，不能修改已经应用的历史文件；
 - 不能安全推导的历史状态使用 fail-fast，不伪造绑定、receipt 或 correction evidence。
 
@@ -31,7 +31,10 @@
 | V15 | 允许清理 Session 的临时文件引用 |
 | V16 | Session–Batch 绑定、Account impact、result digest 与 Import receipt 不可变 trigger |
 | V17 | 前向修复历史 Import receipt digest 的 timestamp canonicalization |
+| V18 | 普通 Transaction 创建的可选 `idempotency_key` / `request_hash` 与用户域 partial unique；保留无 key 的旧调用与 Import rows |
+| V19 | 独立 `transfers` 事实表、同用户双账户 FK 与 CNY / 正金额 / 不同账户约束；不扩展普通 Transaction 类型 |
 | V20 | 将 Import Item 的 Transaction 引用改为历史证据；INSERT 同用户引用校验，解除普通 DELETE 的持续 FK 依赖 |
+| V21 | additive 新增 `transaction_import_storage_bindings` 与 `transaction_import_file_objects`；持久绑定、隔离位、lease/fence 与文件生命周期重试，不迁移文件或改写旧 Session |
 
 V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在同一 Migration 中临时禁用和恢复对应 immutable trigger；它没有修改 V16 checksum。
 
@@ -45,6 +48,7 @@ V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在�
 | `accounts` | 用户 Account 元数据与 `balance NUMERIC(18,2)` 现金投影 |
 | `categories` | 用户分类和共享系统分类 |
 | `transactions` | 可更新/删除的普通 `INCOME`、`EXPENSE`、`ADJUSTMENT` |
+| `transfers` | 独立账户间转账事实；同事务联动两侧现金余额，不生成普通收支流水 |
 
 ### 3.2 Asset 与参考数据
 
@@ -72,9 +76,19 @@ V17 只在权威重建结果与历史 digest 不一致时更新 Batch，并在�
 | `transaction_import_items` | source row、canonical fingerprint、warning codes 与创建的 Transaction |
 | `transaction_import_batch_account_impacts` | 每个 Batch / Account 的 row count、before、delta 与 after |
 
+### 3.5 Import 技术 Registry / Binding
+
+| 表 | 角色 |
+| --- | --- |
+| `transaction_import_storage_bindings` | storage / deployment UUID、RAW / PLAN kind、binding digest 与持久 `quarantined` |
+| `transaction_import_file_objects` | UUID reference、storage/owner/Session、`RESERVED` / `LIVE` / `RETIRED` / `DELETED`、write completion、lease/fence、重试证据 |
+
+这两张表管理文件授权与回收，不是金融事实或 Receipt 的替代来源。V21 空库迁移创建两表；V20 → V21 只执行这一份 additive migration，保留原有业务行、Receipt、Session 引用、revision、digest 与 `expires_at`，两表初始为空。旧活跃 Session 的 payload 需停写后按精确引用显式离线迁移，随后由应用核验登记；Flyway 不扫描磁盘、不清空引用、不删除未知孤儿。流程、旧 secret 与 TTL 保留要求见 [Deployment](../engineering/deployment.md)。
+
 ## 4. 用户域与关系
 
-- `accounts`、用户分类、`transactions`、`assets`、`investment_instruments`、投资事实、correction command 和 Import 表均按 `user_id` 隔离；
+- `accounts`、用户分类、`transactions`、`transfers`、`assets`、`investment_instruments`、投资事实、correction command 和 Import Session/Batch/Item/Impact 均按 `user_id` 隔离；
+- V21 Storage Binding 是部署级技术数据，不含 `user_id`；File Registry 使用可空 `owner_user_id` 与 Session/存储身份管理授权，不属于上述业务表的统一 `user_id` 口径；
 - 关键关系使用 `(user_id, id)` 复合唯一键和复合 FK，避免只凭主键跨用户绑定；
 - 系统分类、Market Quote 和 FX 是明确的共享数据例外；
 - transaction-driven Asset 必须绑定同一用户的 Account 与 Instrument；
@@ -145,6 +159,7 @@ V20 通过 Flyway 的 PostgreSQL 事务执行，按 `transactions` → `transact
 | 数据 | 含义 | 当前真值角色 |
 | --- | --- | --- |
 | `transactions` | 普通流水事实 | 是 |
+| `transfers` | 独立双账户转账事实 | 是，不是普通收支或真实银行执行 |
 | `Account.balance` | 当前现金余额投影 | 是 |
 | `InvestmentTransaction` | 投资历史事实 | 是 |
 | transaction-driven `Asset` | 当前 Position 投影 | 是 |
@@ -159,7 +174,7 @@ V20 通过 Flyway 的 PostgreSQL 事务执行，按 `transactions` → `transact
 
 ## 11. Migration 维护
 
-1. 不修改已应用的历史文件；本次 C1 保留 V1–V19 原样，仅新增 V20；
+1. 不修改已应用的 V1–V21 历史文件；后续变化仅新增前向 Migration；
 2. 新变化使用下一个前向版本；
 3. 升级前明确历史数据前提与 fail-fast 条件；
 4. named constraint、index 和 trigger 名称可能属于错误分类契约；

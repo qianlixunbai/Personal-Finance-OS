@@ -162,10 +162,14 @@ CONSUMED
 
 - 创建时 revision=0；每次 materialized Preview 推进 revision；
 - mapping 不完整会使已有 Preview 失效；
-- cancel 只作用于仍可用 Session，并清理 payload / plan；
+- cancel 只作用于仍可用 Session，将权威 payload / plan 引用退休并安排持久重试清理；
 - cleanup 在应用 ready 时执行一次，随后默认每分钟扫描；
 - 过期、取消和消费后的 Session 不能再次用于新 Confirm；
 - committed replay 可在 token 或临时 plan 失效后通过 Batch persistence 恢复。
+
+RAW / PLAN 文件是短生命周期数据，所在受管根、绑定元数据与 V21 Registry 则须持久保留。Registry 状态为 `RESERVED` / `LIVE` / `RETIRED` / `DELETED`；Mapping 通过 expected revision CAS 原子发布新 PLAN 并退休权威旧引用，终态清理重新读取权威引用，未知提交结果先回读，不能补偿删除已提交的 LIVE 文件。I/O guard 由实际 worker 保持到操作结束；清理受阻保持 RETIRED 重试，不承诺固定秒数内物理删除。
+
+旧 V20 活跃 Session 必须停写后按 DB 精确 RAW / PLAN 引用向显式预配的新根离线迁移，保留原 UUID、revision、digests、冻结 Plan/token、Confirm secret 与原 `expires_at`；TTL 仍为 15 分钟，不因升级延长，超时按既有过期规则处理。V21 不改写旧 Session；应用在核验存储绑定与确切对象后登记，未知历史孤儿不自动枚举或删除。流程见 [Deployment](../engineering/deployment.md)。
 
 ## 8. Frozen Preview Token
 
@@ -196,7 +200,8 @@ Confirm 请求只包含：
 事务顺序：
 
 ```text
-配置 transaction lock_timeout
+guard 内完成有界内存读取并释放 guard
+→ 配置 transaction lock_timeout
 → Session FOR UPDATE
 → committed/idempotency/exact-duplicate lookup
 → frozen binding 与 token recheck
@@ -259,7 +264,7 @@ Batch、Item 和 Account impact 由数据库 trigger 保护为不可变。重建
 ## 13. 当前限制
 
 - Receipt transaction references 后端一次返回全部，前端只做展示分页；
-- 只支持本地临时文件存储，不是分布式对象存储方案；
+- C9 方案 A 只支持 Windows / Linux 单主机持久本地 RAW / PLAN 根及 Linux Docker 持久受管卷，生产启动不自动初始化；多主机、网络共享及断电耐久性未验收；
 - 不支持异步大批量导入；
 - 不支持投资、TRANSFER / REFUND、银行或券商自动导入；
-- 当前 Compose 未传递 Import Confirm token secret，部署限制见 [Deployment](../engineering/deployment.md)。
+- 当前 Compose 已传递 Import Confirm token secret、持久根与三个稳定 UUID；首次须显式预配，配置存在不代表生产部署验收，完整合同见 [Deployment](../engineering/deployment.md)。

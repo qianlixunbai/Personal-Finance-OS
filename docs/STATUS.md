@@ -4,9 +4,13 @@
 
 **本阶段实施起点：** `zh-cn` @ `bb2ff37948782a40180a312374c5a986087019cf`
 
-**核对日期：** 2026-09-30
+**当前 Finance 核对基线：** `zh-cn` @ `dc7e6feb550224aded70c907cc26550bbff9bdac`
+
+**核对日期：** 2026-10-12
 
 ## 当前产品阶段
+
+**Finance G4-1 / C10 — 文档、迁移与安全状态一致性修复：技术验收 GO；正式 CLOSED 以精确提交、推送和独立远端核验为条件。** C1–C9 已正式 CLOSED — GO，原始审计关闭进度在提交前保持 **9/11**；C10 提交前尚未正式关闭，C11 未开始，Finance 仍处于 Final Stabilization，G5 全量最终验收未完成。C9 的正式关闭依据本轮用户确认；其原 Review 保留当时的候选/待验收结论和历史测试数字，不回写历史。C10 本轮证据见 [C10 Review](archive/review/G4-1-C10-Documentation-Schema-Security-Drift-Review.md)。
 
 **AI Phase 5 — Frontend AI Analyst Entry：CLOSED — GO。** `/ai` 位于既有认证路由内，桌面侧栏与移动底栏均提供“AI 分析”入口。页面通过既有 Axios client 提交单个问题，只展示纯文本回答；快捷问题仅填充输入，新请求与失败保留上一条成功结果，且不保存历史或携带多轮上下文。本阶段保持后端零修改、无新增依赖。
 
@@ -31,15 +35,17 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | 领域 | 当前能力 |
 | --- | --- |
 | 身份与安全 | 注册、登录、JWT、BCrypt、用户数据隔离、安全 `404` |
-| 基础财务 | Account、Category、普通 `INCOME` / `EXPENSE` / `ADJUSTMENT`、后端余额联动 |
-| Dashboard | 净资产、月度收支、趋势、资产分布、最近流水的后端聚合 |
-| 市场参考数据 | Market Quote、FX snapshot、显式刷新、只读 CNY reference valuation |
+| 基础财务 | Account、Category、普通 `INCOME` / `EXPENSE` / `ADJUSTMENT`、后端余额联动；独立 `POST /api/v1/transfers` 在同事务内联动两侧 CNY 余额，不生成普通收支流水 |
+| Dashboard | 净资产、月度收支、趋势、资产分布、最近流水的后端聚合；`REQUIRES_NEW` + `REPEATABLE_READ` 只读快照隔离 |
+| 市场参考数据 | Market Quote、FX snapshot、显式刷新、只读 CNY reference valuation；Market Quote 持久化拒绝旧 `quote_time` 覆盖新报价，FX 类似 affected rows 风险仍待调查 |
 | 投资账本 | Opening、BUY、SELL、DIVIDEND、reversal、replacement、确定性 replay |
 | 投资读取与 UI | Portfolio、Position、logical transaction、audit timeline、投资命令与纠正 UI |
 | Transaction Import Backend | CSV / XLSX、mapping、Preview、validation、Confirm、权威 Receipt |
 | Transaction Import Frontend | 上传到回执的完整 UI、恢复、lossless amount transport 与 E2E；最终独立 Closing Re-Review 待完成 |
 | AI | `/ai` 前端只读分析入口，复用 Axios / JWT，最多 3000 字符、请求防重、纯文本回答与稳定错误提示；JWT 认证单轮问答 `POST /api/v1/ai/ask`、用户级内存限流、脱敏错误；单一 Cloud Provider、三个只读 Finance Tools，以及受控 Tool Calling；手写 allowlist、服务端身份传入、最多 3 轮 / 5 次 Tool 调用；无历史、Memory 或 streaming |
-| 工程基础 | Flyway V1–V17、PostgreSQL Testcontainers、Docker、GitHub Actions |
+| Import 存储 | V21 持久 Registry / Storage Binding、RAW / PLAN 持久受管根、显式预配、方案 A 单主机受信部署；旧 V20 活跃 Session 需显式离线迁移 |
+| Account / Investment Binding | 账户类型更新在 owned Account 锁内拒绝不兼容的 transaction-driven 绑定，包括 CLOSED 仓位；保留 C3 脏数据与 REPLACEMENT 防御边界 |
+| 工程基础 | Flyway V1–V21、PostgreSQL Testcontainers、Docker、GitHub Actions |
 
 ## 已关闭的重要阶段
 
@@ -51,13 +57,15 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | v3.0 Investment Ledger / Write / Read | CLOSED — GO | [Investment Reviews](archive/review/README.md) |
 | Investment Command & Correction UI | CLOSED — GO | [Closing Review](archive/review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) |
 | Transaction Import Contract / Backend Foundation / Preview / Confirm | CLOSED — GO | [Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md) |
+| C1–C9 原始审计整改 | CLOSED — GO（9/11） | 本轮用户确认；[C9 历史实施与升级证据](archive/review/G3-2-C9-Import-Temporary-Storage-Lifecycle-Review.md)，其候选结论保留原时间点含义 |
 | AI Phase 5 — Frontend AI Analyst Entry | CLOSED — GO | 本文件记录的离线验证与用户 2026-09-30 真实人工 UI smoke 确认 |
 
 各阶段的 HEAD、测试数字、P0/P1/P2/P3 和 GO/NO-GO 只以对应 Closing Review 的历史快照为准。
 
 ## 当前正在推进的工作
 
-1. Transaction Import Frontend A–D 的最终独立、只读 Closing Re-Review 仍待完成。
+1. C10 技术验收 GO；正式 CLOSED 以精确提交、推送和独立远端核验为条件；不自动进入 C11 或 Finance Freeze。
+2. Transaction Import Frontend A–D 的最终独立、只读 Closing Re-Review 仍待完成。
 
 ## 下一核心能力
 
@@ -65,7 +73,7 @@ AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话�
 
 ## 主要未完成范围
 
-- `TRANSFER` / `REFUND` 普通流水语义；
+- 普通 Transaction 的 `TRANSFER` / `REFUND` 类型语义与 Import 支持；独立 Transfer 创建 API 已实现，不代表真实银行转账；
 - 对账、去重治理和余额校准；
 - 历史持仓与收益曲线；
 - 多币种账务、FIFO / lot、公司行动；
@@ -76,12 +84,13 @@ AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话�
 ## 当前稳定技术边界
 
 - 前后端分离的 Spring Boot 模块化单体；
-- PostgreSQL 是持久化与事务一致性基础，schema 由 Flyway V1–V17 管理；
+- PostgreSQL 是持久化与事务一致性基础，schema 由 Flyway V1–V21 管理；表统计口径见 [Database](architecture/database.md)；
 - 当前账务为 CNY 单币种，金额使用 `BigDecimal` / `NUMERIC`；
 - 金融计算、余额、核心聚合和 Import Preview/Receipt 以后端为权威；
 - 投资事实 append-only，当前 Position 由 canonical replay 与受控 `Asset` 投影表达；
 - Market Quote、FX 与 reference valuation 是参考数据，不是账务真值；
 - 架构级变化必须新增 ADR，不直接改写冻结的 v1.0 Architecture。
+- C9 方案 A 仅覆盖 Windows / Linux 单主机持久本地根及 Linux Docker 持久受管卷；多主机、网络共享、高权限停机克隆识别与断电耐久性未验收。C9 CLOSED 不代表真实生产部署完成。
 
 ## 最近正式验收依据
 
@@ -89,9 +98,19 @@ AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话�
 - 后端 Import Confirm：[Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)，结论为 `CLOSED — GO`。
 - Import Frontend：[Frontend Closing Review](archive/review/V3.0-Transaction-Import-Frontend-Closing-Review.md)，记录 A–D 实现、两次最新 remediation 与验证证据，但明确保留最终独立 Closing Re-Review。
 
-## 已知实现不一致
+## 部署状态与独立 OPEN 项
 
-当前 Compose 与示例环境文件没有把 `FINANCE_IMPORT_CONFIRM_TOKEN_SECRET` 传入后端，而 `TransactionImportPreviewTokenService` 在 production 缺少该 secret 时会安全 fail-fast。该问题不改变 Import 金融语义，但意味着现有标准 Compose 启动路径不能被文档宣称为已完整可运行。详见 [Deployment](engineering/deployment.md)。
+当前 Compose 与示例环境文件已声明并传递 `JWT_SECRET`、`MIGRATION_PREVIEW_SECRET`、`FINANCE_IMPORT_CONFIRM_TOKEN_SECRET`、Import 持久 RAW / PLAN 根和三个稳定 UUID。生产根仍须显式预配，缺失 secret 或绑定异常会 fail-fast / fail-closed；配置存在及静态配置检查均不等于标准 Compose 端到端部署验收。本轮未启动真实生产部署，详见 [Deployment](engineering/deployment.md)。
+
+以下独立事项保持 OPEN，C10 不关闭或实施这些任务：
+
+- C8 前端行情提示 P2；
+- FX affected rows 类似风险待调查；
+- C4 cause-only 循环遍历；
+- C3 不兼容脏数据 / REPLACEMENT 防御边界；
+- C11 AI E2E CI 覆盖缺口；
+- Import Frontend 最终独立 Closing Re-Review；
+- Finance G5 全量最终验收。
 
 ## 状态维护规则
 

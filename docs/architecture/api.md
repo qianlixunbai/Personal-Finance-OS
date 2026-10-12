@@ -34,9 +34,9 @@
 | Header | 适用范围 |
 | --- | --- |
 | `X-Idempotency-Key` | Legacy opening `migration-confirm` |
-| `Idempotency-Key` | BUY / SELL / DIVIDEND / reversal / replacement / Transaction Import Confirm |
+| `Idempotency-Key` | BUY / SELL / DIVIDEND / reversal / replacement / Transaction Import Confirm；普通 `POST /api/v1/transactions` 可选 |
 
-Header 名称不能互换。key 在用户域内使用，必须非空、无首尾空格且不超过 100 字符。
+Header 名称不能互换。提供 key 时，它在用户域内使用，必须非空、无首尾空格且不超过 100 字符；普通流水创建不传 key 时沿用非幂等创建行为，其他上述命令仍要求对应 Header。
 
 ## 2. Controller 清单
 
