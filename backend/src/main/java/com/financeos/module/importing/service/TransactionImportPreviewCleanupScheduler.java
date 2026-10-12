@@ -15,17 +15,25 @@ public class TransactionImportPreviewCleanupScheduler implements SmartLifecycle,
     private final TaskScheduler taskScheduler;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile ScheduledFuture<?> cleanupTask;
+    private final Duration interval;
 
     public TransactionImportPreviewCleanupScheduler(TransactionImportPreviewCleanupService cleanupService,
                                                     TaskScheduler taskScheduler) {
+        this(cleanupService, taskScheduler, CLEANUP_INTERVAL);
+    }
+
+    public TransactionImportPreviewCleanupScheduler(TransactionImportPreviewCleanupService cleanupService,
+                                                     TaskScheduler taskScheduler, Duration interval) {
+        if (interval.isNegative() || interval.isZero()) throw new IllegalArgumentException("Cleanup interval must be positive");
         this.cleanupService = cleanupService;
         this.taskScheduler = taskScheduler;
+        this.interval = interval;
     }
 
     @Override
     public synchronized void start() {
         if (running.compareAndSet(false, true)) {
-            cleanupTask = taskScheduler.scheduleWithFixedDelay(this::runCleanup, CLEANUP_INTERVAL);
+            cleanupTask = taskScheduler.scheduleWithFixedDelay(this::runCleanup, interval);
         }
     }
 

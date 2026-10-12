@@ -19,23 +19,37 @@ public class TransactionImportSessionService {
     private static final Duration SESSION_TTL = Duration.ofMinutes(15);
     private final TransactionImportSessionMapper sessionMapper;
     private final Clock clock;
+    private final TransactionImportFileLifecycleService files;
 
     @Autowired
     public TransactionImportSessionService(TransactionImportSessionMapper sessionMapper,
-                                           @Qualifier("businessClock") Clock clock) {
+                                           @Qualifier("businessClock") Clock clock,
+                                           TransactionImportFileLifecycleService files) {
         this.sessionMapper = sessionMapper;
         this.clock = clock;
+        this.files = files;
+    }
+
+    /** Focused state tests only; production wiring always supplies the persistent lifecycle. */
+    public TransactionImportSessionService(TransactionImportSessionMapper sessionMapper, Clock clock) {
+        this(sessionMapper, clock, null);
+    }
+
+    public TransactionImportFileLifecycleService files() {
+        if (files == null) throw new IllegalStateException("Persistent import lifecycle is required");
+        return files;
     }
 
     public TransactionImportSession createMappingRequiredSession(Long userId, TransactionImportSession draft) {
         Instant now = clock.instant();
-        draft.setId(UUID.randomUUID());
+        if (draft.getId() == null) draft.setId(UUID.randomUUID());
         draft.setUserId(userId);
         draft.setPreallocatedBatchId(UUID.randomUUID());
         draft.setStatus(TransactionImportSessionStatus.MAPPING_REQUIRED.name());
         draft.setRevision(0);
         draft.setExpiresAt(now.plus(SESSION_TTL));
-        sessionMapper.insert(draft);
+        if (files != null) files.insertSession(draft);
+        else sessionMapper.insert(draft);
         return draft;
     }
 
@@ -46,7 +60,8 @@ public class TransactionImportSessionService {
         }
         Instant now = clock.instant();
         if (!session.getExpiresAt().isAfter(now)) {
-            sessionMapper.markExpired(sessionId, userId, now);
+            if (files == null) sessionMapper.markExpired(sessionId, userId, now);
+            else files.reconcileTerminal(userId, sessionId, now);
             throw new BusinessException(409, "Import session expired");
         }
         if (TransactionImportSessionStatus.CANCELLED.name().equals(session.getStatus())

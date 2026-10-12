@@ -28,6 +28,12 @@ migration:
 
 finance:
   import:
+    storage:
+      raw-root: ${FINANCE_IMPORT_STORAGE_RAW_ROOT:}
+      plan-root: ${FINANCE_IMPORT_STORAGE_PLAN_ROOT:}
+      deployment-id: ${FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID:}
+      raw-id: ${FINANCE_IMPORT_STORAGE_RAW_ID:}
+      plan-id: ${FINANCE_IMPORT_STORAGE_PLAN_ID:}
     cleanup:
       enabled: ${FINANCE_IMPORT_CLEANUP_ENABLED:true}
 

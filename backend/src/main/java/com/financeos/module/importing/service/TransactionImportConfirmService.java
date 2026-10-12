@@ -23,6 +23,7 @@ import com.financeos.module.importing.mapper.TransactionImportItemMapper;
 import com.financeos.module.importing.mapper.TransactionImportSessionMapper;
 import com.financeos.module.importing.preview.TransactionImportPreviewPlan;
 import com.financeos.module.importing.preview.TransactionImportPreviewService;
+import com.financeos.module.importing.storage.InvalidImportFileException;
 import com.financeos.module.ledger.entity.Transaction;
 import com.financeos.module.ledger.dto.TransactionDuplicateProbe;
 import com.financeos.module.ledger.mapper.TransactionMapper;
@@ -105,7 +106,15 @@ public class TransactionImportConfirmService {
         TransactionImportBatch exactDuplicate = findExactDuplicate(userId, preflightSession);
         if (exactDuplicate != null) throw new BusinessException(409, "IMPORT_EXACT_DUPLICATE");
         if (preflightSession.getPlanStorageReference() == null) throw new BusinessException(409, "IMPORT_PREVIEW_UNAVAILABLE");
-        TransactionImportPreviewPlan plan = previewService.loadFrozenPlan(preflightSession.getPlanStorageReference());
+        TransactionImportPreviewPlan plan;
+        try {
+            plan = previewService.loadFrozenPlan(preflightSession);
+        } catch (InvalidImportFileException exception) {
+            // Another confirm can commit and retire this plan after the initial receipt lookup.
+            TransactionImportBatch committed = batchMapper.findConfirmedByUserIdAndSessionId(userId, sessionId);
+            if (committed != null) return replayOrBatchConflict(committed, idempotencyKey, requestHash);
+            throw exception;
+        }
         validatePlan(plan, acknowledged);
         tokenService.verify(request.previewToken(), userId, preflightSession, acknowledged);
         TransactionImportConfirmResponse response;

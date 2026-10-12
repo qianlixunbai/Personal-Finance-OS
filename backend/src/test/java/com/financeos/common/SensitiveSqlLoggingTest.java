@@ -176,10 +176,11 @@ class SensitiveSqlLoggingTest {
         session.setUserId(1L);
         session.setTemporaryStorageReference("synthetic-test-file");
         when(mapper.findExpiredForCleanup(any())).thenReturn(List.of(session));
-        doThrow(databaseFailure("23514")).when(mapper).markExpired(any(), anyLong(), any());
-        new TransactionImportPreviewCleanupService(mapper, storage, planStorage, clock).cleanupExpired();
-        verify(storage).delete("synthetic-test-file");
-        verify(mapper).markExpired(session.getId(), session.getUserId(), clock.instant());
+        var lifecycle = mock(com.financeos.module.importing.service.TransactionImportFileLifecycleService.class);
+        when(lifecycle.reconcileTerminal(anyLong(), any(), any())).thenThrow(databaseFailure("23514"));
+        new TransactionImportPreviewCleanupService(mapper, storage, planStorage, clock, lifecycle).cleanupExpired();
+        verify(storage, org.mockito.Mockito.never()).delete(any());
+        verify(lifecycle).reconcileTerminal(session.getUserId(), session.getId(), clock.instant());
         assertSafeEvent("IMPORT_PREVIEW_CLEANUP", "CHECK_CONSTRAINT", output);
     }
 

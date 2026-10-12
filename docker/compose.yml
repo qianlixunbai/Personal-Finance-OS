@@ -27,10 +27,17 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       MIGRATION_PREVIEW_SECRET: ${MIGRATION_PREVIEW_SECRET:?MIGRATION_PREVIEW_SECRET must be set}
       FINANCE_IMPORT_CONFIRM_TOKEN_SECRET: ${FINANCE_IMPORT_CONFIRM_TOKEN_SECRET:?FINANCE_IMPORT_CONFIRM_TOKEN_SECRET must be set}
+      FINANCE_IMPORT_STORAGE_RAW_ROOT: /var/lib/finance-os-import/raw
+      FINANCE_IMPORT_STORAGE_PLAN_ROOT: /var/lib/finance-os-import/plan
+      FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID: ${FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID:?FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID must be set}
+      FINANCE_IMPORT_STORAGE_RAW_ID: ${FINANCE_IMPORT_STORAGE_RAW_ID:?FINANCE_IMPORT_STORAGE_RAW_ID must be set}
+      FINANCE_IMPORT_STORAGE_PLAN_ID: ${FINANCE_IMPORT_STORAGE_PLAN_ID:?FINANCE_IMPORT_STORAGE_PLAN_ID must be set}
       MARKET_DATA_ENABLED: ${MARKET_DATA_ENABLED:-false}
       MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-}
       MARKET_DATA_USER_REQUEST_LIMIT_PER_MINUTE: ${MARKET_DATA_USER_REQUEST_LIMIT_PER_MINUTE:-10}
       MARKET_DATA_PROVIDER_REQUEST_LIMIT_PER_MINUTE: ${MARKET_DATA_PROVIDER_REQUEST_LIMIT_PER_MINUTE:-8}
+    volumes:
+      - import_storage:/var/lib/finance-os-import
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,5 +67,26 @@ services:
       retries: 5
       start_period: 10s
 
+  import-storage-provision:
+    profiles: ["import-provision"]
+    build:
+      context: ../backend
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        java -Dloader.main=com.financeos.module.importing.storage.ImportStorageProvisioner
+        -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher --provision
+        && chown -R financeos:financeos /var/lib/finance-os-import/raw /var/lib/finance-os-import/plan
+    environment:
+      FINANCE_IMPORT_STORAGE_RAW_ROOT: /var/lib/finance-os-import/raw
+      FINANCE_IMPORT_STORAGE_PLAN_ROOT: /var/lib/finance-os-import/plan
+      FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID: ${FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID:?FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID must be set}
+      FINANCE_IMPORT_STORAGE_RAW_ID: ${FINANCE_IMPORT_STORAGE_RAW_ID:?FINANCE_IMPORT_STORAGE_RAW_ID must be set}
+      FINANCE_IMPORT_STORAGE_PLAN_ID: ${FINANCE_IMPORT_STORAGE_PLAN_ID:?FINANCE_IMPORT_STORAGE_PLAN_ID must be set}
+    volumes:
+      - import_storage:/var/lib/finance-os-import
+
 volumes:
   postgres_data:
+  import_storage:

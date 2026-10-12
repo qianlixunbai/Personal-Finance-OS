@@ -19,6 +19,19 @@ public interface TransactionImportSessionMapper extends BaseMapper<TransactionIm
     @Select("SELECT * FROM transaction_import_sessions WHERE id = #{id} AND user_id = #{userId} FOR UPDATE")
     TransactionImportSession findByIdAndUserIdForUpdate(@Param("id") UUID id, @Param("userId") Long userId);
 
+    @Select("SELECT * FROM transaction_import_sessions WHERE temporary_storage_reference=#{reference} OR plan_storage_reference=#{reference}")
+    List<TransactionImportSession> findByStorageReference(String reference);
+
+    @Select("""
+            SELECT s.* FROM transaction_import_sessions s
+            WHERE (temporary_storage_reference IS NOT NULL AND NOT EXISTS
+                (SELECT 1 FROM transaction_import_file_objects f WHERE f.reference=s.temporary_storage_reference))
+                OR (plan_storage_reference IS NOT NULL AND NOT EXISTS
+                (SELECT 1 FROM transaction_import_file_objects f WHERE f.reference=s.plan_storage_reference))
+            ORDER BY s.id LIMIT 100
+            """)
+    List<TransactionImportSession> findMissingFileRegistrations();
+
     @Update("""
             UPDATE transaction_import_sessions
             SET status = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
@@ -40,13 +53,13 @@ public interface TransactionImportSessionMapper extends BaseMapper<TransactionIm
                 mapping_digest = #{mappingDigest}, normalized_rows_digest = #{normalizedRowsDigest},
                 plan_storage_reference = #{planStorageReference}, updated_at = CURRENT_TIMESTAMP
             WHERE id = #{id} AND user_id = #{userId}
-              AND status IN ('MAPPING_REQUIRED', 'PREVIEW_READY') AND expires_at > #{now}
+              AND status IN ('MAPPING_REQUIRED', 'PREVIEW_READY') AND expires_at > #{now} AND revision=#{expectedRevision}
             """)
     int markPreviewReady(@Param("id") UUID id, @Param("userId") Long userId,
                          @Param("mappingDigest") String mappingDigest,
                          @Param("normalizedRowsDigest") String normalizedRowsDigest,
                          @Param("planStorageReference") String planStorageReference,
-                         @Param("now") Instant now);
+                         @Param("now") Instant now, @Param("expectedRevision") int expectedRevision);
 
     @Update("""
             UPDATE transaction_import_sessions

@@ -23,17 +23,20 @@ public class TransactionImportPreviewCleanupService {
     private final TemporaryImportFileStorage storage;
     private final TemporaryImportFileStorage planStorage;
     private final Clock clock;
+    private final TransactionImportFileLifecycleService files;
     private final AtomicBoolean acceptingCleanup = new AtomicBoolean(true);
     private final ReentrantReadWriteLock cleanupLifecycleLock = new ReentrantReadWriteLock();
 
     public TransactionImportPreviewCleanupService(TransactionImportSessionMapper sessionMapper,
                                                   TemporaryImportFileStorage storage,
                                                   @Qualifier("transactionImportPreviewPlanStorage") TemporaryImportFileStorage planStorage,
-                                                  @Qualifier("businessClock") Clock clock) {
+                                                  @Qualifier("businessClock") Clock clock,
+                                                  TransactionImportFileLifecycleService files) {
         this.sessionMapper = sessionMapper;
         this.storage = storage;
         this.planStorage = planStorage;
         this.clock = clock;
+        this.files = files;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -51,6 +54,8 @@ public class TransactionImportPreviewCleanupService {
                 return;
             }
             cleanupExpiredSessions();
+            storage.cleanupRetired(acceptingCleanup::get);
+            planStorage.cleanupRetired(acceptingCleanup::get);
         } finally {
             cleanupLifecycleLock.readLock().unlock();
         }
@@ -59,9 +64,8 @@ public class TransactionImportPreviewCleanupService {
     /** Runs only after the financial transaction has committed; cleanup never participates in receipt atomicity. */
     public void cleanupCommittedPayloads(TransactionImportSession session) {
         try {
-            if (session.getTemporaryStorageReference() != null) storage.delete(session.getTemporaryStorageReference());
-            if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
-            sessionMapper.clearCleanupReferences(session.getId(), session.getUserId());
+            TransactionImportSession current = files.reconcileTerminal(session.getUserId(), session.getId(), clock.instant());
+            if (current != null) deleteCurrentReferences(current);
         } catch (RuntimeException exception) {
             log.warn("Transaction import committed payload cleanup failed for session {}", session.getId());
         }
@@ -69,11 +73,14 @@ public class TransactionImportPreviewCleanupService {
 
     void stopAcceptingCleanup() {
         acceptingCleanup.set(false);
-        cleanupLifecycleLock.writeLock().lock();
+        boolean drained = false;
         try {
-            // Acquiring the write lock drains cleanup work that already holds the read lock.
+            drained = cleanupLifecycleLock.writeLock().tryLock(4, java.util.concurrent.TimeUnit.SECONDS);
+            if (!drained) log.warn("Transaction import cleanup drain pending; active I/O protection remains held");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         } finally {
-            cleanupLifecycleLock.writeLock().unlock();
+            if (drained) cleanupLifecycleLock.writeLock().unlock();
         }
     }
 
@@ -84,21 +91,34 @@ public class TransactionImportPreviewCleanupService {
 
     private void cleanupExpiredSessions() {
         Instant now = clock.instant();
-        for (TransactionImportSession session : sessionMapper.findExpiredForCleanup(now)) {
+        // Enrollment is limited to exact DB-owned references, never a filesystem inventory.
+        for (TransactionImportSession session : sessionMapper.findMissingFileRegistrations()) {
+            if (!acceptingCleanup.get()) return;
             try {
-                storage.delete(session.getTemporaryStorageReference());
-                if (session.getPlanStorageReference() != null) {
-                    planStorage.delete(session.getPlanStorageReference());
-                }
-                sessionMapper.markExpired(session.getId(), session.getUserId(), now);
-                sessionMapper.clearCleanupReferences(session.getId(), session.getUserId());
+                if (session.getTemporaryStorageReference() != null) storage.exists(session.getTemporaryStorageReference());
+                if (session.getPlanStorageReference() != null) planStorage.exists(session.getPlanStorageReference());
+            } catch (RuntimeException exception) { reportFailure(session, exception); }
+        }
+        for (TransactionImportSession session : sessionMapper.findExpiredForCleanup(now)) {
+            if (!acceptingCleanup.get()) return;
+            try {
+                TransactionImportSession current = files.reconcileTerminal(session.getUserId(), session.getId(), now);
+                if (current != null) deleteCurrentReferences(current);
             } catch (RuntimeException exception) {
-                if (DatabaseFailureLog.hasDatabaseFailure(exception)) {
-                    DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.IMPORT_PREVIEW_CLEANUP, exception);
-                } else {
-                    log.warn("Transaction import preview cleanup failed for session {}", session.getId(), exception);
-                }
+                reportFailure(session, exception);
             }
         }
+    }
+
+    private void deleteCurrentReferences(TransactionImportSession current) {
+        if (current.getTemporaryStorageReference() != null) storage.delete(current.getTemporaryStorageReference());
+        if (current.getPlanStorageReference() != null) planStorage.delete(current.getPlanStorageReference());
+        files.clearDeletedReferences(current.getUserId(), current.getId());
+    }
+
+    private void reportFailure(TransactionImportSession session, RuntimeException exception) {
+        if (DatabaseFailureLog.hasDatabaseFailure(exception))
+            DatabaseFailureLog.warn(log, DatabaseFailureLog.Path.IMPORT_PREVIEW_CLEANUP, exception);
+        else log.warn("Transaction import preview cleanup deferred for session {}", session.getId());
     }
 }

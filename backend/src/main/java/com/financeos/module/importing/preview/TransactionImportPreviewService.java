@@ -101,15 +101,17 @@ public class TransactionImportPreviewService {
     public TransactionImportPreviewResponse create(Long userId, MultipartFile file, TransactionImportPreviewRequest request) {
         if (file == null || file.isEmpty()) throw new ImportPreviewException(400, "Import file must not be empty");
         TransactionImportFormat format = resolveFormat(request.format(), file.getOriginalFilename(), file.getContentType());
+        java.util.UUID intendedSession = java.util.UUID.randomUUID();
         StoredImportFile stored;
         try {
-            stored = storage.save(file.getInputStream(), file.getOriginalFilename());
+            stored = storage.save(userId, intendedSession, file.getInputStream(), file.getOriginalFilename());
         } catch (IOException exception) {
             throw new ImportPreviewException(400, "Import file cannot be read");
         }
         try {
-            ParsedImportFile parsed = parse(format, stored.reference());
+            ParsedImportFile parsed = parse(userId, intendedSession, format, stored.reference());
             TransactionImportSession draft = new TransactionImportSession();
+            draft.setId(intendedSession);
             draft.setOriginalFileName(com.financeos.module.importing.storage.ImportFileMetadata.sanitizeOriginalFilename(file.getOriginalFilename()));
             draft.setContentType(file.getContentType());
             draft.setFileSize(stored.fileSize());
@@ -118,38 +120,35 @@ public class TransactionImportPreviewService {
             draft.setOptionsDigest(digest("phase-3c|" + format.name()));
             TransactionImportSession session = sessionService.createMappingRequiredSession(userId, draft);
             if (!isComplete(parsed.headers(), request.mapping())) return mappingRequired(session, parsed.headers());
-            return materialize(userId, session, parsed, request.mapping());
+            return materialize(userId, session, parsed, request.mapping(), true);
         } catch (RuntimeException exception) {
-            storage.delete(stored.reference());
+            // A committed Session remains authoritative even if materialization failed or the acknowledgement was lost.
+            if (sessionService.files().retireUnpublished(stored.reference())) storage.delete(stored.reference());
             throw exception;
         }
     }
 
     public TransactionImportPreviewResponse updateMapping(Long userId, java.util.UUID sessionId, TransactionImportMapping mapping) {
         TransactionImportSession session = requireUsableSession(userId, sessionId);
-        ParsedImportFile parsed = parse(resolveStoredFormat(session), session.getTemporaryStorageReference());
+        ParsedImportFile parsed = parse(userId, sessionId, resolveStoredFormat(session), session.getTemporaryStorageReference());
         if (!isComplete(parsed.headers(), mapping)) return invalidatePreview(userId, session, parsed.headers());
-        return materialize(userId, session, parsed, mapping);
+        return materialize(userId, session, parsed, mapping, false);
     }
 
     public List<TransactionImportPreviewRow> getRows(Long userId, java.util.UUID sessionId, int page, int size) {
         TransactionImportSession session = requireUsableSession(userId, sessionId);
         if (session.getPlanStorageReference() == null) throw new BusinessException(409, "Import mapping is required");
-        TransactionImportPreviewPlan plan = readPlan(session.getPlanStorageReference());
+        TransactionImportPreviewPlan plan = loadFrozenPlan(session);
         int safeSize = Math.min(Math.max(size, 1), 500);
         int from = Math.min((Math.max(page, 1) - 1) * safeSize, plan.rows().size());
         return plan.rows().subList(from, Math.min(from + safeSize, plan.rows().size()));
     }
 
     public void cancel(Long userId, java.util.UUID sessionId) {
-        TransactionImportSession session = requireUsableSession(userId, sessionId);
+        requireUsableSession(userId, sessionId);
         Instant now = clock.instant();
-        if (sessionMapper.cancel(sessionId, userId, now) != 1) {
-            throw new BusinessException(409, "Import session is not cancellable");
-        }
-        storage.delete(session.getTemporaryStorageReference());
-        if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
-        sessionMapper.clearCleanupReferences(sessionId, userId);
+        TransactionImportSession current = sessionService.files().cancel(userId, sessionId, now);
+        deleteTerminalReferences(current);
     }
 
     private TransactionImportSession requireUsableSession(Long userId, java.util.UUID sessionId) {
@@ -158,27 +157,27 @@ public class TransactionImportPreviewService {
         } catch (BusinessException exception) {
             TransactionImportSession session = sessionMapper.findByIdAndUserId(sessionId, userId);
             if (session != null && "EXPIRED".equals(session.getStatus())) {
-                if (session.getTemporaryStorageReference() != null) storage.delete(session.getTemporaryStorageReference());
-                if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
-                sessionMapper.clearCleanupReferences(sessionId, userId);
+                TransactionImportSession current = sessionService.files().reconcileTerminal(userId, sessionId, clock.instant());
+                if (current != null) deleteTerminalReferences(current);
             }
             throw exception;
         }
     }
 
     private TransactionImportPreviewResponse invalidatePreview(Long userId, TransactionImportSession session, List<String> headers) {
-        if (!"MAPPING_REQUIRED".equals(session.getStatus()) || session.getPlanStorageReference() != null) {
-            if (sessionMapper.invalidatePreview(session.getId(), userId, clock.instant()) != 1) {
-                throw new BusinessException(409, "Import session is no longer usable");
-            }
-            if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
-            session = sessionMapper.findByIdAndUserId(session.getId(), userId);
-        }
-        return mappingRequired(session, headers);
+        var published = sessionService.files().invalidate(session, clock.instant());
+        if (published.retiredReference() != null) planStorage.delete(published.retiredReference());
+        return mappingRequired(published.session(), headers);
+    }
+
+    private void deleteTerminalReferences(TransactionImportSession current) {
+        if (current.getTemporaryStorageReference() != null) storage.delete(current.getTemporaryStorageReference());
+        if (current.getPlanStorageReference() != null) planStorage.delete(current.getPlanStorageReference());
+        sessionService.files().clearDeletedReferences(current.getUserId(), current.getId());
     }
 
     private TransactionImportPreviewResponse materialize(Long userId, TransactionImportSession session, ParsedImportFile parsed,
-                                                          TransactionImportMapping mapping) {
+                                                          TransactionImportMapping mapping, boolean initial) {
         // The session revision changes as this preview is committed.  Bind every warning to
         // that resulting revision, so an acknowledgement cannot be reused for another plan.
         List<TransactionImportPreviewRow> rows = bindWarningIdentities(validate(userId, parsed, mapping), session,
@@ -187,16 +186,19 @@ public class TransactionImportPreviewService {
         String mappingDigest = digest(canonicalMapping(mapping));
         String rowsDigest = digest(canonicalRows(rows));
         TransactionImportPreviewPlan plan = new TransactionImportPreviewPlan(parsed.headers(), mapping, rows, summary);
-        StoredImportFile storedPlan = storePlan(plan);
-        int updated = sessionMapper.markPreviewReady(session.getId(), userId, mappingDigest, rowsDigest,
-                storedPlan.reference(), clock.instant());
-        if (updated != 1) {
-            planStorage.delete(storedPlan.reference());
-            throw new BusinessException(409, "Import session is no longer usable");
+        StoredImportFile storedPlan = storePlan(plan, session);
+        com.financeos.module.importing.service.TransactionImportFileLifecycleService.PublishedPlan published;
+        try {
+            published = sessionService.files().publishPlan(session, storedPlan.reference(), mappingDigest, rowsDigest, clock.instant());
+        } catch (RuntimeException exception) {
+            // Authority is re-read before compensation. Mapping DB failures remain RESERVED for durable recovery.
+            if (initial || exception instanceof BusinessException) {
+                if (sessionService.files().retireUnpublished(storedPlan.reference())) planStorage.delete(storedPlan.reference());
+            }
+            throw exception;
         }
-        if (session.getPlanStorageReference() != null) planStorage.delete(session.getPlanStorageReference());
-        TransactionImportSession ready = sessionMapper.findByIdAndUserId(session.getId(), userId);
-        return response(ready, parsed.headers(), mapping, rows, summary);
+        if (published.retiredReference() != null) planStorage.delete(published.retiredReference());
+        return response(published.session(), parsed.headers(), mapping, rows, summary);
     }
 
     private List<TransactionImportPreviewRow> validate(Long userId, ParsedImportFile parsed, TransactionImportMapping mapping) {
@@ -419,8 +421,8 @@ public class TransactionImportPreviewService {
                 previewTokenService.issue(session, rows.stream().flatMap(row -> row.warnings().stream()).map(TransactionImportValidationMessage::id).toList()));
     }
 
-    private ParsedImportFile parse(TransactionImportFormat format, String reference) {
-        try (var content = storage.open(reference)) {
+    private ParsedImportFile parse(Long user, java.util.UUID session, TransactionImportFormat format, String reference) {
+        try (var content = storage.open(user, session, reference)) {
             return (format == TransactionImportFormat.CSV ? new CsvTransactionImportParser() : new XlsxTransactionImportParser()).parse(content);
         } catch (IOException exception) { throw new ImportPreviewException(400, "Import file cannot be read"); }
     }
@@ -442,15 +444,19 @@ public class TransactionImportPreviewService {
         return detected;
     }
 
-    private StoredImportFile storePlan(TransactionImportPreviewPlan plan) {
+    private StoredImportFile storePlan(TransactionImportPreviewPlan plan, TransactionImportSession session) {
         try {
             byte[] payload = objectMapper.writeValueAsBytes(plan);
-            return planStorage.save(new ByteArrayInputStream(payload), "preview-plan.json");
+            return planStorage.save(session.getUserId(), session.getId(), new ByteArrayInputStream(payload), "preview-plan.json");
         } catch (JsonProcessingException exception) { throw new IllegalStateException("Cannot serialize import preview plan", exception); }
     }
 
     public TransactionImportPreviewPlan loadFrozenPlan(String reference) {
         return readPlan(reference);
+    }
+
+    public TransactionImportPreviewPlan loadFrozenPlan(TransactionImportSession session) {
+        return planStorage.withIdentity(session.getUserId(), session.getId(), () -> loadFrozenPlan(session.getPlanStorageReference()));
     }
 
     private TransactionImportPreviewPlan readPlan(String reference) {

@@ -40,11 +40,46 @@ import static org.mockito.Mockito.reset;
 
 class TransactionImportConfirmIntegrationTest extends PostgresIntegrationTest {
 
-    @Autowired private TransactionImportPreviewService previewService;
+    @SpyBean private TransactionImportPreviewService previewService;
     @Autowired private TransactionImportConfirmService confirmService;
     @Autowired private TransactionService transactionService;
     @SpyBean private TransactionImportPreviewCleanupService cleanupService;
     @SpyBean private TransactionImportConfirmTransactionObserver transactionObserver;
+
+    @org.junit.jupiter.api.RepeatedTest(3)
+    void committedReceiptReplaysWhenTheConcurrentPlanReadIsRejectedAfterConsumption() throws Exception {
+        long userId = createUser("c9-replay-race@example.com");
+        long accountId = createAccount(userId), categoryId = createCategory(userId, "Food", "EXPENSE");
+        var preview = previewService.create(userId, csv("2026-08-01,expense,10.00,Cash,Food,lunch"),
+                new TransactionImportPreviewRequest(null, mapping(accountId, categoryId)));
+        CountDownLatch beforeRead = new CountDownLatch(1), resume = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            if (Thread.currentThread().getName().equals("c9-late-confirm")) {
+                beforeRead.countDown();
+                if (!resume.await(10, TimeUnit.SECONDS)) throw new AssertionError("Replay race fixture not resumed");
+            }
+            return invocation.callRealMethod();
+        }).when(previewService).loadFrozenPlan(any(com.financeos.module.importing.entity.TransactionImportSession.class));
+        var executor = Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, "c9-late-confirm"));
+        try {
+            var request = new TransactionImportConfirmRequest(preview.previewToken(), List.of());
+            var late = executor.submit(() -> confirmService.confirm(userId, preview.importSessionId(), "c9-replay-race", request));
+            assertThat(beforeRead.await(10, TimeUnit.SECONDS)).isTrue();
+            var committed = confirmService.confirm(userId, preview.importSessionId(), "c9-replay-race", request);
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transaction_import_file_objects WHERE intended_session_id=? AND state='DELETED'", Integer.class, preview.importSessionId())).isEqualTo(2);
+            resume.countDown();
+            var replay = late.get(10, TimeUnit.SECONDS);
+            assertThat(committed.idempotentReplay()).isFalse();
+            assertThat(replay.idempotentReplay()).isTrue();
+            assertThat(replay.receipt()).isEqualTo(committed.receipt());
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM transactions WHERE user_id=?", Integer.class, userId)).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("SELECT balance FROM accounts WHERE id=?", String.class, accountId)).isEqualTo("-10.00");
+        } finally {
+            resume.countDown(); executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+            reset(previewService);
+        }
+    }
 
     @Test
     void confirmPersistsTransactionsBalancesAndAReplayableReceiptAtomically() {
