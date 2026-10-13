@@ -33,6 +33,7 @@ PostgreSQL 特性必须由 PostgreSQL Testcontainers 或真实 PostgreSQL 验证
 | Build / lint | TypeScript、Vite bundle 与静态检查 |
 | Playwright Investment | 投资命令、确认、回执、恢复和浏览器交互 |
 | Playwright Import | upload/mapping/Preview/Confirm/Receipt、401、reload、多标签页、lossless amount |
+| Playwright AI | 认证导航、JWT client、输入限制、纯文本/XSS、错误状态、跨用户/Session/多标签页隔离、Web Locks 兼容 |
 
 命令：
 
@@ -41,12 +42,15 @@ cd frontend
 npm test
 npm run lint
 npm run build
+npm run test:e2e:ai
 npm run test:e2e:investment-command
 npm run test:e2e:transaction-import
 npm run test:e2e:transaction-import:real
 ```
 
 默认 `npm test` 不包含 `tests/e2e/`。
+
+`test:e2e:ai` 收集 `ai-analyst.spec.ts` 与 `ai-state-isolation.spec.ts`，自行启动独立 Vite `:5182`，使用虚构身份及模拟 HTTP 响应，不需要 Spring Boot、PostgreSQL 或真实 AI Provider。它验证浏览器与 mock API 的契约，不构成真实 Provider / Finance Tool 调用的端到端证据。
 
 `test:e2e:transaction-import` 是确定性的 mock/browser 契约测试；`test:e2e:transaction-import:real` 不自行启动服务，要求调用方已将 `E2E_BASE_URL` 指向配置为真实后端与隔离数据库的 Vite server。
 
@@ -80,12 +84,17 @@ GitHub Actions 已配置以下 quality gate；首次 GitHub Actions 实际运行
 
 - backend `clean test`；
 - frontend `npm test`、lint、build；
+- 独立 `AI Browser E2E` job：Ubuntu、Node.js 22、`npm ci`、锁文件对应的 Playwright Chromium 和 `npm run test:e2e:ai`；不依赖 Backend / Import E2E job，15 分钟 timeout，无失败容忍；
 - 独立 PostgreSQL `finance_os_e2e`、Spring Boot `e2e` profile 与 Vite server 上的 Investment Command Playwright E2E；
 - Transaction Import 的 mock/browser 契约 Playwright E2E，以及经由 Vite `:5180` → Spring Boot `:8081` → PostgreSQL `finance_os_e2e` 的真实 critical-path Playwright E2E；
 - backend/frontend 镜像构建；
 - Compose config。
 
 E2E job 使用临时生成的测试 secret，并且不连接日常开发数据库 `finance_os`。它不启动完整 Compose runtime；Closing Review 如果依赖额外 runtime 证据，仍须记录实际独立命令和环境。
+
+AI job 不生成或注入业务 secret。AI 配置在 CI 拒绝 `test.only`，失败时保留 trace / screenshot；job 仅在失败时上传 `frontend/test-results/`，artifact 保留 7 天。诊断包含虚构测试身份和 mock 内容，不上传环境文件或业务服务日志；启动前失败可能没有浏览器诊断，仍由 Actions step 日志报告失败。
+
+AI job 的远端验收需在人工验收、提交和推送后，按精确 Commit SHA 核对两份 Spec 的完整执行及 job conclusion。AI job 的成功不代表其他 Backend / E2E job 或整个 workflow 已恢复绿灯。本轮实施和验证证据见 [C11 Review](../archive/review/G4-2-C11-AI-Browser-E2E-CI-Coverage-Review.md)。
 
 ## 6. 文档-only 验证
 

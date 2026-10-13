@@ -60,6 +60,36 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  ai-e2e:
+    name: AI Browser E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run AI browser contract Playwright E2E
+        run: npm run test:e2e:ai
+      - name: Upload AI E2E failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ai-e2e-failure-diagnostics
+          path: frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
