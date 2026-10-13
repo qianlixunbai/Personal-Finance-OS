@@ -136,11 +136,76 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Generate isolated E2E secrets
         run: |
+          jwt_secret="$(openssl rand -base64 48)"
+          migration_secret="$(openssl rand -base64 48)"
+          import_secret="$(openssl rand -base64 48)"
+          echo "::add-mask::$jwt_secret"
+          echo "::add-mask::$migration_secret"
+          echo "::add-mask::$import_secret"
           {
-            echo "E2E_JWT_SECRET=$(openssl rand -base64 48)"
-            echo "E2E_MIGRATION_PREVIEW_SECRET=$(openssl rand -base64 48)"
-            echo "FINANCE_IMPORT_CONFIRM_TOKEN_SECRET=$(openssl rand -base64 48)"
+            echo "E2E_JWT_SECRET=$jwt_secret"
+            echo "E2E_MIGRATION_PREVIEW_SECRET=$migration_secret"
+            echo "FINANCE_IMPORT_CONFIRM_TOKEN_SECRET=$import_secret"
           } >> "$GITHUB_ENV"
+      - name: Prepare isolated E2E import storage
+        run: |
+          umask 077
+          test -d "$RUNNER_TEMP"
+          test ! -L "$RUNNER_TEMP"
+          test "$(realpath -e "$RUNNER_TEMP")" = "$RUNNER_TEMP"
+          storage_parent="$(mktemp -d "$RUNNER_TEMP/finance-os-e2e-import.XXXXXXXXXX")"
+          test "$(stat -c '%a:%u' "$storage_parent")" = "700:$(id -u)"
+          raw_root="$storage_parent/raw"
+          plan_root="$storage_parent/plan"
+          mkdir -m 700 "$raw_root" "$plan_root"
+          for root in "$raw_root" "$plan_root"; do
+            test ! -L "$root"
+            test "$(realpath -e "$root")" = "$root"
+          done
+          deployment_id="$(cat /proc/sys/kernel/random/uuid)"
+          raw_id="$(cat /proc/sys/kernel/random/uuid)"
+          plan_id="$(cat /proc/sys/kernel/random/uuid)"
+          test "$raw_id" != "$plan_id"
+          {
+            echo "FINANCE_IMPORT_STORAGE_RAW_ROOT=$raw_root"
+            echo "FINANCE_IMPORT_STORAGE_PLAN_ROOT=$plan_root"
+            echo "FINANCE_IMPORT_STORAGE_DEPLOYMENT_ID=$deployment_id"
+            echo "FINANCE_IMPORT_STORAGE_RAW_ID=$raw_id"
+            echo "FINANCE_IMPORT_STORAGE_PLAN_ID=$plan_id"
+          } >> "$GITHUB_ENV"
+      - name: Build current E2E backend JAR
+        working-directory: backend
+        run: |
+          chmod +x mvnw
+          source_head="$(git rev-parse HEAD)"
+          ./mvnw -B clean package -DskipTests
+          test "$(git rev-parse HEAD)" = "$source_head"
+          jar_path="$GITHUB_WORKSPACE/backend/target/finance-os-backend-1.0.0.jar"
+          test -s "$jar_path"
+          jar tf "$jar_path" > "$RUNNER_TEMP/e2e-backend-jar-entries.txt"
+          grep -Fx 'BOOT-INF/classes/com/financeos/FinanceOsApplication.class' "$RUNNER_TEMP/e2e-backend-jar-entries.txt"
+          grep -Fx 'BOOT-INF/classes/com/financeos/module/importing/storage/ImportStorageProvisioner.class' "$RUNNER_TEMP/e2e-backend-jar-entries.txt"
+          grep -Fx 'org/springframework/boot/loader/launch/PropertiesLauncher.class' "$RUNNER_TEMP/e2e-backend-jar-entries.txt"
+          grep -Fx 'org/springframework/boot/loader/launch/JarLauncher.class' "$RUNNER_TEMP/e2e-backend-jar-entries.txt"
+          echo "E2E backend JAR built from $source_head"
+          sha256sum "$jar_path"
+      - name: Provision E2E import storage
+        working-directory: backend
+        run: |
+          umask 077
+          java -Dloader.main=com.financeos.module.importing.storage.ImportStorageProvisioner \
+            -cp target/finance-os-backend-1.0.0.jar \
+            org.springframework.boot.loader.launch.PropertiesLauncher --provision
+          for root in "$FINANCE_IMPORT_STORAGE_RAW_ROOT" "$FINANCE_IMPORT_STORAGE_PLAN_ROOT"; do
+            test ! -L "$root"
+            test "$(realpath -e "$root")" = "$root"
+            test "$(stat -c '%a:%u' "$root")" = "700:$(id -u)"
+            for binding in .import-binding .import-control; do
+              test -f "$root/$binding"
+              test ! -L "$root/$binding"
+              test "$(stat -c '%a:%u' "$root/$binding")" = "600:$(id -u)"
+            done
+          done
       - name: Start E2E backend
         working-directory: backend
         run: |
