@@ -98,21 +98,6 @@ jobs:
       SPRING_PROFILES_ACTIVE: e2e
       E2E_BACKEND_PORT: 8081
       E2E_DB_USERNAME: finance_os_e2e
-      E2E_DB_PASSWORD: finance_os_e2e
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: finance_os_e2e
-          POSTGRES_USER: finance_os_e2e
-          POSTGRES_PASSWORD: finance_os_e2e
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U finance_os_e2e -d finance_os_e2e"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v6
       - name: Set up JDK 21
@@ -136,17 +121,56 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Generate isolated E2E secrets
         run: |
+          set -euo pipefail
+          db_password="$(openssl rand -hex 32)"
           jwt_secret="$(openssl rand -base64 48)"
           migration_secret="$(openssl rand -base64 48)"
           import_secret="$(openssl rand -base64 48)"
+          echo "::add-mask::$db_password"
           echo "::add-mask::$jwt_secret"
           echo "::add-mask::$migration_secret"
           echo "::add-mask::$import_secret"
           {
+            echo "E2E_DB_PASSWORD=$db_password"
             echo "E2E_JWT_SECRET=$jwt_secret"
             echo "E2E_MIGRATION_PREVIEW_SECRET=$migration_secret"
             echo "FINANCE_IMPORT_CONFIRM_TOKEN_SECRET=$import_secret"
           } >> "$GITHUB_ENV"
+      - name: Start isolated E2E PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v psql > /dev/null
+          db_owner="$(cat /proc/sys/kernel/random/uuid)"
+          db_container="finance-os-e2e-pg-$db_owner"
+          {
+            echo "E2E_DB_CONTAINER=$db_container"
+            echo "E2E_DB_CONTAINER_OWNER=$db_owner"
+          } >> "$GITHUB_ENV"
+          POSTGRES_PASSWORD="$E2E_DB_PASSWORD" docker run --detach --name "$db_container" \
+            --label "finance-os.e2e-owner=$db_owner" \
+            --publish 127.0.0.1:5432:5432 \
+            --tmpfs /var/lib/postgresql/data \
+            --env POSTGRES_DB=finance_os_e2e --env "POSTGRES_USER=$E2E_DB_USERNAME" \
+            --env POSTGRES_PASSWORD --env POSTGRES_HOST_AUTH_METHOD=scram-sha-256 \
+            --env 'POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256' \
+            postgres:17-alpine
+          for attempt in {1..60}; do
+            test "$(docker inspect --format '{{.State.Running}}' "$db_container")" = 'true'
+            if docker exec "$db_container" pg_isready --host=127.0.0.1 \
+              --username="$E2E_DB_USERNAME" --dbname=finance_os_e2e > /dev/null 2>&1; then
+              database_name="$(PGPASSWORD="$E2E_DB_PASSWORD" PGCONNECT_TIMEOUT=5 \
+                psql -X --no-password --set=ON_ERROR_STOP=1 --no-align --tuples-only \
+                --host=127.0.0.1 --port=5432 --dbname=finance_os_e2e \
+                --username="$E2E_DB_USERNAME" --command='SELECT current_database();')"
+              test "$database_name" = 'finance_os_e2e'
+              echo 'Isolated E2E PostgreSQL ready; authenticated database identity verified.'
+              exit 0
+            fi
+            sleep 2
+          done
+          echo '::error::Isolated E2E PostgreSQL did not become ready.'
+          exit 1
       - name: Prepare isolated E2E import storage
         run: |
           umask 077
@@ -288,6 +312,18 @@ jobs:
           if [ -f "$GITHUB_WORKSPACE/backend-e2e.log" ]; then cat "$GITHUB_WORKSPACE/backend-e2e.log"; fi
           echo '--- frontend-e2e.log ---'
           if [ -f "$GITHUB_WORKSPACE/frontend-e2e.log" ]; then cat "$GITHUB_WORKSPACE/frontend-e2e.log"; fi
+      - name: Print E2E PostgreSQL failure logs
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${E2E_DB_CONTAINER:-}" ]; then
+            db_id="$(docker container ls --all --filter "name=^/$E2E_DB_CONTAINER$" --format '{{.ID}}')"
+            if [ -n "$db_id" ]; then
+              test "$(docker inspect --format '{{ index .Config.Labels "finance-os.e2e-owner" }}' "$db_id")" = "$E2E_DB_CONTAINER_OWNER"
+              docker logs --tail 100 "$db_id"
+            fi
+          fi
       - name: Stop E2E services
         if: always()
         run: |
@@ -307,6 +343,19 @@ jobs:
           }
           stop_process_group "$GITHUB_WORKSPACE/frontend-e2e.pid"
           stop_process_group "$GITHUB_WORKSPACE/backend-e2e.pid"
+      - name: Stop E2E PostgreSQL
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${E2E_DB_CONTAINER:-}" ]; then
+            db_id="$(docker container ls --all --filter "name=^/$E2E_DB_CONTAINER$" --format '{{.ID}}')"
+            if [ -n "$db_id" ]; then
+              test "$(docker inspect --format '{{ index .Config.Labels "finance-os.e2e-owner" }}' "$db_id")" = "$E2E_DB_CONTAINER_OWNER"
+              docker stop --time 10 "$db_id" > /dev/null
+              docker rm --volumes "$db_id" > /dev/null
+            fi
+          fi
 
   deployment:
     name: Deployment artifacts
