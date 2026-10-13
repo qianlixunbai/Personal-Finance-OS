@@ -226,6 +226,33 @@ jobs:
           done
           cat "$GITHUB_WORKSPACE/backend-e2e.log"
           exit 1
+      - name: Verify E2E Flyway V21
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql > /dev/null; then
+            echo '::error::PostgreSQL client psql is unavailable.'
+            exit 1
+          fi
+          export PGPASSWORD="$E2E_DB_PASSWORD"
+          export PGCONNECT_TIMEOUT=10
+          export PGOPTIONS='-c default_transaction_read_only=on'
+          psql_command=(psql -X --no-password --set=ON_ERROR_STOP=1 --no-align --tuples-only
+            --host=127.0.0.1 --port=5432 --dbname=finance_os_e2e --username="$E2E_DB_USERNAME")
+          database_name="$("${psql_command[@]}" --command='SELECT current_database();')"
+          test "$database_name" = 'finance_os_e2e'
+          failed_migrations="$("${psql_command[@]}" --command='
+            SELECT COUNT(*) FROM public.flyway_schema_history WHERE success = FALSE;')"
+          test "$failed_migrations" = '0'
+          latest_version="$("${psql_command[@]}" --command='
+            SELECT version
+            FROM public.flyway_schema_history
+            WHERE success = TRUE
+              AND version IS NOT NULL
+            ORDER BY installed_rank DESC
+            LIMIT 1;')"
+          test "$latest_version" = '21'
+          echo "E2E Flyway verified: V$latest_version; no failed migrations."
       - name: Start E2E frontend
         working-directory: frontend
         run: |
