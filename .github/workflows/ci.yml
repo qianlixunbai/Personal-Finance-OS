@@ -33,6 +33,28 @@ jobs:
           cache-dependency-path: backend/pom.xml
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
+      - name: Build and verify fixed historical V19 application
+        shell: bash
+        run: |
+          set -euo pipefail
+          historical_commit=7d2d83c23abeaa64f0f5854f729ea919509b551a
+          historical_root="$(mktemp -d "$RUNNER_TEMP/finance-os-v19.XXXXXX")"
+          git -C "$GITHUB_WORKSPACE" fetch --no-tags origin "$historical_commit"
+          test "$(git -C "$GITHUB_WORKSPACE" rev-parse "$historical_commit:backend")" = '7a5eb4e71c9f44724317e1814fb18e873ad3bd03'
+          git -C "$GITHUB_WORKSPACE" archive --format=tar --output="$historical_root/source.tar" "$historical_commit" backend
+          mkdir "$historical_root/source"
+          tar -xf "$historical_root/source.tar" -C "$historical_root/source"
+          (
+            cd "$historical_root/source/backend"
+            bash ./mvnw -B -DskipTests package
+          )
+          java "$GITHUB_WORKSPACE/backend/src/test/java/com/financeos/integration/historical/HistoricalV19Artifact.java" \
+            "$GITHUB_WORKSPACE" "$historical_root/source/backend" \
+            "$historical_root/source/backend/target/finance-os-backend-1.0.0.jar" "$historical_root/identity.properties"
+          {
+            echo "FINANCE_OS_V19_IDENTITY=$historical_root/identity.properties"
+            echo "FINANCE_OS_B2_EVIDENCE_ROOT=$historical_root"
+          } >> "$GITHUB_ENV"
       - name: Run backend tests
         run: ./mvnw -B clean test
 
