@@ -53,7 +53,7 @@ class FlywayTransactionImportVersionTwentyMigrationIntegrationTest {
             before = receiptSnapshot(connection);
         }
 
-        flyway(null).migrate();
+        flyway(MigrationVersion.fromVersion("20")).migrate();
 
         try (Connection connection = connection()) {
             assertThat(appliedVersion(connection)).isEqualTo("20");
@@ -74,7 +74,7 @@ class FlywayTransactionImportVersionTwentyMigrationIntegrationTest {
 
     @Test
     void freshV1MigrationAppliesThroughV20WithTheExpectedReceiptConstraintsAndTriggers() throws Exception {
-        flyway(null).migrate();
+        flyway(MigrationVersion.fromVersion("20")).migrate();
 
         try (Connection connection = connection()) {
             assertThat(appliedVersion(connection)).isEqualTo("20");
@@ -181,7 +181,7 @@ class FlywayTransactionImportVersionTwentyMigrationIntegrationTest {
             installMigrationPauseEventTrigger(pauseGate);
             eventTriggerInstalled = true;
 
-            migration = executor.submit(() -> flyway(null).migrate());
+            migration = executor.submit(() -> flyway(MigrationVersion.fromVersion("20")).migrate());
             int migrationPid = awaitMigrationLock();
             int gatePid = scalarInt(pauseGate, "SELECT pg_backend_pid()");
             awaitCondition(() -> blockedBy(migrationPid, gatePid), "V20 migration paused after creating its INSERT trigger");

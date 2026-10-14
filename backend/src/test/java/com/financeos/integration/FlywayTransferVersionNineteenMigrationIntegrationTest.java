@@ -41,31 +41,57 @@ class FlywayTransferVersionNineteenMigrationIntegrationTest {
                     """);
         }
 
-        flyway(null).migrate();
+        flyway(MigrationVersion.fromVersion("19")).migrate();
 
+        String historicalFacts;
         try (Connection connection = connection()) {
             connection.createStatement().execute("""
                     INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, description, transacted_at)
                     VALUES (1, 1, 2, 10.00, 'CNY', 'valid transfer', CURRENT_TIMESTAMP)
                     """);
 
-            assertThat(appliedVersion(connection)).isEqualTo("20");
-            assertThatThrownBy(() -> connection.createStatement().execute("""
-                    INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
-                    VALUES (1, 1, 1, 10.00, 'CNY', CURRENT_TIMESTAMP)
-                    """)).isInstanceOf(SQLException.class);
-            assertThatThrownBy(() -> connection.createStatement().execute("""
-                    INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
-                    VALUES (1, 1, 3, 10.00, 'CNY', CURRENT_TIMESTAMP)
-                    """)).isInstanceOf(SQLException.class);
-            assertThatThrownBy(() -> connection.createStatement().execute("""
-                    INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
-                    VALUES (1, 1, 2, 0.00, 'CNY', CURRENT_TIMESTAMP)
-                    """)).isInstanceOf(SQLException.class);
-            assertThatThrownBy(() -> connection.createStatement().execute("""
-                    INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
-                    VALUES (1, 1, 2, 10.00, 'USD', CURRENT_TIMESTAMP)
-                    """)).isInstanceOf(SQLException.class);
+            assertThat(appliedVersion(connection)).isEqualTo("19");
+            assertOwnedTransferConstraints(connection);
+            historicalFacts = transferFacts(connection);
+        }
+
+        flyway(null).migrate();
+
+        try (Connection connection = connection()) {
+            assertThat(appliedVersion(connection)).isEqualTo("21");
+            assertThat(transferFacts(connection)).isEqualTo(historicalFacts);
+            assertOwnedTransferConstraints(connection);
+        }
+    }
+
+    private void assertOwnedTransferConstraints(Connection connection) {
+        assertThatThrownBy(() -> connection.createStatement().execute("""
+                INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
+                VALUES (1, 1, 1, 10.00, 'CNY', CURRENT_TIMESTAMP)
+                """)).isInstanceOf(SQLException.class);
+        assertThatThrownBy(() -> connection.createStatement().execute("""
+                INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
+                VALUES (1, 1, 3, 10.00, 'CNY', CURRENT_TIMESTAMP)
+                """)).isInstanceOf(SQLException.class);
+        assertThatThrownBy(() -> connection.createStatement().execute("""
+                INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
+                VALUES (1, 1, 2, 0.00, 'CNY', CURRENT_TIMESTAMP)
+                """)).isInstanceOf(SQLException.class);
+        assertThatThrownBy(() -> connection.createStatement().execute("""
+                INSERT INTO transfers (user_id, from_account_id, to_account_id, amount, currency, transacted_at)
+                VALUES (1, 1, 2, 10.00, 'USD', CURRENT_TIMESTAMP)
+                """)).isInstanceOf(SQLException.class);
+    }
+
+    private String transferFacts(Connection connection) throws SQLException {
+        try (var resultSet = connection.createStatement().executeQuery("""
+                SELECT jsonb_build_object(
+                    'accounts', (SELECT jsonb_agg(to_jsonb(account) ORDER BY id) FROM accounts account),
+                    'transfers', (SELECT jsonb_agg(to_jsonb(transfer) ORDER BY id) FROM transfers transfer)
+                )::text
+                """)) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getString(1);
         }
     }
 

@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTest {
     }
 
     @Test
-    void migratesAnEmptyPostgresDatabaseThroughVersionTwenty() {
+    void migratesAnEmptyPostgresDatabaseThroughVersionTwentyOne() {
         Integer applicationTableCount = jdbcTemplate.queryForObject("""
                 SELECT count(*)
                 FROM information_schema.tables
@@ -208,7 +208,7 @@ class FlywayMigrationIntegrationTest {
                 """, String.class);
 
         assertThat(applicationTableCount).isEqualTo(16);
-        assertThat(latestSuccessfulVersion).isEqualTo("20");
+        assertThat(latestSuccessfulVersion).isEqualTo("21");
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM flyway_schema_history
                 WHERE version = '20' AND description = 'decouple import receipt transaction lifecycle' AND success = true
