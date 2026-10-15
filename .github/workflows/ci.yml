@@ -55,6 +55,19 @@ jobs:
             echo "FINANCE_OS_V19_IDENTITY=$historical_root/identity.properties"
             echo "FINANCE_OS_B2_EVIDENCE_ROOT=$historical_root"
           } >> "$GITHUB_ENV"
+      - name: Build and verify current managed-process application
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_head="$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          test "$current_head" = "$GITHUB_SHA"
+          current_root="$(mktemp -d "$RUNNER_TEMP/finance-os-c9-current.XXXXXX")"
+          ./mvnw -B -DskipTests clean package
+          cp target/finance-os-backend-1.0.0.jar "$current_root/app.jar"
+          java src/test/java/com/financeos/integration/CurrentManagedProcessArtifact.java \
+            "$GITHUB_WORKSPACE" "$current_root/app.jar"
+          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" = "$current_head"
+          echo "FINANCE_OS_C9_CURRENT_JAR=$current_root/app.jar" >> "$GITHUB_ENV"
       - name: Run backend tests
         run: ./mvnw -B clean test
 

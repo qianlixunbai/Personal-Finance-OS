@@ -14,6 +14,7 @@ import java.nio.file.SecureDirectoryStream;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import com.sun.nio.file.ExtendedOpenOption;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -206,13 +207,48 @@ class TransactionImportLifecycleDesignBoundaryPostgresIntegrationTest extends Po
         Path control = Files.createFile(root.resolve("control-lock"));
         boolean rootRenameDenied;
         boolean ancestorRenameDenied;
-        try (FileChannel channel = FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE,
-                LinkOption.NOFOLLOW_LINKS, ExtendedOpenOption.NOSHARE_DELETE)) {
+        boolean windows = System.getProperty("os.name").startsWith("Windows");
+        try (FileChannel channel = windows
+                ? FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE,
+                        LinkOption.NOFOLLOW_LINKS, ExtendedOpenOption.NOSHARE_DELETE)
+                : FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+             FileLock guard = channel.lock(0, 1, false)) {
             assertThat(channel.isOpen()).isTrue();
+            assertThat(guard.isValid()).isTrue();
             rootRenameDenied = renameDenied(root, parent.resolve("moved-managed"));
             ancestorRenameDenied = renameDenied(parent, directory.resolve("moved-parent"));
+            if (windows) {
+                assertThat(rootRenameDenied).isTrue();
+                assertThat(ancestorRenameDenied).isTrue();
+            } else {
+                // A POSIX advisory lock protects cooperative I/O, not the directory namespace.
+                assertThat(rootRenameDenied).isFalse();
+                assertThat(ancestorRenameDenied).isFalse();
+                Path movedParent = directory.resolve("moved-parent");
+                Path movedRoot = movedParent.resolve("moved-managed");
+                assertThat(Files.isRegularFile(movedRoot.resolve("control-lock"))).isTrue();
+                Files.createDirectories(root);
+                try (FileChannel replacement = FileChannel.open(Files.createFile(root.resolve("control-lock")),
+                        StandardOpenOption.READ, StandardOpenOption.WRITE);
+                     FileLock replacementGuard = replacement.tryLock(0, 1, false);
+                     var stream = Files.newDirectoryStream(movedRoot)) {
+                    assertThat(replacementGuard).as("a new path denotes a different lock inode").isNotNull();
+                    assertThat(stream).isInstanceOf(SecureDirectoryStream.class);
+                    @SuppressWarnings("unchecked")
+                    var secure = (SecureDirectoryStream<Path>) stream;
+                    // The real Linux directory handle keeps relative I/O on the opened original root.
+                    Files.move(movedRoot, movedParent.resolve("renamed-again"));
+                    try (var output = secure.newByteChannel(Path.of("bound-payload"), java.util.Set.of(
+                            StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS))) {
+                        output.write(java.nio.ByteBuffer.wrap(new byte[]{1}));
+                    }
+                    assertThat(Files.exists(movedParent.resolve("renamed-again/bound-payload"))).isTrue();
+                    assertThat(Files.exists(root.resolve("bound-payload"))).isFalse();
+                    assertThat(guard.isValid()).isTrue();
+                }
+            }
         }
-        System.out.println("C9 Windows control-handle capability: rootRenameDenied=" + rootRenameDenied
+        System.out.println("C9 control-handle capability: windows=" + windows + "; rootRenameDenied=" + rootRenameDenied
                 + "; ancestorRenameDenied=" + ancestorRenameDenied);
         if (rootRenameDenied && ancestorRenameDenied) {
             // The same operations must succeed after the handle closes: distinguish pinning from permissions.

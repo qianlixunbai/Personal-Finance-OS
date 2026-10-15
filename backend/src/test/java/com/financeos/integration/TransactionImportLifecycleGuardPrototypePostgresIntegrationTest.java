@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -115,6 +116,9 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
             worker.expect("DENIED");
             worker.expectSuccessfulExit();
         }
+        try (FileChannel cleaner = channel(control); FileLock released = cleaner.tryLock(0, 1, false)) {
+            assertThat(released).as("denied child exit must release its native guard").isNotNull();
+        }
         assertThat(Files.exists(directory.resolve(reference.toString()))).isFalse();
         assertState(reference, "DELETED");
         System.out.println("C9 positive guard: authority rechecked inside acquired guard; stale creation denied");
@@ -152,7 +156,10 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
         UUID reference = reserve("LIVE");
         Files.writeString(original.resolve(reference.toString()), "synthetic", StandardOpenOption.CREATE_NEW);
         Path configuredPath = original.toRealPath();
-        Object volumeSerial = Files.getFileStore(original).getAttribute("volume:vsn");
+        var originalStore = Files.getFileStore(original);
+        Object volumeSerial = isWindows() ? originalStore.getAttribute("volume:vsn") : null;
+        Object originalKey = Files.readAttributes(original, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+        Object replacementKey = Files.readAttributes(replacement, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
         assertThat(original.toRealPath()).isNotEqualTo(replacement.toRealPath());
         assertThat(Files.readString(original.resolve("storage-identity")))
                 .isEqualTo(Files.readString(replacement.resolve("storage-identity")));
@@ -161,25 +168,46 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
         Files.move(replacement, original);
         assertThat(original.toRealPath()).isEqualTo(configuredPath);
         assertThat(Files.readString(original.resolve("storage-identity"))).isEqualTo(storageId);
-        assertThat(Files.getFileStore(original).getAttribute("volume:vsn")).isEqualTo(volumeSerial);
+        if (isWindows()) {
+            assertThat(Files.getFileStore(original).getAttribute("volume:vsn")).isEqualTo(volumeSerial);
+        } else {
+            assertThat(Files.getFileStore(original)).isEqualTo(originalStore);
+            Object mountedKey = Files.readAttributes(original, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+            assertThat(mountedKey).isEqualTo(replacementKey);
+            if (originalKey != null && replacementKey != null) {
+                assertThat(mountedKey).isNotEqualTo(originalKey);
+                assertThat(Files.readAttributes(archived, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey())
+                        .isEqualTo(originalKey);
+            }
+            System.out.println("C9 identity capability: fileKeyAvailable=" + (originalKey != null && replacementKey != null)
+                    + "; FileStore/fileKey are not authenticated storage identities");
+        }
         retire(reference);
         assertThat(Files.deleteIfExists(original.resolve(reference.toString()))).isFalse();
         // An intentionally unsafe model accepts marker + serial + path and records false absence.
         jdbcTemplate.update("UPDATE c9_guard_registry SET state='DELETED' WHERE reference=? AND state='RETIRED'", reference);
         assertState(reference, "DELETED");
         assertThat(Files.isRegularFile(archived.resolve(reference.toString()))).isTrue();
-        System.out.println("C9 identity counterexample: same path + copied marker + same volume serial; false DELETED with original payload present");
+        System.out.println("C9 identity counterexample: same path + copied marker + same unauthenticated store; false DELETED with original payload present");
     }
 
     @Test
     void probesProviderVolumeSerialWithoutClaimingAnAuthenticatedVolumeIdentity() throws Exception {
         var first = Files.getFileStore(directory);
         var second = Files.getFileStore(directory);
-        Object serial = first.getAttribute("volume:vsn");
-        assertThat(serial).isInstanceOf(Integer.class);
-        assertThat(serial).isEqualTo(second.getAttribute("volume:vsn"));
-        System.out.println("C9 Windows volume capability: providerSerialAvailable=true; repeatedQueryEqual=true; filesystem="
-                + first.type());
+        if (isWindows()) {
+            Object serial = first.getAttribute("volume:vsn");
+            assertThat(serial).isInstanceOf(Integer.class);
+            assertThat(serial).isEqualTo(second.getAttribute("volume:vsn"));
+            System.out.println("C9 Windows volume capability: providerSerialAvailable=true; repeatedQueryEqual=true; filesystem="
+                    + first.type());
+        } else {
+            assertThat(second).isEqualTo(first);
+            Object key = Files.readAttributes(directory, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+            assertThat(Files.readAttributes(directory, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey()).isEqualTo(key);
+            System.out.println("C9 filesystem capability: filesystem=" + first.type() + "; fileKeyAvailable=" + (key != null)
+                    + "; authenticatedVolumeIdentity=false");
+        }
     }
 
     private UUID reserve(String state) {
@@ -250,16 +278,17 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
 
     private Worker start(UUID reference, String operation) throws Exception {
         return new Worker(new ProcessBuilder(
-                Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(),
+                Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java").toString(),
                 "-cp", System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")),
                 GuardWorker.class.getName(), directory.toString(), reference.toString(), operation)
                 .redirectErrorStream(true).start());
     }
 
     private static FileChannel channel(Path control) throws Exception {
-        return FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE,
-                LinkOption.NOFOLLOW_LINKS, ExtendedOpenOption.NOSHARE_DELETE);
+        return GuardWorker.channel(control);
     }
+
+    private static boolean isWindows() { return GuardWorker.isWindows(); }
 
     private static final class Worker implements AutoCloseable {
         private final Process process;
@@ -302,6 +331,7 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
         void killAndAwaitExit() throws Exception {
             process.destroyForcibly();
             assertThat(process.waitFor(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(process.exitValue()).isNotZero();
         }
 
         @Override
@@ -318,13 +348,21 @@ class TransactionImportLifecycleGuardPrototypePostgresIntegrationTest extends Po
 
     /** Standalone cooperative storage worker; no credentials and no Spring application. */
     public static final class GuardWorker {
+        // Keep the standalone child independent of the enclosing Spring/Testcontainers class initialization.
+        private static boolean isWindows() { return System.getProperty("os.name").startsWith("Windows"); }
+
+        private static FileChannel channel(Path control) throws Exception {
+            return isWindows()
+                    ? FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE,
+                            LinkOption.NOFOLLOW_LINKS, ExtendedOpenOption.NOSHARE_DELETE)
+                    : FileChannel.open(control, StandardOpenOption.READ, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS);
+        }
+
         public static void main(String[] args) throws Exception {
             Path root = Path.of(args[0]);
             Path payload = root.resolve(UUID.fromString(args[1]).toString());
             try (var input = new BufferedReader(new InputStreamReader(System.in));
-                 FileChannel channel = FileChannel.open(root.resolve("control-lock"),
-                         StandardOpenOption.READ, StandardOpenOption.WRITE,
-                         LinkOption.NOFOLLOW_LINKS, ExtendedOpenOption.NOSHARE_DELETE);
+                 FileChannel channel = channel(root.resolve("control-lock"));
                  FileLock guard = channel.tryLock(0, 1, false)) {
                 if (guard == null) throw new IllegalStateException("C9 child guard unavailable");
                 signal("LOCKED");
