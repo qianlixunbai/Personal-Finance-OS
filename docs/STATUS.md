@@ -4,13 +4,15 @@
 
 **本阶段实施起点：** `zh-cn` @ `bb2ff37948782a40180a312374c5a986087019cf`
 
-**当前 Finance 核对基线：** `zh-cn` @ `dc7e6feb550224aded70c907cc26550bbff9bdac`
+**稳定代码基线：** `zh-cn` @ `cc37844d90654f2e6872c50717a49633e10b142a`。本轮后续收档提交仅更新本文与家庭电脑交接指南；文档提交 HEAD 与本代码 SHA 分开核对。
 
-**核对日期：** 2026-10-12
+**核对日期：** 2026-10-16（Asia/Shanghai）
 
 ## 当前产品阶段
 
-**Finance G4-1 / C10 — 文档、迁移与安全状态一致性修复：技术验收 GO；正式 CLOSED 以精确提交、推送和独立远端核验为条件。** C1–C9 已正式 CLOSED — GO，原始审计关闭进度在提交前保持 **9/11**；C10 提交前尚未正式关闭，C11 未开始，Finance 仍处于 Final Stabilization，G5 全量最终验收未完成。C9 的正式关闭依据本轮用户确认；其原 Review 保留当时的候选/待验收结论和历史测试数字，不回写历史。C10 本轮证据见 [C10 Review](archive/review/G4-1-C10-Documentation-Schema-Security-Drift-Review.md)。
+**G4-3 — CLOSED — GO。** 依据用户本轮正式结项授权、已有最终独立技术验收 `GO — Recommend Formal Closure`，以及稳定代码 SHA 上的[正式 CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/runs/38836950964)，Batch A、B1、B2-1、B2-2、C、D 均已完成技术验收。C1–C11 已正式 CLOSED — GO（11/11）；C1–C10 的后续正式状态及 C11 关闭已由 [G4-3 A2](archive/review/G4-3-A2-E2E-Flyway-Evidence-Review.md)、[A3 Review](archive/review/G4-3-A3-E2E-Database-Credential-Logging-Review.md) 记录的正式状态承接，历史候选结论不回写。
+
+**当前阶段为稳定代码基线收档；Finance Freeze 为 CONDITIONAL GO，尚未正式执行，仍需用户单独授权。** Import Frontend 最终独立 Closing Re-Review 尚未完成；家庭电脑新环境初始化与运行验收、跨机恢复验证均未执行，Workspace 整合尚未开始。重建步骤见[家庭电脑 GitHub 交接指南](engineering/finance-home-github-handoff.md)。G4-3 关闭及 CI 全绿不代表生产部署、真实数据恢复或所有平台绝对正确性已验证。
 
 **AI Phase 5 — Frontend AI Analyst Entry：CLOSED — GO。** `/ai` 位于既有认证路由内，桌面侧栏与移动底栏均提供“AI 分析”入口。页面通过既有 Axios client 提交单个问题，只展示纯文本回答；快捷问题仅填充输入，新请求与失败保留上一条成功结果，且不保存历史或携带多轮上下文。本阶段保持后端零修改、无新增依赖。
 
@@ -57,15 +59,17 @@ Implementation remediation complete — Ready for Final Independent Closing Re-R
 | v3.0 Investment Ledger / Write / Read | CLOSED — GO | [Investment Reviews](archive/review/README.md) |
 | Investment Command & Correction UI | CLOSED — GO | [Closing Review](archive/review/V3.0-Investment-Command-Correction-UI-Closing-Review.md) |
 | Transaction Import Contract / Backend Foundation / Preview / Confirm | CLOSED — GO | [Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md) |
-| C1–C9 原始审计整改 | CLOSED — GO（9/11） | 本轮用户确认；[C9 历史实施与升级证据](archive/review/G3-2-C9-Import-Temporary-Storage-Lifecycle-Review.md)，其候选结论保留原时间点含义 |
+| C1–C11 原始审计整改 | CLOSED — GO（11/11） | [G4-3 A3 正式状态记录](archive/review/G4-3-A3-E2E-Database-Credential-Logging-Review.md)；各历史 Review 保留原时间点含义 |
+| G4-3 CI 稳定化：A / B1 / B2-1 / B2-2 / C / D | CLOSED — GO | 用户本轮正式结项授权与稳定 SHA 的[五 Job 全绿 CI](https://github.com/qianlixunbai/Personal-Finance-OS/actions/runs/38836950964)；[交接证据索引](engineering/finance-home-github-handoff.md#结项证据与历史边界) |
 | AI Phase 5 — Frontend AI Analyst Entry | CLOSED — GO | 本文件记录的离线验证与用户 2026-09-30 真实人工 UI smoke 确认 |
 
 各阶段的 HEAD、测试数字、P0/P1/P2/P3 和 GO/NO-GO 只以对应 Closing Review 的历史快照为准。
 
 ## 当前正在推进的工作
 
-1. C10 技术验收 GO；正式 CLOSED 以精确提交、推送和独立远端核验为条件；不自动进入 C11 或 Finance Freeze。
+1. 集中开发阶段结束，固定稳定代码基线并通过 GitHub 收档两个交接文档；本轮不执行 Finance Freeze。
 2. Transaction Import Frontend A–D 的最终独立、只读 Closing Re-Review 仍待完成。
+3. 家庭电脑采用全新 PostgreSQL 17 / C9 Storage，初始化与最小运行验收待执行；无需迁移旧开发测试数据。独立 Finance 运行确认后才考虑 Workspace 整合。
 
 ## 下一核心能力
 
@@ -94,6 +98,7 @@ AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话�
 
 ## 最近正式验收依据
 
+- G4-3：稳定 SHA `cc37844d90654f2e6872c50717a49633e10b142a` 的 [CI Run 38836950964](https://github.com/qianlixunbai/Personal-Finance-OS/actions/runs/38836950964) 已 completed / success，Backend、Frontend、AI Browser E2E、Playwright E2E、Deployment artifacts 五个 Job 全部 success，本轮通过 GitHub API 只读核实。继承的最终验收统计：Backend 562 tests / 0 failures / 0 errors / 1 Windows-only skip；Frontend 45 tests、lint/build 成功；AI Browser E2E 58 passed；Investment 2、Import browser 3、真实 Backend Import 1 均通过；镜像构建与 Compose config 成功。本轮只做文档静态检查，没有重跑上述测试。后续文档提交触发的 CI 必须单独记录。
 - AI Phase 5：本文件记录的 9 个定向 mock E2E 通过、封板 build/lint 复验，以及用户 2026-09-30 真实人工 UI smoke GO。
 - 后端 Import Confirm：[Phase 3D Closing Review](archive/review/V3.0-Phase3D-Transaction-Import-Confirm-Closing-Review.md)，结论为 `CLOSED — GO`。
 - Import Frontend：[Frontend Closing Review](archive/review/V3.0-Transaction-Import-Frontend-Closing-Review.md)，记录 A–D 实现、两次最新 remediation 与验证证据，但明确保留最终独立 Closing Re-Review。
@@ -102,15 +107,16 @@ AI Phase 5 已完成；下一项 AI 能力尚未确定。多轮聊天、会话�
 
 当前 Compose 与示例环境文件已声明并传递 `JWT_SECRET`、`MIGRATION_PREVIEW_SECRET`、`FINANCE_IMPORT_CONFIRM_TOKEN_SECRET`、Import 持久 RAW / PLAN 根和三个稳定 UUID。生产根仍须显式预配，缺失 secret 或绑定异常会 fail-fast / fail-closed；配置存在及静态配置检查均不等于标准 Compose 端到端部署验收。本轮未启动真实生产部署，详见 [Deployment](engineering/deployment.md)。
 
-以下独立事项保持 OPEN，C10 不关闭或实施这些任务：
+以下独立事项保持 OPEN，G4-3 收档不关闭或实施这些任务：
 
 - C8 前端行情提示 P2；
 - FX affected rows 类似风险待调查；
 - C4 cause-only 循环遍历；
 - C3 不兼容脏数据 / REPLACEMENT 防御边界；
-- C11 AI E2E CI 覆盖缺口；
 - Import Frontend 最终独立 Closing Re-Review；
-- Finance G5 全量最终验收。
+- Finance G5 / 完整 Finance Freeze 正式签核及用户单独授权；
+- 家庭电脑全新 PostgreSQL / C9 初始化及运行验收，跨机恢复验证；
+- Workspace 整合（尚未开始）。
 
 ## 状态维护规则
 
