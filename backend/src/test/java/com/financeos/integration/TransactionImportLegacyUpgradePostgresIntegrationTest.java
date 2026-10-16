@@ -1,5 +1,6 @@
 package com.financeos.integration;
 
+import com.financeos.integration.historical.HistoricalV20Artifact;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
@@ -30,6 +31,8 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     private static PostgreSQLContainer<?> database;
     private static Process nativePostgres;
     private static String databaseUrl, databaseUser, databasePassword;
+    private static Path ownedEvidence, verifiedCurrentJar;
+    private static HistoricalV20Artifact verifiedLegacy;
     private final ObjectMapper json = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final UUID deployment = UUID.randomUUID(), rawId = UUID.randomUUID(), planId = UUID.randomUUID();
@@ -44,6 +47,15 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     private final List<Process> children = new ArrayList<>();
 
     @BeforeAll static void startOwnedDatabase() throws Exception {
+        Path repository = Path.of("..").toRealPath();
+        Path configured = Path.of(required("c9.legacy.evidence")).toAbsolutePath().normalize();
+        assertThat(configured.startsWith(repository)).as("Evidence must be outside the repository").isFalse();
+        Files.createDirectories(configured);
+        ownedEvidence = configured.toRealPath();
+        assertThat(ownedEvidence).isEqualTo(configured);
+        verifiedLegacy = HistoricalV20Artifact.required();
+        verifiedCurrentJar = CurrentManagedProcessArtifact.required();
+        assertThat(verifiedLegacy.jar()).isNotEqualTo(verifiedCurrentJar);
         String binaries = System.getProperty("c9.postgres.bin");
         if (binaries == null) {
             database = new PostgreSQLContainer<>("postgres:17-alpine");
@@ -52,9 +64,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
             return;
         }
         // Native fallback starts its own fresh cluster; never connect to an existing local database.
-        Path owned = Path.of(required("c9.legacy.evidence")).toAbsolutePath();
-        Files.createDirectories(owned);
-        Path cluster = Files.createTempDirectory(owned, "owned-postgres-");
+        Path cluster = Files.createTempDirectory(ownedEvidence, "owned-postgres-");
         Path data = cluster.resolve("data");
         Process init = new ProcessBuilder(Path.of(binaries, "initdb").toString(), "-D", data.toString(),
                 "-U", "c9_upgrade", "--auth=trust", "--encoding=UTF8", "--no-locale")
@@ -93,19 +103,23 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     }
 
     @BeforeEach void isolatedV20DatabaseAndStorage(TestInfo info) throws Exception {
-        Path owned = Path.of(required("c9.legacy.evidence")).toAbsolutePath();
-        Files.createDirectories(owned);
-        evidence = Files.createTempDirectory(owned, info.getTestMethod().orElseThrow().getName() + "-");
+        evidence = Files.createTempDirectory(ownedEvidence, info.getTestMethod().orElseThrow().getName() + "-");
         legacyTemp = Files.createDirectory(evidence.resolve("old-jvm-temp"));
         legacyRaw = legacyTemp.resolve("finance-os/transaction-import-preview");
         legacyPlan = legacyTemp.resolve("finance-os/transaction-import-preview-plan");
         db = new JdbcTemplate(new DriverManagerDataSource(databaseUrl, databaseUser, databasePassword));
         flyway("20").clean();
         flyway("20").migrate();
+        writeEvidence("artifact-inputs.json", Map.of("legacyCommit", HistoricalV20Artifact.COMMIT,
+                "legacyJar", verifiedLegacy.jar().toString(), "legacySha256", verifiedLegacy.sha256(),
+                "currentJar", verifiedCurrentJar.toString(), "evidenceRoot", ownedEvidence.toString()));
+        writeMigrationEvidence("v20-flyway.json");
     }
 
     @AfterEach void stopOnlyOwnedProcesses() throws Exception {
         for (Process child : children) stop(child);
+        if (evidence != null) writeEvidence("stopped-processes.json", children.stream().map(child ->
+                Map.of("pid", child.pid(), "alive", child.isAlive(), "exit", child.exitValue())).toList());
         // Keep DB snapshots, exact payload copies, process logs, and evidence directories.
     }
 
@@ -113,7 +127,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
         Legacy sessions = createRealLegacySessions();
         Map<String, String> before = databaseSnapshot();
         Map<String, String> payloads = preserveReferencedPayloads("v20-payloads");
-        assertThat(flyway("21").migrate().migrationsExecuted).isEqualTo(1);
+        migrateToV21();
         assertThat(databaseSnapshot()).isEqualTo(before);
         assertThat(registryCount()).isZero();
 
@@ -122,8 +136,9 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
         assertThat(provision.exitValue()).isEqualTo(2);
         assertThat(Files.readString(evidence.resolve("in-place-provision.log")))
                 .contains("Import storage provisioning refused");
-        assertThat(Files.exists(legacyRaw.resolve(".import-binding"))).isFalse();
-        assertThat(Files.exists(legacyPlan.resolve(".import-control"))).isFalse();
+        for (Path root : List.of(legacyRaw, legacyPlan))
+            for (String name : List.of(".import-binding", ".import-control"))
+                assertThat(Files.exists(root.resolve(name))).isFalse();
 
         Running app = startCurrent(legacyRaw, legacyPlan, "unbound-current.log");
         assertThat(app.process().waitFor(45, TimeUnit.SECONDS)).isTrue();
@@ -145,7 +160,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
         Legacy sessions = createRealLegacySessions();
         Map<String, String> before = databaseSnapshot();
         Map<String, String> payloads = preserveReferencedPayloads("v20-payloads");
-        assertThat(flyway("21").migrate().migrationsExecuted).isEqualTo(1);
+        migrateToV21();
         assertThat(databaseSnapshot()).isEqualTo(before);
         assertThat(registryCount()).isZero();
 
@@ -237,7 +252,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     @Test void migratedLegacyCancelAndExpiryKeepDurableRetryUntilTheActualGuardAllowsCleanup() throws Exception {
         Legacy sessions = createRealLegacySessions();
         Map<String, String> payloads = preserveReferencedPayloads("v20-payloads");
-        assertThat(flyway("21").migrate().migrationsExecuted).isEqualTo(1);
+        migrateToV21();
         Path raw = evidence.resolve("managed-raw"), plans = evidence.resolve("managed-plan");
         Process provision = provision(raw, plans, "empty-provision.log");
         assertThat(provision.waitFor(15, TimeUnit.SECONDS)).isTrue();
@@ -343,9 +358,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     }
 
     private Legacy createRealLegacySessions() throws Exception {
-        Path jar = Path.of(required("c9.legacy.jar")).toAbsolutePath();
-        assertThat(jar).isRegularFile();
-        Running legacy = start(jar, legacyTemp, null, null, "legacy-v20.log");
+        Running legacy = start(verifiedLegacy.jar(), legacyTemp, null, null, "legacy-v20.log");
         awaitReady(legacy);
         assertThat(appliedVersion()).isEqualTo(20);
         assertThat(db.queryForObject("SELECT to_regclass('transaction_import_file_objects')::text", String.class)).isNull();
@@ -372,6 +385,10 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
         assertThat(ready.get("previewToken").asText()).isNotBlank();
         assertThat(request(legacy, "GET", path(ready, "rows"), null, null).statusCode()).isEqualTo(200);
         stop(legacy.process()); // No old writer or cleanup process remains before V21.
+        assertThat(db.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() "
+                + "AND pid<>pg_backend_pid() AND backend_type='client backend'", Integer.class)).isZero();
+        writeEvidence("legacy-process-exit.json", Map.of("pid", legacy.process().pid(),
+                "exit", legacy.process().exitValue(), "alive", legacy.process().isAlive(), "remainingConnections", 0));
         writeEvidence("v20-database.json", databaseSnapshot());
         // Tokens remain in memory only. Persist business fields, without the signed tokens.
         var identity = json.createObjectNode().put("flyway", 20).put("legacyStopped", true);
@@ -405,7 +422,8 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
         try (ServerSocket socket = new ServerSocket(0)) { port = socket.getLocalPort(); }
         ProcessBuilder builder = new ProcessBuilder(java(), "-Djava.io.tmpdir=" + tmp, "-jar", jar.toString(),
                 "--server.address=127.0.0.1", "--server.port=" + port, "--spring.profiles.active=prod",
-                "--finance.import.cleanup.enabled=false", "--finance.import.confirm.token-secret=" + confirmSecret);
+                "--finance.import.cleanup.enabled=false");
+        builder.environment().put("FINANCE_IMPORT_CONFIRM_TOKEN_SECRET", confirmSecret);
         builder.environment().put("DB_URL", databaseUrl);
         builder.environment().put("DB_USERNAME", databaseUser);
         builder.environment().put("DB_PASSWORD", databasePassword);
@@ -467,9 +485,33 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     private Map<String, String> databaseSnapshot() {
         Map<String, String> result = new TreeMap<>();
         for (String table : List.of("users", "accounts", "categories", "transactions", "transaction_import_sessions",
-                "transaction_import_batches", "transaction_import_items", "transaction_import_batch_account_impacts"))
-            result.put(table, db.queryForObject("SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id)::text,'[]') FROM " + table + " t", String.class));
+                "transaction_import_batches", "transaction_import_items", "transaction_import_batch_account_impacts")) {
+            String rows = db.queryForObject("SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id)::text,'[]') FROM " + table + " t", String.class);
+            // Preserve exact full-row equality without persisting password hashes in acceptance artifacts.
+            if (table.equals("users")) {
+                try { rows = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(rows.getBytes(StandardCharsets.UTF_8))); }
+                catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+            }
+            result.put(table, rows);
+        }
         return result;
+    }
+
+    private void migrateToV21() throws Exception {
+        Map<String, String> before = databaseSnapshot();
+        writeEvidence("pre-v21-database.json", before);
+        assertThat(flyway("21").migrate().migrationsExecuted).isEqualTo(1);
+        flyway("21").validate();
+        assertThat(databaseSnapshot()).isEqualTo(before);
+        assertThat(registryCount()).isZero();
+        assertThat(bindingCount()).isZero();
+        writeMigrationEvidence("v21-flyway.json");
+        writeEvidence("post-v21-database.json", databaseSnapshot());
+    }
+
+    private void writeMigrationEvidence(String name) throws Exception {
+        writeEvidence(name, db.queryForList("SELECT installed_rank,version,description,script,checksum,success "
+                + "FROM flyway_schema_history ORDER BY installed_rank"));
     }
 
     private Map<String, String> preserveReferencedPayloads(String name) throws Exception {
@@ -505,7 +547,7 @@ class TransactionImportLegacyUpgradePostgresIntegrationTest {
     private String status(JsonNode session) { return db.queryForObject("SELECT status FROM transaction_import_sessions WHERE id=?", String.class, UUID.fromString(session.get("importSessionId").asText())); }
     private String path(JsonNode session, String action) { return "/api/v1/imports/transactions/" + session.get("importSessionId").asText() + (action.isEmpty() ? "" : "/" + action); }
     private void writeEvidence(String name, Object value) throws Exception { Files.writeString(evidence.resolve(name), json.writerWithDefaultPrettyPrinter().writeValueAsString(value)); }
-    private static Path currentJar() { return Path.of("target/finance-os-backend-1.0.0.jar").toAbsolutePath(); }
+    private static Path currentJar() { return verifiedCurrentJar; }
     private static String java() { return Path.of(System.getProperty("java.home"), "bin", "java").toString(); }
     private static String required(String property) { return Objects.requireNonNull(System.getProperty(property), property + " must point to owned acceptance artifacts"); }
     private static void stop(Process process) throws Exception {
